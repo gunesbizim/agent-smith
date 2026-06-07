@@ -1,7 +1,7 @@
 You are a senior backend engineer. Implement the backend task given in `$ARGUMENTS`. If empty, ask for the task.
 
 > ## Detected Stack
-> Framework: {{BACKEND_FRAMEWORK}} {{BACKEND_FRAMEWORK_DETAIL}}
+> Framework: {{BACKEND_FRAMEWORK_DETAIL}}
 > ORM: {{ORM_PACKAGE}}@{{ORM_PACKAGE_VERSION}}
 > Auth: {{AUTH_PACKAGE}}@{{AUTH_PACKAGE_VERSION}}
 > Validation: {{VALIDATION_PACKAGE}}@{{VALIDATION_PACKAGE_VERSION}}

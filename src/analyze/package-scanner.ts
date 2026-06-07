@@ -454,7 +454,10 @@ function applyTestCategory(pkg: PackageUsage, category: string, name: string, ve
 // ---- Helpers ----
 
 async function readFileSafe(rootPath: string, relativePath: string): Promise<string | null> {
-  try { return await fs.readFile(path.join(rootPath, relativePath), "utf-8"); } catch { return null; }
+  try {
+    let content = await fs.readFile(path.join(rootPath, relativePath), "utf-8");
+    return content.replace(/\r\n/g, "\n"); // normalize line endings for cross-platform
+  } catch { return null; }
 }
 
 async function readJson(rootPath: string, relativePath: string): Promise<Record<string, unknown> | null> {

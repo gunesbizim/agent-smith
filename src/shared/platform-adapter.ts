@@ -1,6 +1,7 @@
 // Platform adapter interface + implementations
 import path from "node:path";
 import fs from "fs-extra";
+import { homeDir } from "./platform-utils.js";
 import type { PlatformAdapter, MCPConfigBundle, SkillFile } from "./types.js";
 
 // ---- Claude Code Adapter ----
@@ -100,14 +101,14 @@ export class CursorAdapter implements PlatformAdapter {
 export class ContinueAdapter implements PlatformAdapter {
   name = "continue";
   displayName = "Continue.dev (VS Code / JetBrains)";
-  mcpConfigPath = path.join(process.env.HOME ?? "~", ".continue", "config.json");
+  mcpConfigPath = path.join(homeDir(), ".continue", "config.json");
   mcpConfigFormat = "continue-config" as const;
-  skillsBasePath = path.join(process.env.HOME ?? "~", ".continue", "skills");
-  commandsBasePath = path.join(process.env.HOME ?? "~", ".continue", "commands");
+  skillsBasePath = path.join(homeDir(), ".continue", "skills");
+  commandsBasePath = path.join(homeDir(), ".continue", "commands");
   architectureBasePath = "docs/architecture";
 
   async installMCPs(configs: MCPConfigBundle): Promise<void> {
-    const continueDir = path.join(process.env.HOME ?? "~", ".continue");
+    const continueDir = path.join(homeDir(), ".continue");
     fs.ensureDirSync(continueDir);
 
     const configPath = path.join(continueDir, "config.json");
@@ -129,7 +130,7 @@ export class ContinueAdapter implements PlatformAdapter {
     for (const skill of skills) {
       const continuePath = skill.relativePath
         .replace(/^\.claude\//, "");
-      const destPath = path.join(process.env.HOME ?? "~", ".continue", continuePath);
+      const destPath = path.join(homeDir(), ".continue", continuePath);
       fs.ensureDirSync(path.dirname(destPath));
       await fs.writeFile(destPath, skill.content, "utf-8");
     }

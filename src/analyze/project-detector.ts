@@ -898,7 +898,7 @@ async function detectTesting(rootPath: string): Promise<TestingInfo> {
 
   // PHP testing
   if (await grepFirst(rootPath, "composer.json", "phpunit")) {
-    result.backend ??= { framework: "PHPUnit", command: "vendor/bin/phpunit" };
+    result.backend ??= { framework: "PHPUnit", command: process.platform === "win32" ? "vendor\\bin\\phpunit.bat" : "vendor/bin/phpunit" };
   }
 
   // .NET testing
@@ -962,7 +962,7 @@ async function detectLinting(rootPath: string): Promise<LintingInfo> {
 
   // PHP
   if (await grepFirst(rootPath, "composer.json", "phpstan|pint|php-cs-fixer")) {
-    result.backend ??= { tool: "phpstan/pint", command: "vendor/bin/phpstan analyse" };
+    result.backend ??= { tool: "phpstan/pint", command: process.platform === "win32" ? "vendor\\bin\\phpstan analyse" : "vendor/bin/phpstan analyse" };
   }
 
   return result;
@@ -1223,5 +1223,8 @@ async function readFileSafe(root: string, relativePath: string): Promise<string 
   if (relativePath.includes("*") || relativePath.includes("?")) {
     return await readFirstFile(root, relativePath);
   }
-  try { return await fs.readFile(path.join(root, relativePath), "utf-8"); } catch { return null; }
+  try {
+    let content = await fs.readFile(path.join(root, relativePath), "utf-8");
+    return content.replace(/\r\n/g, "\n"); // normalize line endings
+  } catch { return null; }
 }

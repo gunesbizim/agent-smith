@@ -4,6 +4,7 @@ import ora from "ora";
 import fs from "fs-extra";
 import path from "node:path";
 import { checkDependencies } from "../install/dependency-checker.js";
+import { commandExists } from "../shared/platform-utils.js";
 import type { HealthCheck, HealthReport } from "../shared/types.js";
 
 export async function doctorCommand(): Promise<void> {
@@ -44,11 +45,9 @@ export async function doctorCommand(): Promise<void> {
   // MCP servers
   const mcpServers = ["gitnexus", "git-memory", "serena"];
   for (const server of mcpServers) {
-    try {
-      const { execSync } = await import("node:child_process");
-      execSync(`which ${server}`, { stdio: "ignore" });
+    if (commandExists(server)) {
       checks.push({ name: `mcp:${server}`, status: "pass", message: `${server} installed` });
-    } catch {
+    } else {
       checks.push({
         name: `mcp:${server}`,
         status: "fail",

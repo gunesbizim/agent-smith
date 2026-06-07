@@ -10,6 +10,20 @@ npx agent-smith init
 
 ---
 
+## Prerequisites
+
+| Requirement | Why | Install |
+|-------------|-----|---------|
+| **Node.js ≥ 20** | Runtime for all JS/TS MCPs (gitnexus, git-memory, playwright, sonarqube, vuetify) | [nodejs.org](https://nodejs.org) |
+| **git ≥ 2.30** | Required by git-memory, gitnexus, and all git operations | [git-scm.com](https://git-scm.com) |
+| **Python ≥ 3.12** | Required for serena, mempalace, ouroboros (LSP symbol navigation, memory graph, PM agent) | [python.org](https://python.org) or `brew install python` |
+| **pipx** | Isolated Python package installer for serena/mempalace/ouroboros | `brew install pipx` or `pip install pipx` |
+| **GitHub CLI (`gh`)** | PR creation in autonomous pipeline (optional but recommended) | `brew install gh` or [cli.github.com](https://cli.github.com) |
+
+**Platform support:** macOS, Linux, Windows (PowerShell or WSL2 recommended for Windows).
+
+---
+
 ## How It Works
 
 ### 1. Project Analysis

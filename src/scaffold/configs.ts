@@ -1,6 +1,7 @@
 // Write MCP configuration files for the target platform
 import path from "node:path";
 import fs from "fs-extra";
+import { homeDir } from "../shared/platform-utils.js";
 import type { TemplateVariables } from "../shared/types.js";
 
 export async function scaffoldConfigs(
@@ -32,7 +33,7 @@ export async function scaffoldConfigs(
   if (platform === "continue") {
     // Continue.dev config lives at ~/.continue/config.json
     // Merge MCP servers into their format
-    const continueDir = path.join(process.env.HOME ?? "~", ".continue");
+    const continueDir = path.join(homeDir(), ".continue");
     fs.ensureDirSync(continueDir);
   }
 }

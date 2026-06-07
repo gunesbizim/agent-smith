@@ -17,6 +17,7 @@ export { generateBackendDocs, generateFrontendUserGuide } from "./docs/doc-gener
 export { planScreenshots, executeScreenshots } from "./docs/screenshot-driver.js";
 export { writeObsidianNote, buildTechnicalNote, buildUserGuideNote } from "./docs/obsidian-writer.js";
 export { PLATFORM_ADAPTERS, getPlatformAdapter, ClaudeCodeAdapter, CursorAdapter, ContinueAdapter, SmitheryAdapter } from "./shared/platform-adapter.js";
+export { homeDir, commandExists, findPython, resolveCommand, normalizeLineEndings, splitLines, venvBin, venvTool, resolveMCPCommand, PLATFORM_INFO, getPlatform } from "./shared/platform-utils.js";
 export { DEFAULT_TEMPLATE_VARS, TEMPLATE_VAR_PATTERN } from "./shared/templates.js";
 export type * from "./shared/types.js";
 export type { ScreenshotJob, ScreenshotAction } from "./docs/screenshot-driver.js";

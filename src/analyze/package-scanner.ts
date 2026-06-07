@@ -61,6 +61,8 @@ const BACKEND_CATEGORIES: CategoryMap = [
   { patterns: ["sqlalchemy"], category: "orm", canonical: "SQLAlchemy" },
   { patterns: ["gorm.io/gorm", "gorm"], category: "orm", canonical: "GORM" },
   { patterns: ["entgo.io/ent"], category: "orm", canonical: "Ent" },
+  { patterns: ["diesel"], category: "orm", canonical: "Diesel" },
+  { patterns: ["sea-orm", "sea_orm"], category: "orm", canonical: "SeaORM" },
   { patterns: ["sqlc-dev"], category: "orm", canonical: "sqlc" },
   { patterns: ["doctrine/orm"], category: "orm", canonical: "Doctrine" },
   { patterns: ["eloquent", "illuminate/database"], category: "orm", canonical: "Eloquent" },
@@ -98,17 +100,17 @@ const BACKEND_CATEGORIES: CategoryMap = [
   { patterns: ["slog"], category: "logging", canonical: "slog" },
   { patterns: ["monolog/monolog"], category: "logging", canonical: "Monolog" },
   // DB drivers
-  { patterns: ["pg", "postgres"], category: "db-driver", canonical: "pg" },
   { patterns: ["pgx"], category: "db-driver", canonical: "pgx" },
+  { patterns: ["postgres", "pg"], category: "db-driver", canonical: "pg" },
   { patterns: ["mysql2", "mysql"], category: "db-driver", canonical: "mysql2" },
   { patterns: ["better-sqlite3"], category: "db-driver", canonical: "better-sqlite3" },
   { patterns: ["lib/pq"], category: "db-driver", canonical: "lib/pq" },
   { patterns: ["go-sqlite3"], category: "db-driver", canonical: "go-sqlite3" },
   { patterns: ["clickhouse-go"], category: "db-driver", canonical: "clickhouse-go" },
   // Cache
+  { patterns: ["go-redis"], category: "cache", canonical: "go-redis" },
   { patterns: ["ioredis"], category: "cache", canonical: "ioredis" },
   { patterns: ["redis"], category: "cache", canonical: "redis" },
-  { patterns: ["go-redis"], category: "cache", canonical: "go-redis" },
   { patterns: ["@keyv/redis", "keyv"], category: "cache", canonical: "Keyv" },
 ];
 
@@ -362,11 +364,18 @@ async function mergePhpDeps(rootPath: string, deps: Record<string, string>): Pro
 async function mergeRustDeps(rootPath: string, deps: Record<string, string>): Promise<void> {
   const cargo = await readFileSafe(rootPath, "Cargo.toml");
   if (cargo) {
-    const depSection = cargo.match(/\[dependencies\]([\s\S]*?)(?:\[|\z)/);
-    if (depSection) {
-      for (const line of depSection[1].split("\n")) {
-        const m = line.trim().match(/^(\S+)\s*=\s*["'](\S+)["']/);
-        if (m) deps[m[1]] = m[2];
+    const idx = cargo.indexOf("[dependencies]");
+    if (idx >= 0) {
+      const rest = cargo.substring(idx + "[dependencies]".length);
+      const endIdx = rest.indexOf("\n[");
+      const section = endIdx >= 0 ? rest.substring(0, endIdx) : rest;
+      for (const line of section.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const m = trimmed.match(/^(\S+)\s*=\s*["'](\S+)["']/);
+        if (m) { deps[m[1]] = m[2]; continue; }
+        const im = trimmed.match(/^(\S+)\s*=\s*\{[^}]*version\s*=\s*["'](\S+)["']/);
+        if (im) deps[im[1]] = im[2];
       }
     }
   }

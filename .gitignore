@@ -5,3 +5,13 @@ dist/
 .env.local
 .DS_Store
 *.log
+
+# Runtime artifacts from test/CLI runs
+.claude/
+.cursor/
+.mcp.json
+.serena/
+docs/architecture/
+
+# Temp files
+a

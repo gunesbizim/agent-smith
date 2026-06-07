@@ -10,7 +10,7 @@
 
 Do NOT open a public issue for security vulnerabilities.
 
-Email: gunes.bizim@proton.me
+Email the repository owner (see GitHub profile for contact)
 
 Response time: < 48 hours. We will coordinate the fix and disclosure timeline.
 

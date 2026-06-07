@@ -38,6 +38,36 @@ export const DEFAULT_TEMPLATE_VARS: TemplateVariables = {
 
   LOGGING_PATTERN: "structured",
   LOGGING_CANONICAL_KEYS: "trace_id, span_id, user_id, entity_id, action",
+
+  // Package-specific
+  ORM_PACKAGE: "none",
+  ORM_PACKAGE_VERSION: "",
+  AUTH_PACKAGE: "none",
+  AUTH_PACKAGE_VERSION: "",
+  VALIDATION_PACKAGE: "none",
+  VALIDATION_PACKAGE_VERSION: "",
+  LOGGING_PACKAGE: "none",
+  LOGGING_PACKAGE_VERSION: "",
+  DB_DRIVER_PACKAGE: "none",
+  DB_DRIVER_PACKAGE_VERSION: "",
+  CACHE_PACKAGE: "none",
+  CACHE_PACKAGE_VERSION: "",
+  UI_PACKAGE: "none",
+  UI_PACKAGE_VERSION: "",
+  STATE_PACKAGE: "none",
+  STATE_PACKAGE_VERSION: "",
+  FORM_PACKAGE: "none",
+  FORM_PACKAGE_VERSION: "",
+  ROUTER_PACKAGE: "none",
+  ROUTER_PACKAGE_VERSION: "",
+  RENDER_PACKAGE: "none",
+  RENDER_PACKAGE_VERSION: "",
+  TEST_FRAMEWORK_PACKAGE: "none",
+  TEST_FRAMEWORK_PACKAGE_VERSION: "",
+  E2E_PACKAGE: "none",
+  E2E_PACKAGE_VERSION: "",
+  MOCK_PACKAGE: "none",
+  MOCK_PACKAGE_VERSION: "",
 };
 
 export const TEMPLATE_VAR_PATTERN = /\{\{(\w+)\}\}/g;

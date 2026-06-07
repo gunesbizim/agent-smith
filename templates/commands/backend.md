@@ -1,5 +1,18 @@
 You are a senior backend engineer. Implement the backend task given in `$ARGUMENTS`. If empty, ask for the task.
 
+> ## Detected Stack
+> Framework: {{BACKEND_FRAMEWORK}} {{BACKEND_FRAMEWORK_DETAIL}}
+> ORM: {{ORM_PACKAGE}}@{{ORM_PACKAGE_VERSION}}
+> Auth: {{AUTH_PACKAGE}}@{{AUTH_PACKAGE_VERSION}}
+> Validation: {{VALIDATION_PACKAGE}}@{{VALIDATION_PACKAGE_VERSION}}
+> Logging: {{LOGGING_PACKAGE}}@{{LOGGING_PACKAGE_VERSION}}
+> Database driver: {{DB_DRIVER_PACKAGE}}@{{DB_DRIVER_PACKAGE_VERSION}}
+> Cache: {{CACHE_PACKAGE}}@{{CACHE_PACKAGE_VERSION}}
+> Test framework: {{TEST_FRAMEWORK_PACKAGE}}@{{TEST_FRAMEWORK_PACKAGE_VERSION}}
+> Mock library: {{MOCK_PACKAGE}}@{{MOCK_PACKAGE_VERSION}}
+>
+> **Always use the detected libraries above.** Never introduce new dependencies unless the task explicitly requires it.
+
 > ## Binding architecture rules (MUST follow)
 > Read **`docs/architecture/backend-architecture.md`** before writing any code. Every rule there is binding and enforced at PR review. This file is the single source of truth.
 

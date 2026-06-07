@@ -177,6 +177,36 @@ export interface TemplateVariables {
   // Observability
   LOGGING_PATTERN: string;
   LOGGING_CANONICAL_KEYS: string;
+
+  // Package-specific (from package-scanner)
+  ORM_PACKAGE: string;
+  ORM_PACKAGE_VERSION: string;
+  AUTH_PACKAGE: string;
+  AUTH_PACKAGE_VERSION: string;
+  VALIDATION_PACKAGE: string;
+  VALIDATION_PACKAGE_VERSION: string;
+  LOGGING_PACKAGE: string;
+  LOGGING_PACKAGE_VERSION: string;
+  DB_DRIVER_PACKAGE: string;
+  DB_DRIVER_PACKAGE_VERSION: string;
+  CACHE_PACKAGE: string;
+  CACHE_PACKAGE_VERSION: string;
+  UI_PACKAGE: string;
+  UI_PACKAGE_VERSION: string;
+  STATE_PACKAGE: string;
+  STATE_PACKAGE_VERSION: string;
+  FORM_PACKAGE: string;
+  FORM_PACKAGE_VERSION: string;
+  ROUTER_PACKAGE: string;
+  ROUTER_PACKAGE_VERSION: string;
+  RENDER_PACKAGE: string;
+  RENDER_PACKAGE_VERSION: string;
+  TEST_FRAMEWORK_PACKAGE: string;
+  TEST_FRAMEWORK_PACKAGE_VERSION: string;
+  E2E_PACKAGE: string;
+  E2E_PACKAGE_VERSION: string;
+  MOCK_PACKAGE: string;
+  MOCK_PACKAGE_VERSION: string;
 }
 
 // ----- Pipeline -----

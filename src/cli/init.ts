@@ -6,6 +6,7 @@ import fs from "fs-extra";
 import { detectProject } from "../analyze/project-detector.js";
 import { sniffArchitecture } from "../analyze/architecture-sniffer.js";
 import { mapBestPractices } from "../analyze/best-practice-mapper.js";
+import { scanPackages } from "../analyze/package-scanner.js";
 import { checkDependencies } from "../install/dependency-checker.js";
 import { installMCPs, configureMCPs } from "../install/mcp-installer.js";
 import { scaffoldCommands } from "../scaffold/commands.js";
@@ -58,7 +59,8 @@ export async function initCommand(opts: InitOptions): Promise<void> {
 
   // Step 4 — Map best practices
   const bpSpinner = ora("Mapping best practices...").start();
-  const templateVars: TemplateVariables = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS);
+  const packageUsage = await scanPackages(cwd);
+  const templateVars: TemplateVariables = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, packageUsage);
   bpSpinner.succeed("Best practices mapped");
 
   // Step 5 — Scaffold commands

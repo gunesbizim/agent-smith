@@ -1,12 +1,14 @@
 // Map detected project patterns → template variables
 import path from "node:path";
 import type { DetectedProject, TemplateVariables } from "../shared/types.js";
+import type { PackageUsage } from "./package-scanner.js";
 import type { ArchitecturePattern } from "./architecture-sniffer.js";
 
 export function mapBestPractices(
   project: DetectedProject,
   patterns: ArchitecturePattern[],
   defaults: TemplateVariables,
+  packageUsage?: PackageUsage,
 ): TemplateVariables {
   const vars: TemplateVariables = { ...defaults };
 
@@ -127,6 +129,44 @@ export function mapBestPractices(
     vars.GIT_HOST = "github.com";
   } else if (project.cicd?.provider === "gitlab-ci") {
     vars.GIT_HOST = "gitlab.com";
+  }
+
+  // ---- Package-specific variables ----
+  if (packageUsage) {
+    vars.ORM_PACKAGE = packageUsage.orm ?? "none";
+    vars.ORM_PACKAGE_VERSION = packageUsage.ormVersion ?? "";
+    vars.AUTH_PACKAGE = packageUsage.authLibrary ?? "none";
+    vars.AUTH_PACKAGE_VERSION = packageUsage.authLibraryVersion ?? "";
+    vars.VALIDATION_PACKAGE = packageUsage.validationLibrary ?? "none";
+    vars.VALIDATION_PACKAGE_VERSION = packageUsage.validationLibraryVersion ?? "";
+    vars.LOGGING_PACKAGE = packageUsage.loggingLibrary ?? "none";
+    vars.LOGGING_PACKAGE_VERSION = packageUsage.loggingLibraryVersion ?? "";
+    vars.DB_DRIVER_PACKAGE = packageUsage.dbDriver ?? "none";
+    vars.DB_DRIVER_PACKAGE_VERSION = packageUsage.dbDriverVersion ?? "";
+    vars.CACHE_PACKAGE = packageUsage.cacheDriver ?? "none";
+    vars.CACHE_PACKAGE_VERSION = packageUsage.cacheDriverVersion ?? "";
+    vars.UI_PACKAGE = packageUsage.uiLibrary ?? "none";
+    vars.UI_PACKAGE_VERSION = packageUsage.uiLibraryVersion ?? "";
+    vars.STATE_PACKAGE = packageUsage.stateManagement ?? "none";
+    vars.STATE_PACKAGE_VERSION = packageUsage.stateManagementVersion ?? "";
+    vars.FORM_PACKAGE = packageUsage.formLibrary ?? "none";
+    vars.FORM_PACKAGE_VERSION = packageUsage.formLibraryVersion ?? "";
+    vars.ROUTER_PACKAGE = packageUsage.routerLibrary ?? "none";
+    vars.ROUTER_PACKAGE_VERSION = packageUsage.routerLibraryVersion ?? "";
+    vars.RENDER_PACKAGE = packageUsage.renderingLibrary ?? "none";
+    vars.RENDER_PACKAGE_VERSION = packageUsage.renderingLibraryVersion ?? "";
+    vars.TEST_FRAMEWORK_PACKAGE = packageUsage.testFramework ?? "none";
+    vars.TEST_FRAMEWORK_PACKAGE_VERSION = packageUsage.testFrameworkVersion ?? "";
+    vars.E2E_PACKAGE = packageUsage.e2eFramework ?? "none";
+    vars.E2E_PACKAGE_VERSION = packageUsage.e2eFrameworkVersion ?? "";
+    vars.MOCK_PACKAGE = packageUsage.mockingLibrary ?? "none";
+    vars.MOCK_PACKAGE_VERSION = packageUsage.mockingLibraryVersion ?? "";
+
+    // Override ORM with package-detected value if more specific
+    if (packageUsage.orm) vars.ORM = packageUsage.orm;
+    if (packageUsage.authLibrary) vars.AUTH_METHOD = packageUsage.authLibrary;
+    if (packageUsage.uiLibrary) vars.FRONTEND_UI_LIBRARY = packageUsage.uiLibrary;
+    if (packageUsage.stateManagement) vars.STATE_PACKAGE = packageUsage.stateManagement;
   }
 
   return vars;

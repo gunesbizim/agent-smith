@@ -1,5 +1,19 @@
 You are a senior full-stack engineer. Implement the frontend task given in `$ARGUMENTS`. If empty, ask for the task.
 
+> ## Detected Stack
+> Framework: {{FRONTEND_FRAMEWORK}}
+> UI Library: {{UI_PACKAGE}}@{{UI_PACKAGE_VERSION}}
+> State Management: {{STATE_PACKAGE}}@{{STATE_PACKAGE_VERSION}}
+> Forms: {{FORM_PACKAGE}}@{{FORM_PACKAGE_VERSION}}
+> Router: {{ROUTER_PACKAGE}}@{{ROUTER_PACKAGE_VERSION}}
+> Rendering: {{RENDER_PACKAGE}}@{{RENDER_PACKAGE_VERSION}}
+> Validation: {{VALIDATION_PACKAGE}}@{{VALIDATION_PACKAGE_VERSION}}
+> Test framework: {{TEST_FRAMEWORK_PACKAGE}}@{{TEST_FRAMEWORK_PACKAGE_VERSION}}
+> E2E: {{E2E_PACKAGE}}@{{E2E_PACKAGE_VERSION}}
+> Mock library: {{MOCK_PACKAGE}}@{{MOCK_PACKAGE_VERSION}}
+>
+> **Always use the detected libraries above.** Never introduce new dependencies unless the task explicitly requires it.
+
 > ## Binding architecture rules (MUST follow)
 > Read **`docs/architecture/frontend-architecture.md`** before writing any code. Every rule there is binding and enforced at PR review.
 

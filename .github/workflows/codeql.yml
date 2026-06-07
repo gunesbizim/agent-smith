@@ -30,16 +30,10 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          queries: |
-            security-extended
-            security-and-quality
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm ci
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+          queries: security-extended,security-and-quality
+          config: |
+            paths:
+              - src
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

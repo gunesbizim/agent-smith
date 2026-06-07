@@ -20,10 +20,11 @@ interface InitOptions {
   platform?: string;
   auto?: boolean;
   dryRun?: boolean;
+  dir?: string;
 }
 
 export async function initCommand(opts: InitOptions): Promise<void> {
-  const cwd = process.cwd();
+  const cwd = opts.dir ? path.resolve(opts.dir) : process.cwd();
   const platform = opts.platform || "claude-code";
 
   console.log(chalk.bold.cyan("\n⚒ Agent Smith — Project Initialization\n"));

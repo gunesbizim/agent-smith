@@ -63,6 +63,19 @@ export function mapBestPractices(
     // Pre-push gates
     vars.PRE_PUSH_GATES = buildPrePushGates(project);
 
+    // Type check command — language-specific
+    if (b.language === "go") {
+      vars.BACKEND_TYPE_CHECK_CMD = "go vet ./...";
+    } else if (b.language === "rust") {
+      vars.BACKEND_TYPE_CHECK_CMD = "cargo check";
+    } else if (b.language === "python") {
+      vars.BACKEND_TYPE_CHECK_CMD = "mypy .";
+    } else if (b.language === "typescript" || b.language === "javascript") {
+      vars.BACKEND_TYPE_CHECK_CMD = "npx tsc --noEmit";
+    } else {
+      vars.BACKEND_TYPE_CHECK_CMD = "";
+    }
+
     // Backend dir
     vars.BACKEND_DIR = detectBackendDir(project);
 

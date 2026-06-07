@@ -144,15 +144,14 @@ logger.info("event_name", extra={
 `;
   }
 
-  // Pre-push gates
+  // Pre-push gates — use the computed gate string
+  const gates = vars.PRE_PUSH_GATES !== "none" ? vars.PRE_PUSH_GATES.split(" + ").map((g: string) => g).join("\n") : "# No automated gates configured";
   doc += `## Pre-push CI Gates
 
-Run from ${vars.BACKEND_DIR}/ before every push:
+Run these from the project root before every push:
 
 \`\`\`bash
-${vars.BACKEND_LINT_CMD}
-${vars.BACKEND_TYPE_CHECK_CMD}
-${vars.BACKEND_TEST_CMD}
+${gates}
 \`\`\`
 
 `;

@@ -16,6 +16,7 @@ program
   .option("--platform <platform>", "Target platform", "claude-code")
   .option("--auto", "Skip interactive prompts")
   .option("--dry-run", "Show what would be done without doing it")
+  .option("--dir <dir>", "Target project directory")
   .action(async (opts) => {
     const { initCommand } = await import("./init.js");
     await initCommand(opts);

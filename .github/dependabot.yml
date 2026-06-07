@@ -1,0 +1,54 @@
+version: 2
+
+updates:
+  # npm dependencies
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Europe/Istanbul
+    versioning-strategy: auto
+    labels:
+      - dependencies
+      - npm
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    open-pull-requests-limit: 10
+    groups:
+      typescript-eslint:
+        patterns:
+          - "@types/*"
+          - "typescript"
+          - "vitest"
+      production-deps:
+        patterns:
+          - "chalk"
+          - "commander"
+          - "fs-extra"
+          - "inquirer"
+          - "ora"
+          - "semver"
+          - "tinyglobby"
+          - "which"
+        dependency-type: production
+    reviewers:
+      - gunesbizim
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Europe/Istanbul
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "chore(ci)"
+    reviewers:
+      - gunesbizim

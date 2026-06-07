@@ -110,7 +110,7 @@ export interface MonorepoInfo {
 }
 
 export interface DatabaseInfo {
-  engine: "postgresql" | "mysql" | "sqlite" | "mongodb" | "mssql" | "unknown";
+  engine: "postgresql" | "mysql" | "sqlite" | "mongodb" | "mssql" | "clickhouse" | "unknown";
   orm: string | null;
 }
 

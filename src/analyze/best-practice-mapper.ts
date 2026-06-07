@@ -1,4 +1,5 @@
 // Map detected project patterns → template variables
+import path from "node:path";
 import type { DetectedProject, TemplateVariables } from "../shared/types.js";
 import type { ArchitecturePattern } from "./architecture-sniffer.js";
 
@@ -106,7 +107,7 @@ export function mapBestPractices(
   }
 
   // ---- Project ----
-  vars.PROJECT_NAME = project.rootPath.split("/").pop() ?? "my-project";
+  vars.PROJECT_NAME = path.basename(path.resolve(project.rootPath)) || "my-project";
   vars.REPO_NAME = vars.PROJECT_NAME;
 
   if (project.cicd?.provider === "github-actions") {
@@ -125,17 +126,15 @@ function capitalize(s: string): string {
 function buildPrePushGates(project: DetectedProject): string {
   const gates: string[] = [];
 
-  if (project.linting.backend) {
-    gates.push(project.linting.backend.command);
-  }
-  if (project.testing.backend) {
-    gates.push(project.testing.backend.command);
-  }
+  // Backend gates
+  if (project.linting.backend) gates.push(project.linting.backend.command);
+  if (project.testing.backend) gates.push(project.testing.backend.command);
+  if (project.backend?.language === "python") gates.push("mypy .");
 
-  // Add type checking if Python
-  if (project.backend?.language === "python") {
-    gates.push("mypy .");
-  }
+  // Frontend gates
+  if (project.linting.frontend) gates.push(project.linting.frontend.command);
+  if (project.testing.frontend) gates.push(project.testing.frontend.command);
+  if (project.frontend?.usesTypeScript) gates.push("npx tsc --noEmit");
 
   return gates.length > 0 ? gates.join(" + ") : "none";
 }

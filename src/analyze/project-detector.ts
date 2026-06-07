@@ -31,22 +31,58 @@ export async function detectProject(rootPath: string): Promise<DetectedProject> 
     database: null,
   };
 
-  project.backend = await detectBackend(rootPath);
-  project.frontend = await detectFrontend(rootPath);
+  // Detect monorepo first — affects where we search
+  project.monorepo = await detectMonorepo(rootPath);
+
+  project.backend = await detectBackend(rootPath, project);
+  project.frontend = await detectFrontend(rootPath, project);
   project.testing = await detectTesting(rootPath);
   project.linting = await detectLinting(rootPath);
   project.cicd = await detectCICD(rootPath);
-  project.monorepo = await detectMonorepo(rootPath);
   project.database = await detectDatabase(rootPath, project.backend);
 
   return project;
+}
+
+// Get all search roots: the project root plus any workspace packages
+function getSearchRoots(rootPath: string, project: DetectedProject): string[] {
+  const roots = [rootPath];
+  if (project.monorepo) {
+    // Add common monorepo subdirs
+    for (const subdir of ["apps", "packages", "services", "libs"]) {
+      const subPath = path.join(rootPath, subdir);
+      if (fs.existsSync(subPath)) {
+        roots.push(subPath);
+      }
+    }
+  }
+  return roots;
 }
 
 // ============================================================
 // Backend detection — all languages gitnexus supports
 // ============================================================
 
-async function detectBackend(rootPath: string): Promise<BackendInfo | null> {
+// Find all package.json files in monorepo subdirectories
+async function findSubPackages(rootPath: string): Promise<string[]> {
+  const dirs: string[] = [];
+  for (const subdir of ["apps", "packages", "services", "libs"]) {
+    const subPath = path.join(rootPath, subdir);
+    try {
+      if (await fs.pathExists(subPath)) {
+        const entries = await fs.readdir(subPath, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory() && !entry.name.startsWith(".")) {
+            dirs.push(path.join(subPath, entry.name));
+          }
+        }
+      }
+    } catch {}
+  }
+  return dirs;
+}
+
+async function detectBackend(rootPath: string, project?: DetectedProject): Promise<BackendInfo | null> {
   // ---- Python ----
   if (await fileExists(rootPath, "**/pyproject.toml") || await fileExists(rootPath, "requirements.txt") || await fileExists(rootPath, "**/setup.py")) {
 
@@ -479,6 +515,61 @@ async function detectBackend(rootPath: string): Promise<BackendInfo | null> {
     };
   }
 
+  // ---- Monorepo subdirectory search (go, rust, typescript) ----
+  if (project?.monorepo) {
+    const subDirs = await findSubPackages(rootPath);
+    for (const subDir of subDirs) {
+      // Go backends in subdirs
+      if (await fileExists(subDir, "go.mod")) {
+        const goMod = await readFileSafe(subDir, "go.mod") ?? "";
+        const result = detectGoBackend(subDir, goMod);
+        if (result) return result;
+      }
+      // Rust backends in subdirs
+      if (await fileExists(subDir, "Cargo.toml")) {
+        const cargo = await readFileSafe(subDir, "Cargo.toml") ?? "";
+        const result = detectRustBackend(subDir, cargo);
+        if (result) return result;
+      }
+      // TypeScript backends in subdirs (Hono, Express, NestJS, etc.)
+      const subPkg = await readJson(subDir, "package.json");
+      if (subPkg) {
+        const deps = pkgDeps(subPkg);
+        if (deps.hono) {
+          return { framework: "hono", language: "typescript", languageVersion: "5.x", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
+        }
+        if (deps.express) {
+          return { framework: "express", language: "typescript", languageVersion: "5.x", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: nodeORM(deps) };
+        }
+        if (deps.fastify) {
+          return { framework: "fastify", language: "typescript", languageVersion: "5.x", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: nodeORM(deps) };
+        }
+        if (deps["@nestjs/core"]) {
+          return { framework: "nestjs", language: "typescript", languageVersion: "5.x", hasHexagonalArch: false, hasServiceRepo: true, usesAPIView: false, usesFunctionViews: false, importStyle: "absolute", rolePattern: "decorators", authMethod: "JWT", loggingPattern: "structured", orm: deps["@prisma/client"] ? "Prisma" : null };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function detectGoBackend(subDir: string, goMod: string): BackendInfo | null {
+  if (goMod.includes("gin-gonic/gin")) return { framework: "gin", language: "go", languageVersion: "1.25", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : goMod.includes("ent") ? "Ent" : null };
+  if (goMod.includes("labstack/echo")) return { framework: "echo", language: "go", languageVersion: "1.25", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
+  if (goMod.includes("gofiber/fiber")) return { framework: "fiber", language: "go", languageVersion: "1.25", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
+  if (goMod.includes("go-chi/chi")) return { framework: "chi", language: "go", languageVersion: "1.25", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
+  if (goMod.includes("github.com/") || goMod.includes("module ")) {
+    return { framework: "generic-server", language: "go", languageVersion: "1.25", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: goMod.includes("jwt") ? "JWT" : "none", loggingPattern: goMod.includes("pino") || goMod.includes("logrus") || goMod.includes("zap") ? "structured" : "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : goMod.includes("ent") ? "Ent" : null };
+  }
+  return null;
+}
+
+function detectRustBackend(subDir: string, cargo: string): BackendInfo | null {
+  if (cargo.includes("actix-web")) return { framework: "actix-web", language: "rust", languageVersion: "stable", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", orm: cargo.includes("diesel") ? "Diesel" : cargo.includes("sqlx") ? "SQLx" : null };
+  if (cargo.includes("axum")) return { framework: "axum", language: "rust", languageVersion: "stable", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", orm: cargo.includes("sqlx") ? "SQLx" : null };
+  if (cargo.includes("rocket")) return { framework: "rocket", language: "rust", languageVersion: "stable", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "session", loggingPattern: "unstructured", orm: cargo.includes("diesel") ? "Diesel" : null };
+  if (cargo.includes("[package]")) return { framework: "generic-server", language: "rust", languageVersion: "stable", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "none", authMethod: "none", loggingPattern: "unstructured", orm: null };
   return null;
 }
 
@@ -486,9 +577,43 @@ async function detectBackend(rootPath: string): Promise<BackendInfo | null> {
 // Frontend detection — all frameworks gitnexus supports
 // ============================================================
 
-async function detectFrontend(rootPath: string): Promise<FrontendInfo | null> {
-  const pkg = await readJson(rootPath, "frontend/package.json")
-    ?? await readJson(rootPath, "package.json");
+async function detectFrontend(rootPath: string, project?: DetectedProject): Promise<FrontendInfo | null> {
+  // First, check common frontend directories
+  let pkg = await readJson(rootPath, "frontend/package.json");
+
+  // Then search monorepo subdirectories for frontend packages (before root package.json)
+  if (!pkg && project?.monorepo) {
+    const subDirs = await findSubPackages(rootPath);
+    for (const subDir of subDirs) {
+      const subPkg = await readJson(subDir, "package.json");
+      if (subPkg) {
+        const deps = pkgDeps(subPkg);
+        if (deps.react || deps.vue || deps.svelte || deps["@angular/core"] || deps["solid-js"] || deps["@builder.io/qwik"] || deps.astro) {
+          pkg = subPkg;
+          break;
+        }
+      }
+    }
+    // Also check client/web/ui subdirs at root
+    for (const dir of ["client", "web", "ui"]) {
+      const subPkg = await readJson(rootPath, `${dir}/package.json`);
+      if (subPkg) {
+        const deps = pkgDeps(subPkg);
+        if (deps.react || deps.vue || deps.svelte) { pkg = subPkg; break; }
+      }
+    }
+  }
+
+  // Fall back to root package.json only if it has UI framework deps (not just build tools)
+  if (!pkg) {
+    const rootPkg = await readJson(rootPath, "package.json");
+    if (rootPkg) {
+      const deps = pkgDeps(rootPkg);
+      if (deps.react || deps.vue || deps.svelte || deps["@angular/core"] || deps["solid-js"] || deps["@builder.io/qwik"] || deps.astro) {
+        pkg = rootPkg;
+      }
+    }
+  }
 
   if (!pkg) {
     // Check for non-npm frontends
@@ -703,9 +828,40 @@ async function detectTesting(rootPath: string): Promise<TestingInfo> {
     result.backend ??= { framework: "unittest", command: "python -m unittest" };
   }
 
-  // JS/TS testing
-  const pkg = await readJson(rootPath, "package.json");
-  if (pkg) {
+  // JS/TS testing — check root + monorepo subdirs
+  let pkg = await readJson(rootPath, "package.json");
+  // Also check monorepo subdirs for test frameworks
+  const subDirs = await findSubPackages(rootPath);
+  const allPkgs: Record<string, unknown>[] = pkg ? [pkg] : [];
+  for (const subDir of subDirs) {
+    const sp = await readJson(subDir, "package.json");
+    if (sp) allPkgs.push(sp);
+  }
+  // Also check client/web/frontend at root
+  for (const dir of ["client", "web", "frontend"]) {
+    const sp = await readJson(rootPath, `${dir}/package.json`);
+    if (sp) allPkgs.push(sp);
+  }
+
+  for (const aPkg of allPkgs) {
+    const deps = pkgDeps(aPkg);
+    if (!result.frontend && deps.vitest) {
+      result.frontend = { framework: "vitest", command: "npx vitest run" };
+    } else if (!result.frontend && deps.jest) {
+      result.frontend = { framework: "jest", command: "npx jest" };
+    } else if (!result.frontend && deps.mocha) {
+      result.frontend = { framework: "mocha", command: "npx mocha" };
+    } else if (!result.frontend && deps["@playwright/test"]) {
+      result.frontend = { framework: "playwright", command: "npx playwright test" };
+    } else if (!result.frontend && deps.cypress) {
+      result.frontend = { framework: "cypress", command: "npx cypress run" };
+    }
+  }
+  // Keep pkg for the old detection path below
+  pkg = allPkgs[0] ?? null;
+
+  // Old JS/TS test detection (for projects with single package.json)
+  if (pkg && !result.frontend) {
     const deps = pkgDeps(pkg);
     if (deps.vitest) {
       result.frontend = { framework: "vitest", command: "npx vitest run" };
@@ -770,13 +926,26 @@ async function detectLinting(rootPath: string): Promise<LintingInfo> {
     result.backend = { tool: "pylint", command: "pylint ." };
   }
 
-  // JS/TS
-  const pkg = await readJson(rootPath, "package.json");
-  if (pkg) {
-    const deps = pkgDeps(pkg);
-    if (deps.eslint) {
+  // JS/TS — check root + monorepo subdirs
+  const lintPkgs: Record<string, unknown>[] = [];
+  const rootLintPkg = await readJson(rootPath, "package.json");
+  if (rootLintPkg) lintPkgs.push(rootLintPkg);
+  const lintSubDirs = await findSubPackages(rootPath);
+  for (const subDir of lintSubDirs) {
+    const sp = await readJson(subDir, "package.json");
+    if (sp) lintPkgs.push(sp);
+  }
+  // Also root-level client/web/frontend
+  for (const dir of ["client", "web", "frontend"]) {
+    const sp = await readJson(rootPath, `${dir}/package.json`);
+    if (sp) lintPkgs.push(sp);
+  }
+  for (const lp of lintPkgs) {
+    const deps = pkgDeps(lp);
+    if (!result.frontend && (deps.eslint || deps["@eslint/config"])) {
       result.frontend = { tool: "eslint", command: "npx eslint src --ext .ts,.vue" };
-    } else if (deps.biome) {
+    }
+    if (!result.frontend && (deps.biome || deps["@biomejs/biome"])) {
       result.frontend = { tool: "biome", command: "npx biome check ." };
     }
   }
@@ -855,10 +1024,30 @@ async function detectDatabase(rootPath: string, backend: BackendInfo | null): Pr
     if (dbYml.includes("sqlite")) return { engine: "sqlite", orm: "ActiveRecord" };
   }
 
-  // Go
+  // Go — check go.mod for database drivers
   if (backend.language === "go") {
+    const goMods = await findSubPackageGoMods(rootPath);
+    for (const goMod of goMods) {
+      if (goMod.includes("pgx") || goMod.includes("lib/pq")) return { engine: "postgresql", orm: "sqlc" };
+      if (goMod.includes("go-sqlite3") || goMod.includes("sqlite")) return { engine: "sqlite", orm: null };
+      if (goMod.includes("clickhouse-go")) return { engine: "clickhouse", orm: null };
+      if (goMod.includes("go-mysql") || goMod.includes("mysql-driver")) return { engine: "mysql", orm: null };
+      if (goMod.includes("mongo-driver") || goMod.includes("mongo")) return { engine: "mongodb", orm: null };
+    }
     if (backend.orm === "GORM" || backend.orm === "Ent" || backend.orm === "sqlx") {
       return { engine: "postgresql", orm: backend.orm };
+    }
+  }
+
+  // TypeScript — check package.json for database drivers
+  if (backend.language === "typescript" || backend.language === "javascript") {
+    const allPkgs = await findAllPackageJsons(rootPath);
+    for (const pkg of allPkgs) {
+      const deps = pkgDeps(pkg);
+      if (deps.postgres || deps["pg"] || deps["pgx"]) return { engine: "postgresql", orm: deps.drizzle ? "Drizzle" : deps.prisma ? "Prisma" : null };
+      if (deps.mysql || deps["mysql2"]) return { engine: "mysql", orm: deps.drizzle ? "Drizzle" : deps.prisma ? "Prisma" : null };
+      if (deps["better-sqlite3"] || deps["sqlite3"]) return { engine: "sqlite", orm: null };
+      if (deps.mongoose || deps.mongodb) return { engine: "mongodb", orm: "Mongoose" };
     }
   }
 
@@ -928,6 +1117,34 @@ async function pyVersion(rootPath: string): Promise<string> {
   const m2 = pyproject.match(/requires-python\s*=\s*"[>=]+\s*(\d+\.\d+)/);
   if (m2) return m2[1];
   return "3.12";
+}
+
+// Collect go.mod contents from all monorepo subdirs
+async function findSubPackageGoMods(rootPath: string): Promise<string[]> {
+  const mods: string[] = [];
+  // Try root-first
+  const rootMod = await readFileSafe(rootPath, "go.mod");
+  if (rootMod) mods.push(rootMod);
+  // Then subdirs
+  const subDirs = await findSubPackages(rootPath);
+  for (const subDir of subDirs) {
+    const mod = await readFileSafe(subDir, "go.mod");
+    if (mod) mods.push(mod);
+  }
+  return mods;
+}
+
+// Collect all package.json from root + monorepo subdirs
+async function findAllPackageJsons(rootPath: string): Promise<Record<string, unknown>[]> {
+  const pkgs: Record<string, unknown>[] = [];
+  const rootPkg = await readJson(rootPath, "package.json");
+  if (rootPkg) pkgs.push(rootPkg);
+  const subDirs = await findSubPackages(rootPath);
+  for (const subDir of subDirs) {
+    const p = await readJson(subDir, "package.json");
+    if (p) pkgs.push(p);
+  }
+  return pkgs;
 }
 
 // ---- Generic file/dir operations ----

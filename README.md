@@ -8,12 +8,121 @@ One command to bootstrap any project:
 npx agent-smith init
 ```
 
-## What it does
+---
 
-1. **Analyzes** your codebase — detects frameworks (22 backends, 16 frontends), languages, ORMs, test runners, linters, CI/CD
-2. **Installs** MCP servers — gitnexus, git-memory, serena, playwright, chrome-devtools, sonarqube, obsidian, mempalace, jira
-3. **Scaffolds** skills — commands and worker skills customized to your tech stack via `{{PLACEHOLDER}}` templates
-4. **Configures** everything — writes `.claude/settings.json`, `.mcp.json`, architecture docs
+## How It Works
+
+### 1. Project Analysis
+
+Agent Smith scans your repository and identifies:
+
+- **Framework** — 38 backends and 16 frontends across 12 languages
+- **Package manager** — npm, pnpm, yarn, Go modules, pip, composer, Cargo
+- **Active libraries** — scans lock files and package manifests to find exactly which ORM, auth library, validation library, logger, database driver, cache driver, UI framework, state manager, form library, router, rendering engine, test framework, E2E tool, and mocking library your project actually uses
+- **Testing & linting** — pytest, vitest, jest, golangci-lint, ruff, biome, eslint, and more
+- **CI/CD** — GitHub Actions, GitLab CI, CircleCI
+- **Monorepo** — Turborepo, Nx, Lerna, pnpm workspaces
+
+### 2. MCP Server Auto-Configuration
+
+Agent Smith installs and configures the MCP servers your project needs. Each server has a specific job in the pipeline:
+
+| MCP Server | Role in Pipeline | When It's Used |
+|------------|-----------------|----------------|
+| **gitnexus** | Code intelligence graph — execution flows, blast radius, impact analysis | **Every phase.** Before any code is read or written, gitnexus maps what depends on what, so changes are surgically precise |
+| **git-memory** | Semantic search over git history — past decisions, bug fixes, file timelines | **Planning & Review.** Answers "why was this built this way?" and "is this reverting a deliberate fix?" |
+| **serena** | LSP-backed symbol navigation — find, rename, insert, delete symbols safely | **Implementation.** Replaces grep/read/find with precise symbol-level edits and instant diagnostics |
+| **playwright** | Deterministic browser automation — navigate, screenshot, fill forms | **Frontend verification & Documentation.** Drives the app in a real browser, captures screenshots per role |
+| **chrome-devtools** | Deep debugging — console, network, performance, lighthouse | **Frontend debugging.** Inspects console errors, network failures, computed styles, a11y scores |
+| **sonarqube** | Static analysis — issues, quality gates, hotspots, coverage | **Quality gate.** Runs before PR to catch bugs, security holes, and duplication |
+| **obsidian** | Knowledge vault — read/write structured documentation | **Documentation.** Writes technical notes and user guides to the team's knowledge base |
+| **mempalace** | Persistent memory graph — cross-session knowledge | **Context.** Remembers past decisions, patterns, and preferences across sessions |
+| **ouroboros** | PM agent — seed-based interviews, AC generation | **Planning.** Takes business requirements and generates acceptance criteria |
+| **jira** | Issue tracking — create, update, search tickets | **Pipeline entry.** A Jira ticket triggers the full autonomous pipeline |
+| **vuetify** | Vuetify 3 component API lookup | **Frontend.** Never guesses Vuetify prop/slot/event names |
+
+### 3. Skill Scaffolding & Customization
+
+Agent Smith generates 12 skill files customized to your project:
+
+```
+.claude/
+├── commands/              ← User-facing slash commands
+│   ├── backend.md         ← /backend — implements backend tasks
+│   ├── frontend.md        ← /frontend — implements frontend tasks
+│   ├── test.md            ← /test — orchestrates test writing
+│   ├── pr-review.md       ← /pr-review — orchestrates PR review
+│   ├── documentation.md   ← /documentation — generates docs
+│   └── git.md             ← /git — conventional commits
+├── skills/                ← Worker skills (run in subagents)
+│   ├── pr-review-backend/SKILL.md
+│   ├── pr-review-frontend/SKILL.md
+│   ├── test-backend/SKILL.md
+│   ├── test-frontend/SKILL.md
+│   ├── docs-backend/SKILL.md
+│   └── docs-frontend/SKILL.md
+└── settings.json          ← MCP server configs + permissions
+```
+
+Each skill is templated with `{{PLACEHOLDER}}` variables that get replaced with your actual stack. For example, in a Go/Echo + React/Zustand project:
+
+- `{{BACKEND_LINT_CMD}}` → `golangci-lint run` (not ruff)
+- `{{BACKEND_TEST_CMD}}` → `go test ./...` (not pytest)
+- `{{ORM_PACKAGE}}` → `sqlc@v0.3.0` (not Django ORM)
+- `{{STATE_PACKAGE}}` → `Zustand@4.5` (not Pinia)
+
+### 4. Autonomous Pipeline
+
+```
+Jira Ticket
+    │
+    ▼
+┌─ PLAN ──────────────────────────────────────────┐
+│ gitnexus_query → impact → context → route_map   │
+│ ouroboros_pm_interview → AC generation          │
+│ Produces: scoped implementation plan            │
+└─────────────────────────────────────────────────┘
+    │
+    ▼
+┌─ IMPLEMENT ─────────────────────────────────────┐
+│ serena find_symbol → insert → replace → diagnose│
+│ vuetify component API lookup (frontend)         │
+│ gitnexus_detect_changes (mid-impl check)        │
+│ Produces: working code, diagnostics clean       │
+└─────────────────────────────────────────────────┘
+    │
+    ▼
+┌─ TEST ──────────────────────────────────────────┐
+│ Dispatch test-backend + test-frontend skills    │
+│ Run pytest/vitest/go test/cargo test            │
+│ Produces: all tests passing                     │
+└─────────────────────────────────────────────────┘
+    │
+    ▼
+┌─ REVIEW ────────────────────────────────────────┐
+│ Self-review via pr-review skills                │
+│ gitnexus_shape_check + api_impact               │
+│ sonarqube quality gate                          │
+│ Produces: review report, blockers fixed         │
+└─────────────────────────────────────────────────┘
+    │
+    ▼
+┌─ DOCUMENT ──────────────────────────────────────┐
+│ playwright → drive app per role → screenshots   │
+│ serena insert_before_symbol → API annotations   │
+│ obsidian → write technical notes + user guide   │
+│ Produces: docs updated, screenshots captured    │
+└─────────────────────────────────────────────────┘
+    │
+    ▼
+┌─ PR ────────────────────────────────────────────┐
+│ git add + conventional commit                   │
+│ git push + gh pr create                         │
+│ Produces: PR linked to Jira ticket              │
+└─────────────────────────────────────────────────┘
+```
+
+---
 
 ## CLI
 
@@ -26,7 +135,11 @@ npx agent-smith ticket PROJ-123  # Jira ticket → autonomous pipeline
 npx agent-smith pipeline          # Run pipeline on current branch
 ```
 
-## Supported stacks
+---
+
+## Supported Stacks
+
+All stacks that gitnexus can index — 38 frameworks across 12 languages.
 
 | Language | Backends | Frontends |
 |----------|----------|-----------|
@@ -43,52 +156,24 @@ npx agent-smith pipeline          # Run pipeline on current branch
 | Dart | — | Flutter |
 | Scala | Play Framework | — |
 
-All stacks that gitnexus can index. Detector recognizes 38 frameworks across 12 languages.
+**Active library detection** covers 100+ packages across 14 categories (ORM, auth, validation, logging, DB driver, cache, UI, state management, forms, routing, rendering, testing, E2E, mocking).
 
-## Architecture
+---
 
-```
-templates/           ← Skill stubs with {{PLACEHOLDER}} vars
-├── commands/        ← 6 orchestrator commands
-├── skills/          ← 6 worker skills (pr-review, test, docs × backend/frontend)
-└── configs/         ← MCP config templates
+## Verification
 
-src/
-├── analyze/         ← Detects framework, conventions, patterns
-├── adapt/           ← Template engine + skill customizer
-├── install/         ← MCP registry + dependency checker + installer
-├── scaffold/        ← Writes commands/skills/configs
-├── jira/            ← Ticket parsing + epic decomposition
-├── pipeline/        ← 6-phase autonomous orchestrator
-├── docs/            ← API docs + Playwright screenshots + Obsidian notes
-└── shared/          ← Types, templates, platform adapters
+```bash
+npm test        # 212 tests, 14 test files, zero failures
+npx tsc --noEmit # zero type errors
 ```
 
-## Pipeline phases
-
-```
-ticket → PLAN → IMPLEMENT → TEST → REVIEW → DOCUMENT → PR
-          ↑ gitnexus    ↑ serena   ↑ pytest/   ↑ self-    ↑ playwright ↑ gh pr
-            impact       symbol     vitest/    review     obsidian    create
-            analysis      nav       jest
-```
-
-## Package contents
-
-```
-agent-smith/
-├── bin/agent-smith.js    CLI entry
-├── src/                  TypeScript source (28 modules)
-├── templates/            Skill stubs + architecture templates
-├── smithery.yaml         Smithery one-click deployment
-├── package.json
-└── vitest.config.ts      212 tests, 14 test files
-```
-
-## Import / integrate
+## Import / Integrate
 
 ```typescript
 import { detectProject, installMCPs, scaffoldSkills, customizeSkills } from "agent-smith";
 ```
 
 Or via Smithery: `smithery install agent-smith`
+
+**Repo:** https://github.com/gunesbizim/agent-smith
+**License:** MIT

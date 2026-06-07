@@ -1,0 +1,112 @@
+#!/usr/bin/env node
+/**
+ * SessionStart hook — runs agent-smith health check at the start of every session.
+ * Injects diagnostic info as additional context for the LLM.
+ *
+ * Configure in .claude/settings.json:
+ *   "SessionStart": [{ "hooks": [{ "type": "command", "command": "node hooks/session-start-doctor.js" }] }]
+ */
+const { execSync } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
+
+function cwd() {
+  // The hook runs from the project root (Claude Code sets CWD to project root)
+  return process.cwd();
+}
+
+function cmd(command) {
+  try {
+    return execSync(command, { encoding: "utf-8", timeout: 5000, cwd: cwd() }).trim();
+  } catch {
+    return null;
+  }
+}
+
+// ---- Gather diagnostics ----
+
+const report = {
+  hookEventName: "SessionStart",
+  timestamp: new Date().toISOString(),
+  platform: process.platform,
+  nodeVersion: process.version,
+  projectRoot: cwd(),
+  checks: [],
+};
+
+// Git state
+const branch = cmd("git branch --show-current 2>/dev/null");
+const hasChanges = cmd("git diff --stat 2>/dev/null");
+report.git = {
+  branch: branch || "not a git repo",
+  isRepo: !!branch,
+  hasUncommittedChanges: !!hasChanges,
+  latestCommit: cmd("git log --oneline -1 2>/dev/null") || "none",
+};
+
+// Project setup
+const hasClaudeDir = fs.existsSync(path.join(cwd(), ".claude"));
+const hasSkills = fs.existsSync(path.join(cwd(), ".claude", "skills"));
+const hasCommands = fs.existsSync(path.join(cwd(), ".claude", "commands"));
+const hasSettings = fs.existsSync(path.join(cwd(), ".claude", "settings.json"));
+const hasArchDocs = fs.existsSync(path.join(cwd(), "docs", "architecture"));
+
+report.setup = {
+  hasClaudeDir,
+  hasSkills,
+  hasCommands,
+  hasSettings,
+  hasArchDocs,
+  initialized: hasSkills && hasCommands,
+};
+
+// MCP health check
+const mcpStatus = [];
+const mcpServers = ["gitnexus", "git-memory", "serena"];
+for (const server of mcpServers) {
+  mcpStatus.push({
+    server,
+    installed: !!cmd(process.platform === "win32" ? `where ${server}` : `command -v ${server}`),
+  });
+}
+report.mcp = mcpStatus;
+
+// GitNexus index freshness
+const gitnexusContext = cmd("gitnexus context 2>/dev/null");
+report.gitnexus = {
+  available: !!gitnexusContext,
+  stale: gitnexusContext ? gitnexusContext.includes("stale") : false,
+};
+
+// Generate context for the LLM
+let additionalContext = "";
+
+if (!report.setup.initialized) {
+  additionalContext += `\n⚠ Agent Smith not initialized — run \`npx agent-smith init\` to set up skills and MCPs.\n`;
+} else {
+  additionalContext += `\n✓ Agent Smith skills are set up (${report.projectRoot}/.claude/)\n`;
+}
+
+const missingMCPs = mcpStatus.filter((m) => !m.installed);
+if (missingMCPs.length > 0) {
+  additionalContext += `\n⚠ Missing MCPs: ${missingMCPs.map((m) => m.server).join(", ")}. Run \`npx agent-smith configure\`.\n`;
+}
+
+if (report.git.isRepo && report.git.hasUncommittedChanges) {
+  additionalContext += `\n⚠ Uncommitted changes on branch "${report.git.branch}". Consider running /git when done.\n`;
+  additionalContext += `Files changed:\n${hasChanges}\n`;
+}
+
+if (report.gitnexus.stale) {
+  additionalContext += `\n⚠ GitNexus index is stale. Run \`npx gitnexus analyze\` to refresh.\n`;
+}
+
+// Output must be JSON with hookSpecificOutput
+const output = {
+  hookSpecificOutput: {
+    hookEventName: "SessionStart",
+    additionalContext: additionalContext.trim(),
+  },
+};
+
+console.log(JSON.stringify(output));

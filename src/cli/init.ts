@@ -12,6 +12,7 @@ import { installMCPs, configureMCPs } from "../install/mcp-installer.js";
 import { scaffoldCommands } from "../scaffold/commands.js";
 import { scaffoldSkills } from "../scaffold/skills.js";
 import { scaffoldConfigs } from "../scaffold/configs.js";
+import { scaffoldHooks } from "../scaffold/hooks.js";
 import { customizeSkills } from "../adapt/skill-customizer.js";
 import { writeArchitectureDocs } from "../adapt/architecture-writer.js";
 import type { TemplateVariables } from "../shared/types.js";
@@ -94,10 +95,16 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   await scaffoldConfigs(targetDir, platform, opts.dryRun);
   configSpinner.succeed("MCP configurations written");
 
+  // Step 11 — Scaffold hooks
+  const hooksSpinner = ora("Setting up automation hooks...").start();
+  await scaffoldHooks(targetDir, opts.dryRun);
+  hooksSpinner.succeed("Automation hooks configured");
+
   console.log(chalk.bold.green("\n✓ Agent Smith initialized successfully!\n"));
   console.log(chalk.white("Next steps:"));
-  console.log(chalk.gray("  1. Restart Claude Code to load new MCP servers"));
-  console.log(chalk.gray("  2. Try: /backend 'add a health endpoint'"));
-  console.log(chalk.gray("  3. Try: /frontend 'create a dashboard view'"));
-  console.log(chalk.gray("  4. Run: npx agent-smith doctor for health check\n"));
+  console.log(chalk.gray("  1. Restart Claude Code to load new MCP servers, skills, and hooks"));
+  console.log(chalk.gray("  2. Hooks will auto-check health on session start, guard git ops, detect changes on stop"));
+  console.log(chalk.gray("  3. Try: /backend 'add a health endpoint'"));
+  console.log(chalk.gray("  4. Try: /frontend 'create a dashboard view'"));
+  console.log(chalk.gray("  5. Run: npx agent-smith doctor for health check\n"));
 }

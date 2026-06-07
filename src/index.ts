@@ -1,0 +1,25 @@
+// Library entry point — programmatic API for agent-smith
+export { detectProject } from "./analyze/project-detector.js";
+export { sniffArchitecture } from "./analyze/architecture-sniffer.js";
+export { mapBestPractices } from "./analyze/best-practice-mapper.js";
+export { checkDependencies } from "./install/dependency-checker.js";
+export { installMCPs, configureMCPs } from "./install/mcp-installer.js";
+export { MCP_REGISTRY, getMCPServer, getMCPByCategory, getMCPByScope } from "./install/registry.js";
+export { scaffoldCommands } from "./scaffold/commands.js";
+export { scaffoldSkills } from "./scaffold/skills.js";
+export { scaffoldConfigs } from "./scaffold/configs.js";
+export { customizeSkills } from "./adapt/skill-customizer.js";
+export { writeArchitectureDocs } from "./adapt/architecture-writer.js";
+export { resolveTemplate, extractPlaceholders, validateTemplates } from "./adapt/template-engine.js";
+export { parseJiraTicket, decomposeEpic, mapWorkflowToBranch, extractTechnicalRequirements } from "./jira/ticket-parser.js";
+export { runPipeline } from "./pipeline/orchestrator.js";
+export { generateBackendDocs, generateFrontendUserGuide } from "./docs/doc-generator.js";
+export { planScreenshots, executeScreenshots } from "./docs/screenshot-driver.js";
+export { writeObsidianNote, buildTechnicalNote, buildUserGuideNote } from "./docs/obsidian-writer.js";
+export { PLATFORM_ADAPTERS, getPlatformAdapter, ClaudeCodeAdapter, CursorAdapter, ContinueAdapter, SmitheryAdapter } from "./shared/platform-adapter.js";
+export { DEFAULT_TEMPLATE_VARS, TEMPLATE_VAR_PATTERN } from "./shared/templates.js";
+export type * from "./shared/types.js";
+export type { ScreenshotJob, ScreenshotAction } from "./docs/screenshot-driver.js";
+export type { ObsidianNote } from "./docs/obsidian-writer.js";
+export type { ArchitecturePattern } from "./analyze/architecture-sniffer.js";
+export type { DepCheckResult } from "./install/dependency-checker.js";

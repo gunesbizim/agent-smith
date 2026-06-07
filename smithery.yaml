@@ -1,0 +1,174 @@
+# Smithery Deployment — Agent Smith
+# One-click install: smithery install agent-smith
+# https://smithery.ai
+
+name: agent-smith
+version: 0.1.0
+description: >
+  Autonomous development pipeline agent. Auto-installs and configures MCP
+  servers (gitnexus, git-memory, serena, playwright, chrome-devtools, vuetify,
+  sonarqube, obsidian, mempalace, ouroboros, jira), scaffolds project-aware
+  Claude Code skills (backend, frontend, test, pr-review, documentation),
+  and drives autonomous Jira ticket-to-PR workflows with Playwright-driven
+  visual documentation.
+
+author: Agent Smith Contributors
+license: MIT
+homepage: https://github.com/gunesbizim/agent-smith
+repository: https://github.com/gunesbizim/agent-smith
+
+# --- MCP Servers ----------------------------------------------------------
+
+mcpServers:
+  # Project-scope (checked into repo — all devs get these)
+  gitnexus:
+    command: gitnexus
+    args: [mcp]
+    description: Code intelligence graph — impact analysis, execution flows
+
+  git-memory:
+    command: git-memory
+    args: [serve]
+    description: Semantic search over git history — past decisions, bug fixes
+
+  serena:
+    command: serena
+    args: [start-mcp-server, --project-from-cwd]
+    description: LSP-backed symbol navigation + diagnostics
+
+  # Browser automation (project-scope)
+  playwright:
+    command: npx
+    args: [-y, "@playwright/mcp@latest", "--viewport-size=1440,900"]
+    description: Deterministic browser automation for visual verification
+
+  chrome-devtools:
+    command: npx
+    args: [-y, "chrome-devtools-mcp@latest", "--browserUrl=http://127.0.0.1:9222"]
+    description: Deep debugging on logged-in Chrome
+
+  # User-scope (personal/optional tooling)
+  vuetify:
+    command: npx
+    args: [-y, "@vuetify/mcp"]
+    description: Vuetify 3 component API lookup
+
+  sonarqube:
+    command: npx
+    args: [-y, "sonarqube-mcp-server@latest"]
+    env:
+      SONARQUBE_TOKEN: "${SONARQUBE_TOKEN}"
+      SONARQUBE_URL: "${SONARQUBE_URL:-https://sonarqube.example.com}"
+    description: Static analysis — issues, quality gates, hotspots
+
+  obsidian:
+    command: npx
+    args: [-y, "mcp-obsidian", "${OBSIDIAN_VAULT_PATH}"]
+    description: Read/write Obsidian knowledge vault
+
+  mempalace:
+    command: python
+    args: [-m, "mempalace.mcp_server"]
+    description: Persistent knowledge graph memory
+
+  ouroboros:
+    command: ouroboros
+    args: [mcp, serve, --transport, stdio, --runtime, claude]
+    description: PM agent framework — seed-based interviews, AC generation
+
+  jira:
+    command: npx
+    args: [-y, "@anthropic/jira-mcp"]
+    env:
+      JIRA_API_TOKEN: "${JIRA_API_TOKEN}"
+      JIRA_BASE_URL: "${JIRA_BASE_URL:-https://your-domain.atlassian.net}"
+    description: Jira + Confluence integration for ticket-driven development
+
+# --- Skills (loaded by Claude Code) ---------------------------------------
+
+skills:
+  - name: backend
+    description: Senior backend engineer. Implements backend tasks with full MCP pipeline.
+    path: .claude/skills/backend/SKILL.md
+
+  - name: frontend
+    description: Senior frontend engineer. Implements UI tasks with browser-verified visual loop.
+    path: .claude/skills/frontend/SKILL.md
+
+  - name: test
+    description: Test orchestrator — dispatches test-backend and test-frontend in parallel.
+    path: .claude/skills/test/SKILL.md
+
+  - name: pr-review
+    description: PR review orchestrator — dispatches backend + frontend review in parallel.
+    path: .claude/skills/pr-review/SKILL.md
+
+  - name: documentation
+    description: Documentation orchestrator — API docs + Playwright user guide + Obsidian notes.
+    path: .claude/skills/documentation/SKILL.md
+
+# --- Commands (user-facing slash commands) ---------------------------------
+
+commands:
+  - name: backend
+    description: Implement a backend task
+    path: .claude/commands/backend.md
+
+  - name: frontend
+    description: Implement a frontend task
+    path: .claude/commands/frontend.md
+
+  - name: test
+    description: Write or run tests
+    path: .claude/commands/test.md
+
+  - name: pr-review
+    description: Review a pull request
+    path: .claude/commands/pr-review.md
+
+  - name: documentation
+    description: Generate API + user documentation
+    path: .claude/commands/documentation.md
+
+  - name: git
+    description: Commit and push with project conventions
+    path: .claude/commands/git.md
+
+# --- Prerequisites ----------------------------------------------------------
+
+prerequisites:
+  node: ">=18.0.0"
+  python: ">=3.12"
+  packages:
+    - gitnexus
+    - git-memory
+    - serena
+  optional:
+    - mempalace
+    - ouroboros
+    - gh  # GitHub CLI for PR creation
+
+# --- Environment Variables --------------------------------------------------
+
+env:
+  - name: SONARQUBE_TOKEN
+    description: Personal access token from SonarQube > My Account > Security
+    required: false
+
+  - name: SONARQUBE_URL
+    description: SonarQube server URL
+    default: https://sonarqube.example.com
+    required: false
+
+  - name: JIRA_API_TOKEN
+    description: Jira API token for ticket integration
+    required: false
+
+  - name: JIRA_BASE_URL
+    description: Jira instance URL
+    default: https://your-domain.atlassian.net
+    required: false
+
+  - name: OBSIDIAN_VAULT_PATH
+    description: Absolute path to Obsidian vault root
+    required: false

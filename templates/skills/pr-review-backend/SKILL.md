@@ -1,0 +1,123 @@
+---
+name: pr-review-backend
+description: Review backend changes against architecture rules. Use when a PR or branch diff touches {{BACKEND_DIR}}/ — architecture violations, role enforcement, security, logging, imports, patterns, tests.
+---
+
+You are a senior backend code reviewer. Review the backend portion of the current branch diff against main and produce a structured report.
+
+**Binding rule set:** read `docs/architecture/backend-architecture.md` first — every rule there is a review criterion.
+
+---
+
+## Step 0 — Plan first (mandatory)
+
+**Before reading any diff**, call `advisor` to produce a scoped review plan. Pass:
+- The changed backend files list (from `git diff origin/main...HEAD --stat -- {{BACKEND_DIR}}/`)
+- The scope of `$ARGUMENTS`
+- Any known risk areas (auth, audit, permissions)
+
+---
+
+## Step 1 — GitNexus impact analysis (mandatory before reading diffs)
+
+```
+gitnexus_detect_changes()              # what changed since last index?
+gitnexus_api_impact()                  # which HTTP endpoints are affected?
+gitnexus_impact("ChangedClassName")    # what else does this change break?
+```
+
+**Rules:**
+- Call `gitnexus_impact` on every symbol that was deleted or renamed.
+- If the index is stale, fall back to `mcp__serena__find_referencing_symbols`.
+
+---
+
+## Step 2 — Historical context (git-memory)
+
+```
+commits_touching_file("path/to/file", limit=10)
+search_git_history("topic or bug description", limit=8)
+bug_fix_history("component name", limit=8)
+```
+Score > 0.7 = highly relevant — the diff may be reverting a deliberate fix.
+
+---
+
+## Step 3 — Gather scope
+
+1. `git diff origin/main...HEAD --stat -- {{BACKEND_DIR}}/`
+2. `git diff origin/main...HEAD -- {{BACKEND_DIR}}/`
+3. Cross-reference with `gitnexus_api_impact()`
+4. Read each changed file in full
+
+---
+
+## Checklist — work through every section
+
+### 1. Architecture (layering)
+- Views: only parse request, call service, return response. Flag business logic, ORM, adapter calls.
+- Services: business logic only — no HTTP objects, no Response, no raw ORM.
+- Repositories: all data access lives here.
+- Services raise typed exceptions with integer status codes.
+
+### 2. Role enforcement
+- Every endpoint is protected. Check the authorization pattern.
+- Valid roles: {{ROLE_VALID_VALUES}}.
+- Fail-closed: unprotected endpoints must deny by default.
+
+### 3. Security
+- No dev-only auth in production configs.
+- No hardcoded secrets, connection strings, or API keys.
+- PII encrypted at rest — never raw in logs or responses.
+
+### 4. Observability / logging
+- Logger calls in structured loggers include canonical keys.
+- New log sites use helpers where they exist, not raw logger calls.
+- No PII constructed in log extra dicts.
+
+### 5. Audit immutability
+- No update/delete on audit tables.
+- Audit entries only via approved creation helpers.
+
+### 6. Import style
+- {{IMPORT_STYLE}} imports only. Flag violations.
+
+### 7. Patterns
+- Every model field change has a migration.
+- New PII fields use encryption.
+- Auto timestamps on created_at fields.
+
+### 8. Tests
+- New business logic has unit tests.
+- Integration tests marked appropriately.
+- No commented-out asserts; no `skip(...)` without reason.
+
+### 9. Commit hygiene
+- Every commit message contains a ticket reference.
+- Format `type(scope): TICKET-XX description` (≤ 72 chars).
+
+---
+
+## Output format
+
+```
+## Backend Review Summary
+One-paragraph verdict: mergeable / needs changes / blocked.
+
+## GitNexus impact surface
+Endpoints and symbols flagged as affected beyond the raw diff.
+
+## Blockers
+Must fix before merge (security holes, broken contracts, missing tests).
+
+## Required changes
+Should fix (arch violations, missing codes, test gaps).
+
+## Suggestions
+Non-blocking improvements.
+
+## Approved sections
+What looks correct.
+```
+
+Be specific: include `file_path:line_number` for every finding.

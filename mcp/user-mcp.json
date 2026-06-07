@@ -1,0 +1,56 @@
+{
+  "_comment": "User-scope MCP servers from ~/.claude.json (mcpServers key). Secrets REDACTED — set real values via env after import.",
+  "mcpServers": {
+    "ouroboros": {
+      "type": "stdio",
+      "command": "<python-scripts>/ouroboros.exe",
+      "args": ["mcp", "serve", "--transport", "stdio", "--runtime", "claude"],
+      "env": { "CLAUDECODE": "1", "CLAUDE_CODE_ENTRYPOINT": "cli" }
+    },
+    "mempalace": {
+      "type": "stdio",
+      "command": "<python>/python.exe",
+      "args": ["-m", "mempalace.mcp_server"],
+      "env": {}
+    },
+    "gitnexus": {
+      "type": "stdio",
+      "command": "gitnexus",
+      "args": ["mcp"],
+      "env": {}
+    },
+    "git-memory": {
+      "type": "stdio",
+      "command": "git-memory",
+      "args": ["serve"],
+      "env": {}
+    },
+    "vuetify": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@vuetify/mcp"],
+      "env": {}
+    },
+    "serena": {
+      "type": "stdio",
+      "command": "<userprofile>/.serena/venv/Scripts/serena.exe",
+      "args": ["start-mcp-server", "--project-from-cwd"],
+      "env": {}
+    },
+    "sonarqube": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "sonarqube-mcp-server@latest"],
+      "env": {
+        "SONARQUBE_TOKEN": "<REDACTED - generate your own at SonarQube > My Account > Security>",
+        "SONARQUBE_URL": "https://sonarqube.example.com"
+      }
+    },
+    "obsidian": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-obsidian", "<path-to-obsidian-vault>"],
+      "env": {}
+    }
+  }
+}

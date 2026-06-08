@@ -68,7 +68,6 @@ function applyFrameworkCustomizations(content: string, vars: TemplateVariables):
   // Remove framework-specific sections that don't apply
   const isDjango = vars.BACKEND_FRAMEWORK.toLowerCase().includes("django");
   const isVue = vars.FRONTEND_FRAMEWORK.toLowerCase().includes("vue");
-  const isReact = vars.FRONTEND_FRAMEWORK.toLowerCase().includes("react");
 
   // Django-specific sections — strip if not Django
   if (!isDjango) {

@@ -15,14 +15,31 @@ import { scaffoldConfigs } from "../scaffold/configs.js";
 import { scaffoldHooks } from "../scaffold/hooks.js";
 import { customizeSkills } from "../adapt/skill-customizer.js";
 import { writeArchitectureDocs } from "../adapt/architecture-writer.js";
+import { cavemanCompress } from "../adapt/caveman-compress.js";
 import type { TemplateVariables } from "../shared/types.js";
 import { DEFAULT_TEMPLATE_VARS } from "../shared/templates.js";
+
+// Walk a directory recursively, returning all file paths
+function walkFiles(dir: string): string[] {
+  const results: string[] = [];
+  if (!fs.existsSync(dir)) return results;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...walkFiles(fullPath));
+    } else {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
 
 interface InitOptions {
   platform?: string;
   auto?: boolean;
   dryRun?: boolean;
   dir?: string;
+  caveman?: boolean;
 }
 
 export async function initCommand(opts: InitOptions): Promise<void> {
@@ -84,6 +101,25 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   const archDocSpinner = ora("Generating architecture documentation...").start();
   await writeArchitectureDocs(targetDir, templateVars, opts.dryRun);
   archDocSpinner.succeed("Architecture docs written");
+
+  // Step 8b — Caveman compression (if enabled)
+  if (opts.caveman && !opts.dryRun) {
+    const cavemanSpinner = ora("Applying caveman compression...").start();
+    const skillDir = path.join(targetDir, ".claude", "skills");
+    const archDir = path.join(targetDir, "docs", "architecture");
+    for (const dir of [skillDir, archDir]) {
+      if (fs.existsSync(dir)) {
+        for (const file of walkFiles(dir)) {
+          if (file.endsWith(".md")) {
+            const content = await fs.readFile(file, "utf-8");
+            const compressed = cavemanCompress(content);
+            await fs.writeFile(file, compressed, "utf-8");
+          }
+        }
+      }
+    }
+    cavemanSpinner.succeed("Caveman compression applied (~75% token savings)");
+  }
 
   // Step 9 — Install MCPs
   const mcpSpinner = ora("Configuring MCP servers...").start();

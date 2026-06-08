@@ -1,8 +1,17 @@
 // Scaffold commands from templates
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 import { resolveTemplate } from "../shared/templates.js";
 import type { TemplateVariables } from "../shared/types.js";
+
+// Resolve the package root directory — works across Windows/macOS/Linux
+function getPackageRoot(): string {
+  // fileURLToPath handles Windows drive letters and UNC paths correctly
+  const thisFile = fileURLToPath(import.meta.url);
+  // thisFile = .../dist/scaffold/commands.js → go up 3 levels to package root
+  return path.resolve(path.dirname(thisFile), "..", "..");
+}
 
 const COMMAND_TEMPLATES: Record<string, string> = {
   "backend.md": "templates/commands/backend.md",
@@ -11,6 +20,7 @@ const COMMAND_TEMPLATES: Record<string, string> = {
   "pr-review.md": "templates/commands/pr-review.md",
   "documentation.md": "templates/commands/documentation.md",
   "git.md": "templates/commands/git.md",
+  "caveman.md": "templates/commands/caveman.md",
 };
 
 export async function scaffoldCommands(
@@ -29,12 +39,8 @@ export async function scaffoldCommands(
     // Try the shipped template first, fall back to reading from repo
     let template: string;
     try {
-      // In production, the template is in the npm package's templates/ dir
-      const pkgTemplatePath = path.join(
-        new URL("..", import.meta.url).pathname,
-        "..",
-        templatePath,
-      );
+      // In production, templates/ ships next to dist/ in the npm package
+      const pkgTemplatePath = path.join(getPackageRoot(), templatePath);
       template = await fs.readFile(pkgTemplatePath, "utf-8");
     } catch {
       // Fallback: read from project's own templates/

@@ -61,10 +61,9 @@ describe("Platform Adapters", () => {
       expect(adapter.mcpConfigFormat).toBe("cursor-mcp");
     });
 
-    it("installMCPs does not throw", async () => {
-      await expect(
-        adapter.installMCPs({ projectSettings: {}, projectMcp: {}, userMcp: {} }),
-      ).resolves.not.toThrow();
+    it("installMCPs handles gracefully", async () => {
+      const result = adapter.installMCPs({ projectSettings: {}, projectMcp: {}, userMcp: {} });
+      await expect(result).resolves.toBeUndefined();
     });
   });
 
@@ -76,10 +75,9 @@ describe("Platform Adapters", () => {
       expect(adapter.mcpConfigFormat).toBe("continue-config");
     });
 
-    it("installMCPs does not throw", async () => {
-      await expect(
-        adapter.installMCPs({ projectSettings: {}, projectMcp: {}, userMcp: {} }),
-      ).resolves.not.toThrow();
+    it("installMCPs handles gracefully", async () => {
+      const result = adapter.installMCPs({ projectSettings: {}, projectMcp: {}, userMcp: {} });
+      await expect(result).resolves.toBeUndefined();
     });
   });
 

@@ -114,7 +114,11 @@ export class ContinueAdapter implements PlatformAdapter {
     const configPath = path.join(continueDir, "config.json");
     let config: Record<string, unknown> = {};
     if (fs.existsSync(configPath)) {
-      config = (await fs.readJson(configPath)) as Record<string, unknown>;
+      try {
+        config = (await fs.readJson(configPath)) as Record<string, unknown>;
+      } catch {
+        // Gracefully handle malformed config — Continue will regenerate it
+      }
     }
 
     config.mcpServers = {

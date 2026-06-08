@@ -1,8 +1,14 @@
 // Scaffold skills from templates
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 import { resolveTemplate } from "../shared/templates.js";
 import type { TemplateVariables } from "../shared/types.js";
+
+function getPackageRoot(): string {
+  const thisFile = fileURLToPath(import.meta.url);
+  return path.resolve(path.dirname(thisFile), "..", "..");
+}
 
 const SKILL_TEMPLATES: Record<string, string> = {
   "pr-review-backend/SKILL.md": "templates/skills/pr-review-backend/SKILL.md",
@@ -50,11 +56,7 @@ export async function scaffoldSkills(
 
     let template: string;
     try {
-      const pkgTemplatePath = path.join(
-        new URL("..", import.meta.url).pathname,
-        "..",
-        templatePath,
-      );
+      const pkgTemplatePath = path.join(getPackageRoot(), templatePath);
       template = await fs.readFile(pkgTemplatePath, "utf-8");
     } catch {
       const fallbackPath = path.join(targetDir, templatePath);

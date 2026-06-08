@@ -69,11 +69,23 @@ export function resolveCommand(cmd: string): string | null {
 
 /** Find the best available Python command on this platform */
 export function findPython(): string | null {
+  // On Windows, prefer 'py' launcher (python.org) over 'python' (may be Store stub)
   const candidates = IS_WINDOWS
-    ? ["python", "python3", "py"]
+    ? ["py", "python3", "python"]
     : ["python3", "python"];
   for (const candidate of candidates) {
-    if (commandExists(candidate)) return candidate;
+    if (commandExists(candidate)) {
+      // On Windows, verify it's not the Microsoft Store redirect stub
+      if (IS_WINDOWS) {
+        try {
+          const out = execSync(`${candidate} --version 2>&1`, { encoding: "utf-8" });
+          if (out.toLowerCase().includes("microsoft store") || out.toLowerCase().includes("app execution")) {
+            continue; // Skip Store stub, try next
+          }
+        } catch { continue; }
+      }
+      return candidate;
+    }
   }
   return null;
 }

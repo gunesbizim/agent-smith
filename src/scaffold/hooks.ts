@@ -1,6 +1,12 @@
 // Hook scaffolder — writes hook configuration to .claude/settings.json
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
+
+function getPackageRoot(): string {
+  const thisFile = fileURLToPath(import.meta.url);
+  return path.resolve(path.dirname(thisFile), "..", "..");
+}
 
 export interface HookConfig {
   SessionStart?: Array<{
@@ -16,6 +22,14 @@ export interface HookConfig {
       type: "command";
       command: string;
       timeout?: number;
+      statusMessage?: string;
+    }>;
+  }>;
+  PostToolUse?: Array<{
+    matcher: string;
+    hooks: Array<{
+      type: "command";
+      command: string;
       statusMessage?: string;
     }>;
   }>;
@@ -57,6 +71,30 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
           },
         ],
       },
+      // Caveman: suspend before MemPalace or claude-memory writes
+      // This ensures stored memories are in full English prose — readable in future sessions
+      {
+        matcher: "mcp__plugin_mempalace_mempalace__|mcp__serena__write_memory|mempalace_add_drawer|mempalace_diary_write|mempalace_kg_add|claude-memory",
+        hooks: [
+          {
+            type: "command",
+            command: `echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"Caveman mode: SUSPENDED for this memory operation. Write in full English prose — complete sentences, no abbreviations, no fragments. This ensures memory content is retrievable in future sessions."}}'`,
+            statusMessage: "Suspending caveman for memory write...",
+          },
+        ],
+      },
+    ],
+    PostToolUse: [
+      {
+        matcher: "mcp__plugin_mempalace_mempalace__|mcp__serena__write_memory|mempalace_add_drawer|mempalace_diary_write|mempalace_kg_add|claude-memory",
+        hooks: [
+          {
+            type: "command",
+            command: `echo '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"Caveman mode: RESUMED. Return to compressed communication style. Note: if caveman was OFF before this write, ignore this resume — stay in normal mode."}}'`,
+            statusMessage: "Resuming caveman...",
+          },
+        ],
+      },
     ],
     Stop: [
       {
@@ -80,11 +118,7 @@ export async function scaffoldHooks(
 
   if (!dryRun) {
     // Copy hook scripts from package to project
-    const pkgHooksDir = path.join(
-      new URL("..", import.meta.url).pathname,
-      "..",
-      "hooks",
-    );
+    const pkgHooksDir = path.join(getPackageRoot(), "hooks");
 
     // Try to copy from npm package location
     try {

@@ -210,6 +210,10 @@ export interface TemplateVariables {
   E2E_PACKAGE_VERSION: string;
   MOCK_PACKAGE: string;
   MOCK_PACKAGE_VERSION: string;
+
+  // Interview answers
+  TESTING_REQUIREMENTS: string;
+  PR_CHECKLIST: string;
 }
 
 // ----- Pipeline -----

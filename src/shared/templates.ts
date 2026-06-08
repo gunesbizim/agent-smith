@@ -68,6 +68,9 @@ export const DEFAULT_TEMPLATE_VARS: TemplateVariables = {
   E2E_PACKAGE_VERSION: "",
   MOCK_PACKAGE: "none",
   MOCK_PACKAGE_VERSION: "",
+
+  TESTING_REQUIREMENTS: "unit tests for new logic, happy+error+edge paths, no empty test stubs",
+  PR_CHECKLIST: "all tests pass, lint clean, 1+ reviewer approval, docs updated",
 };
 
 export const TEMPLATE_VAR_PATTERN = /\{\{(\w+)\}\}/g;

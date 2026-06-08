@@ -18,6 +18,7 @@ program
   .option("--dry-run", "Show what would be done without doing it")
   .option("--dir <dir>", "Target project directory")
   .option("--caveman", "Compress generated skills with caveman (~75% token savings)")
+  .option("--no-interview", "Skip the interactive project conventions interview")
   .action(async (opts) => {
     const { initCommand } = await import("./init.js");
     await initCommand(opts);

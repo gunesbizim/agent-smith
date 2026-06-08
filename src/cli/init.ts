@@ -7,6 +7,7 @@ import { detectProject } from "../analyze/project-detector.js";
 import { sniffArchitecture } from "../analyze/architecture-sniffer.js";
 import { mapBestPractices } from "../analyze/best-practice-mapper.js";
 import { scanPackages } from "../analyze/package-scanner.js";
+import { runInterview, applyInterviewAnswers } from "../adapt/project-interview.js";
 import { checkDependencies } from "../install/dependency-checker.js";
 import { installMCPs, configureMCPs } from "../install/mcp-installer.js";
 import { scaffoldCommands } from "../scaffold/commands.js";
@@ -40,6 +41,7 @@ interface InitOptions {
   dryRun?: boolean;
   dir?: string;
   caveman?: boolean;
+  noInterview?: boolean;
 }
 
 export async function initCommand(opts: InitOptions): Promise<void> {
@@ -78,8 +80,25 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   // Step 4 — Map best practices
   const bpSpinner = ora("Mapping best practices...").start();
   const packageUsage = await scanPackages(cwd);
-  const templateVars: TemplateVariables = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, packageUsage);
+  let templateVars: TemplateVariables = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, packageUsage);
   bpSpinner.succeed("Best practices mapped");
+
+  // Step 4b — Interactive interview (unless --auto or --no-interview)
+  let interviewAnswers = null;
+  if (!opts.auto && !opts.noInterview && !opts.dryRun) {
+    const interviewSpinner = ora().stop(); // just for spacing
+    try {
+      interviewAnswers = await runInterview(cwd, project);
+      if (interviewAnswers) {
+        templateVars = applyInterviewAnswers(templateVars, interviewAnswers);
+      }
+    } catch (err) {
+      console.log(chalk.yellow(`\n  Interview skipped: ${err instanceof Error ? err.message : err}`));
+    }
+    console.log(chalk.gray(""));
+  } else if (opts.auto || opts.noInterview) {
+    console.log(chalk.gray("  Interview: skipped (--auto or --no-interview)"));
+  }
 
   // Step 5 — Scaffold commands
   const cmdSpinner = ora("Scaffolding commands...").start();

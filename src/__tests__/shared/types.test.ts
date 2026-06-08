@@ -238,6 +238,8 @@ describe("Type exports — compile-time verification", () => {
       E2E_PACKAGE_VERSION: "1.40",
       MOCK_PACKAGE: "MSW",
       MOCK_PACKAGE_VERSION: "2.0",
+      TESTING_REQUIREMENTS: "unit tests, integration tests, coverage > 80%",
+      PR_CHECKLIST: "tests pass, lint clean, 2 approvals, no TODOs",
     };
     expect(v.BACKEND_LANG).toBe("Python 3.12");
   });

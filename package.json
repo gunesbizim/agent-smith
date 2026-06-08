@@ -1,5 +1,5 @@
 {
-  "name": "agent-smith",
+  "name": "@gunesbizim/agent-smith",
   "version": "0.2.1",
   "description": "Autonomous development pipeline — MCP auto-config, project-aware skill stubs, Jira-to-PR automation, Playwright+Obsidian docs",
   "keywords": [

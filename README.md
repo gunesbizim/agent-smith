@@ -5,7 +5,7 @@ Single npm package that auto-configures MCP servers, scaffolds project-aware Cla
 One command to bootstrap any project:
 
 ```bash
-npx agent-smith init
+npx @gunesbizim/agent-smith init
 ```
 
 ---
@@ -141,7 +141,7 @@ Jira Ticket
 ## CLI
 
 ```
-npx agent-smith init              # Full project bootstrap
+npx @gunesbizim/agent-smith init              # Full project bootstrap
 npx agent-smith analyze           # Detect tech stack and print report
 npx agent-smith configure         # Re-run MCP configuration only
 npx agent-smith doctor            # Health check: MCPs + skills + git

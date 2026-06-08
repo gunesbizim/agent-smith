@@ -73,3 +73,36 @@ jobs:
           name: dist
           path: dist/
           retention-days: 7
+
+  sonarcloud:
+    name: SonarCloud Scan
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tests with coverage
+        run: npx vitest run --coverage --coverage.reporter=lcov 2>&1 || true
+      - name: SonarCloud Scan
+        uses: sonarsource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=gunesbizim
+            -Dsonar.projectKey=gunesbizim_agent-smith
+            -Dsonar.sources=src
+            -Dsonar.tests=src/__tests__
+            -Dsonar.typescript.tsconfigPath=tsconfig.json
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+      - name: SonarCloud Quality Gate
+        uses: sonarsource/sonarqube-quality-gate-action@v4
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

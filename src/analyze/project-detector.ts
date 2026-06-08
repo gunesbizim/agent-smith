@@ -22,6 +22,7 @@ import type {
 export async function detectProject(rootPath: string): Promise<DetectedProject> {
   const project: DetectedProject = {
     rootPath,
+    projectType: "unknown",
     backend: null,
     frontend: null,
     testing: { backend: null, frontend: null },
@@ -33,15 +34,47 @@ export async function detectProject(rootPath: string): Promise<DetectedProject> 
 
   // Detect monorepo first — affects where we search
   project.monorepo = await detectMonorepo(rootPath);
+  if (project.monorepo) project.projectType = "monorepo";
 
   project.backend = await detectBackend(rootPath, project);
   project.frontend = await detectFrontend(rootPath, project);
+
+  // Detect CLI tool or library if no backend/frontend
+  if (!project.backend && !project.frontend) {
+    const toolType = await detectToolType(rootPath);
+    if (toolType) project.projectType = toolType;
+  } else if (project.backend || project.frontend) {
+    project.projectType = "web-app";
+  }
+
   project.testing = await detectTesting(rootPath);
   project.linting = await detectLinting(rootPath);
   project.cicd = await detectCICD(rootPath);
   project.database = await detectDatabase(rootPath, project.backend);
 
   return project;
+}
+
+// Detect CLI tools and libraries (no web backend/frontend)
+async function detectToolType(rootPath: string): Promise<"cli-tool" | "library" | null> {
+  const pkg = await readJson(rootPath, "package.json");
+  if (!pkg) return null;
+
+  const deps = pkgDeps(pkg);
+  const hasBin = !!(pkg.bin);
+  const hasCliDep = !!(deps.commander || deps.yargs || deps.oclif || deps["@oclif/core"] || deps.cac || deps.clipanion || deps.meow);
+
+  if (hasBin || hasCliDep) return "cli-tool";
+
+  const hasMain = !!(pkg.main || pkg.module || pkg.exports);
+  if (hasMain && !pkg.private) return "library";
+
+  const scripts = pkg.scripts as Record<string, string> | undefined;
+  if (scripts?.build && await fileExists(rootPath, "src")) {
+    return hasBin ? "cli-tool" : "library";
+  }
+
+  return null;
 }
 
 // Get all search roots: the project root plus any workspace packages

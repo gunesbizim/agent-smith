@@ -2,8 +2,11 @@
 
 // ----- Project Analysis -----
 
+export type ProjectType = "web-app" | "cli-tool" | "library" | "monorepo" | "unknown";
+
 export interface DetectedProject {
   rootPath: string;
+  projectType: ProjectType;
   backend: BackendInfo | null;
   frontend: FrontendInfo | null;
   testing: TestingInfo;

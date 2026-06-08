@@ -27,6 +27,17 @@ export async function analyzeCommand(opts: AnalyzeOptions): Promise<void> {
 
   console.log(chalk.bold.cyan("\n⚒ Agent Smith — Project Analysis\n"));
 
+  // Project type
+  const typeLabels: Record<string, string> = {
+    "web-app": "🌐 Web Application",
+    "cli-tool": "⚒ CLI Tool",
+    "library": "📦 Library/Package",
+    "monorepo": "🗂 Monorepo",
+    "unknown": "❓ Unknown",
+  };
+  console.log(chalk.bold(`Project Type: ${typeLabels[project.projectType] || project.projectType}`));
+  console.log("");
+
   // Backend
   if (project.backend) {
     console.log(chalk.bold("\nBackend:"));

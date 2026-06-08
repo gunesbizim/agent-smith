@@ -12,6 +12,34 @@ export function mapBestPractices(
 ): TemplateVariables {
   const vars: TemplateVariables = { ...defaults };
 
+  // ---- CLI tool / Library: override defaults ----
+  if (project.projectType === "cli-tool" || project.projectType === "library") {
+    vars.PROJECT_NAME = path.basename(path.resolve(project.rootPath)) || "my-project";
+    vars.BACKEND_LANG = "TypeScript 5.x";
+    vars.BACKEND_FRAMEWORK = project.projectType === "cli-tool" ? "CLI Tool" : "Library";
+    vars.BACKEND_FRAMEWORK_DETAIL = "Node.js CLI / Package";
+    vars.BACKEND_DIR = "src";
+    vars.BACKEND_TEST_CMD = project.testing.backend?.command || project.testing.frontend?.command || "npx vitest run";
+    vars.BACKEND_LINT_CMD = project.linting.backend?.command || project.linting.frontend?.command || "npx eslint src --ext .ts";
+    vars.BACKEND_TYPE_CHECK_CMD = "npx tsc --noEmit";
+    vars.BACKEND_FORMAT_CMD = "";
+    vars.PRE_PUSH_GATES = buildPrePushGates(project);
+    vars.DB_ENGINE = "none";
+    vars.ORM = "none";
+    vars.AUTH_METHOD = "none";
+    vars.ROLE_SYSTEM = "none";
+    vars.IMPORT_STYLE = "absolute";
+    vars.LOGGING_PATTERN = "unstructured";
+    vars.API_DOCS_LIBRARY = "none";
+
+    if (packageUsage) {
+      vars.BACKEND_TEST_CMD = packageUsage.testFramework
+        ? `npx ${packageUsage.testFramework.toLowerCase()} run`
+        : vars.BACKEND_TEST_CMD;
+    }
+    return vars;
+  }
+
   // ---- Backend ----
   if (project.backend) {
     const b = project.backend;

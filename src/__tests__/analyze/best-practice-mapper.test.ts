@@ -5,6 +5,7 @@ import type { DetectedProject } from "../../shared/types.js";
 
 const BASE_PROJECT: DetectedProject = {
   rootPath: "/test/project",
+  projectType: "unknown",
   backend: null,
   frontend: null,
   testing: { backend: null, frontend: null },

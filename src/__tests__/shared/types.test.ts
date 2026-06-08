@@ -146,6 +146,7 @@ describe("Type exports — compile-time verification", () => {
   it("DetectedProject shape compiles", () => {
     const p: DetectedProject = {
       rootPath: "/test",
+      projectType: "cli-tool",
       backend: null,
       frontend: null,
       testing: { backend: null, frontend: null },
@@ -154,7 +155,7 @@ describe("Type exports — compile-time verification", () => {
       monorepo: null,
       database: null,
     };
-    expect(p.backend).toBeNull();
+    expect(p.projectType).toBe("cli-tool");
   });
 
   it("MCPServerDefinition shape compiles", () => {

@@ -45,7 +45,12 @@
     "lint": "eslint src/ --ext .ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage --coverage.reporter=lcov",
+    "sonarqube": "npx sonarqube-scanner -Dsonar.token=${SONAR_TOKEN:-} -Dsonar.host.url=${SONAR_HOST_URL:-http://localhost:9000}",
+    "sonarqube:start": "docker compose -f sonarqube/docker-compose.yml up -d",
+    "sonarqube:stop": "docker compose -f sonarqube/docker-compose.yml down",
+    "sonarqube:setup": "bash sonarqube/setup.sh"
   },
   "dependencies": {
     "chalk": "^5.3.0",

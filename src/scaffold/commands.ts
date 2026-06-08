@@ -21,6 +21,7 @@ const COMMAND_TEMPLATES: Record<string, string> = {
   "documentation.md": "templates/commands/documentation.md",
   "git.md": "templates/commands/git.md",
   "caveman.md": "templates/commands/caveman.md",
+  "insights.md": "templates/commands/insights.md",
 };
 
 export async function scaffoldCommands(

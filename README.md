@@ -10,6 +10,32 @@ npx @gunesbizim/agent-smith init
 
 ---
 
+## How Agent Smith Works (60-second overview)
+
+### The Problem
+
+Claude Code is powerful with MCP servers (gitnexus, git-memory, serena, etc.), but setting them up for a new project is painful: you need to manually configure 11+ MCP servers across 3 JSON files, write skills that reference project-specific commands, and teach Claude your team's conventions — every time you start a new project.
+
+### The Solution
+
+Agent Smith automates this in 4 steps:
+
+**Step 1 — Analyze.**  
+Scans your repository to detect exactly what you're using: framework (38 supported), language, ORM, auth library, validation library, logging, database driver, cache, test framework, linter, CI/CD provider, monorepo tool. It reads lock files (package.json, go.mod, Cargo.toml, composer.json, requirements.txt) to map 100+ known packages to their categories. On a Go/Echo + React/Zustand monorepo, it detects: Echo, golang-jwt, pgx, go-redis, React, Zustand, react-hook-form, React Router, PixiJS, Vitest, Playwright, MSW — all with exact versions.
+
+**Step 2 — Interview (interactive).**  
+Before generating skills, asks you 9 questions about your team's conventions — branch naming, commit format, PR checklist, testing requirements, architecture rules, security requirements, code style. Each question has a smart default based on detection. Type `?` to get Claude's elaboration on any question. Answers are saved to `docs/architecture/decisions.md` and injected into every skill.
+
+**Step 3 — Scaffold.**  
+Generates 12+ skill files customized to YOUR stack — not Django defaults. Pre-push gates become `golangci-lint run + go test ./... + npx biome check . + npx vitest run + npx tsc --noEmit` instead of `ruff + mypy + pytest`. Commands reference YOUR packages: "Use golang-jwt@v5.2.1 for JWT" not "Use JWT".
+
+**Step 4 — Configure.**  
+Writes `.claude/settings.json` (MCP servers + hooks), `.mcp.json` (browser automation), and `docs/architecture/` (generated architecture rules). Hooks auto-check health on session start, enforce git conventions, and auto-suspend caveman during memory writes.
+
+End result: you restart Claude Code and can immediately run `/backend`, `/frontend`, `/test`, `/pr-review`, `/documentation`, `/git`, `/insights` — all referencing your actual stack and conventions.
+
+---
+
 ## Prerequisites
 
 | Requirement | Why | Install |
@@ -145,6 +171,7 @@ npx @gunesbizim/agent-smith init              # Full project bootstrap
 npx @gunesbizim/agent-smith analyze           # Detect tech stack and print report
 npx @gunesbizim/agent-smith configure         # Re-run MCP configuration only
 npx @gunesbizim/agent-smith doctor            # Health check: MCPs + skills + git
+npx @gunesbizim/agent-smith insights          # Read project & suggest improvements
 npx @gunesbizim/agent-smith ticket PROJ-123  # Jira ticket → autonomous pipeline
 npx @gunesbizim/agent-smith pipeline          # Run pipeline on current branch
 ```

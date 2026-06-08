@@ -8,13 +8,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  sonarqube:
-    name: SonarQube Analysis
+  sonarcloud:
+    name: SonarCloud Analysis
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones disable SonarQube blame data
+          fetch-depth: 0  # shallow clones disable blame
 
       - uses: actions/setup-node@v4
         with:
@@ -23,28 +23,27 @@ jobs:
 
       - run: npm ci
 
-      # Run tests with coverage for SonarQube
+      # Coverage for SonarCloud
       - name: Run tests with coverage
-        run: npx vitest run --coverage --coverage.reporter=lcov 2>&1 || true
+        run: npx vitest run --coverage --coverage.reporter=lcov 2>&1 || npx vitest run --coverage.reporter=lcov 2>&1 || true
 
-      - name: SonarQube Scan
+      - name: SonarCloud Scan
         uses: sonarsource/sonarqube-scan-action@v4
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'http://localhost:9000' }}
         with:
           projectBaseDir: .
           args: >
-            -Dsonar.projectKey=agent-smith
+            -Dsonar.organization=gunesbizim
+            -Dsonar.projectKey=gunesbizim_agent-smith
             -Dsonar.sources=src
             -Dsonar.tests=src/__tests__
             -Dsonar.typescript.tsconfigPath=tsconfig.json
-            -Dsonar.qualitygate.wait=true
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.coverage.exclusions=src/__tests__/**
 
-      # Quality Gate check — fails PR if quality gate is not met
-      - name: SonarQube Quality Gate
-        uses: sonarsource/sonarqube-quality-gate-action@v1
+      - name: SonarCloud Quality Gate
+        uses: sonarsource/sonarqube-quality-gate-action@v4
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'http://localhost:9000' }}

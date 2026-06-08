@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Smith — Autonomous Development Pipeline</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg2: #111820;
+    --bg3: #1a2332;
+    --fg: #c8d6e5;
+    --fg2: #8395a7;
+    --green: #00D4AA;
+    --green2: #00b894;
+    --red: #ff6b6b;
+    --yellow: #feca57;
+    --blue: #54a0ff;
+    --purple: #a29bfe;
+    --border: #1e2d3d;
+    --radius: 8px;
+    --font: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font);
+    line-height: 1.7;
+    font-size: 14px;
+  }
+  a { color: var(--green); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── Hero ── */
+  .hero {
+    background: linear-gradient(135deg, var(--bg2) 0%, #0d1f17 50%, var(--bg2) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 80px 20px 60px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: 3em;
+    color: var(--green);
+    text-shadow: 0 0 40px rgba(0,212,170,0.3);
+    letter-spacing: -1px;
+  }
+  .hero .tagline {
+    color: var(--fg2);
+    font-size: 1.1em;
+    margin: 12px 0 30px;
+  }
+  .hero code {
+    background: var(--bg3);
+    color: var(--green2);
+    padding: 12px 28px;
+    border-radius: var(--radius);
+    font-size: 1.05em;
+    border: 1px solid var(--border);
+    display: inline-block;
+  }
+  .badges {
+    margin-top: 24px;
+    display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+  }
+  .badge {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    color: var(--fg2);
+  }
+  .badge.green { border-color: var(--green); color: var(--green); }
+
+  /* ── Layout ── */
+  .container { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+  section { padding: 60px 0; border-bottom: 1px solid var(--border); }
+  section:last-of-type { border-bottom: none; }
+  h2 {
+    font-size: 1.6em;
+    color: var(--green);
+    margin-bottom: 24px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-size: 1.15em;
+    color: var(--fg);
+    margin: 24px 0 10px;
+  }
+  p { margin: 8px 0; color: var(--fg2); }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.9em;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+  }
+  th {
+    background: var(--bg2);
+    color: var(--green);
+    font-weight: 600;
+  }
+  tr:hover td { background: var(--bg3); }
+
+  /* ── Code blocks ── */
+  pre {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  pre code { color: var(--green2); }
+
+  /* ── Cards ── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .card h4 { color: var(--green); margin-bottom: 8px; font-size: 1em; }
+  .card p { font-size: 0.85em; }
+
+  /* ── Pipeline ── */
+  .pipeline {
+    display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0;
+  }
+  .phase {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    flex: 1; min-width: 120px;
+    text-align: center;
+  }
+  .phase .icon { font-size: 1.5em; margin-bottom: 6px; }
+  .phase .name { color: var(--green); font-weight: 600; font-size: 0.85em; }
+  .phase .tool { color: var(--fg2); font-size: 0.7em; margin-top: 4px; }
+  .arrow { color: var(--green); font-size: 1.2em; display: flex; align-items: center; }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--fg2);
+    font-size: 0.8em;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <h1>⚒ Agent Smith</h1>
+  <p class="tagline">One command. Your entire AI-powered development pipeline.</p>
+  <code>npx @gunesbizim/agent-smith init</code>
+  <div class="badges">
+    <span class="badge green">v0.2.2</span>
+    <span class="badge">38 frameworks</span>
+    <span class="badge">12 languages</span>
+    <span class="badge">11 MCP servers</span>
+    <span class="badge">226 tests</span>
+    <span class="badge">macOS · Linux · Windows</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ═══ WHAT IT DOES ═══ -->
+<section>
+  <h2>▸ What Agent Smith Does</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>🔍 Analyze</h4>
+      <p>Scans your repo to detect exact frameworks, ORMs, auth libraries, validation, logging, DB drivers, cache, test frameworks, linters — with version numbers. Reads lock files from npm, pnpm, Go, Python, PHP, Rust.</p>
+    </div>
+    <div class="card">
+      <h4>📋 Interview</h4>
+      <p>Asks 9 questions about your team's conventions before generating anything. Branch naming, commit format, PR checklist, testing requirements. Smart defaults based on detection. Type ? for elaboration.</p>
+    </div>
+    <div class="card">
+      <h4>🧬 Scaffold</h4>
+      <p>Generates 12+ skill files customized to YOUR stack. Pre-push gates use your actual tools. Commands reference your packages with versions. No Django defaults leaking into your Go project.</p>
+    </div>
+    <div class="card">
+      <h4>⚙ Configure</h4>
+      <p>Installs and configures 11 MCP servers. Writes .claude/settings.json, .mcp.json, architecture docs. Sets up automation hooks. Restart Claude Code and everything works.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PIPELINE ═══ -->
+<section>
+  <h2>▸ Autonomous Pipeline</h2>
+
+  <div class="pipeline">
+    <div class="phase"><div class="icon">🎫</div><div class="name">TICKET</div><div class="tool">Jira MCP</div></div>
+    <div class="arrow">→</div>
+    <div class="phase"><div class="icon">🧠</div><div class="name">PLAN</div><div class="tool">gitnexus impact</div></div>
+    <div class="arrow">→</div>
+    <div class="phase"><div class="icon">🔧</div><div class="name">IMPLEMENT</div><div class="tool">serena nav</div></div>
+    <div class="arrow">→</div>
+    <div class="phase"><div class="icon">✅</div><div class="name">TEST</div><div class="tool">vitest · pytest</div></div>
+    <div class="arrow">→</div>
+    <div class="phase"><div class="icon">👁</div><div class="name">REVIEW</div><div class="tool">self-review</div></div>
+    <div class="arrow">→</div>
+    <div class="phase"><div class="icon">📸</div><div class="name">DOCUMENT</div><div class="tool">playwright</div></div>
+    <div class="arrow">→</div>
+    <div class="phase"><div class="icon">🚀</div><div class="name">PR</div><div class="tool">gh pr create</div></div>
+  </div>
+
+  <p style="text-align:center;margin-top:16px;">A Jira ticket enters. A pull request comes out. Six phases, fully autonomous — with human-in-the-loop gates at each phase boundary.</p>
+</section>
+
+<!-- ═══ MCP SERVERS ═══ -->
+<section>
+  <h2>▸ MCP Servers Configured</h2>
+
+  <table>
+    <tr><th>Server</th><th>Role</th><th>Category</th></tr>
+    <tr><td>gitnexus</td><td>Code intelligence graph — impact analysis, execution flows</td><td>Code Intelligence</td></tr>
+    <tr><td>git-memory</td><td>Semantic search over git history — past decisions, bug fixes</td><td>Code Intelligence</td></tr>
+    <tr><td>serena</td><td>LSP-backed symbol navigation — find, rename, insert, diagnose</td><td>Code Intelligence</td></tr>
+    <tr><td>playwright</td><td>Browser automation — navigate, screenshot, fill forms</td><td>Browser</td></tr>
+    <tr><td>chrome-devtools</td><td>Deep debugging — console, network, performance, lighthouse</td><td>Browser</td></tr>
+    <tr><td>sonarqube</td><td>Static analysis — issues, quality gates, hotspots</td><td>Quality</td></tr>
+    <tr><td>obsidian</td><td>Knowledge vault — structured documentation per role</td><td>Documentation</td></tr>
+    <tr><td>mempalace</td><td>Persistent memory graph — cross-session knowledge</td><td>Memory</td></tr>
+    <tr><td>ouroboros</td><td>PM agent — seed-based interviews, AC generation</td><td>Planning</td></tr>
+    <tr><td>jira</td><td>Issue tracking — ticket-driven autonomous pipeline</td><td>Planning</td></tr>
+    <tr><td>vuetify</td><td>Vuetify 3 component API lookup</td><td>Design</td></tr>
+  </table>
+</section>
+
+<!-- ═══ SUPPORTED STACKS ═══ -->
+<section>
+  <h2>▸ Supported Stacks</h2>
+
+  <table>
+    <tr><th>Language</th><th>Backends</th><th>Frontends</th></tr>
+    <tr><td>Python</td><td>Django, FastAPI, Flask, Pyramid</td><td>—</td></tr>
+    <tr><td>TypeScript/JS</td><td>Express, NestJS, Fastify, Koa, Hono, AdonisJS, Next.js API, Nuxt API, Remix, SvelteKit API, FeathersJS</td><td>React, Next.js, Vue 3, Nuxt 3, Angular, Svelte, SvelteKit, SolidJS, Qwik, Astro</td></tr>
+    <tr><td>Go</td><td>Gin, Echo, Fiber, Chi</td><td>—</td></tr>
+    <tr><td>Rust</td><td>Actix-web, Axum, Rocket</td><td>—</td></tr>
+    <tr><td>Java / Kotlin / Scala</td><td>Spring Boot, Quarkus, Micronaut, Jakarta EE, Ktor, Play</td><td>—</td></tr>
+    <tr><td>C#</td><td>ASP.NET Core, Blazor API</td><td>Blazor WASM</td></tr>
+    <tr><td>Ruby</td><td>Rails, Sinatra</td><td>—</td></tr>
+    <tr><td>PHP</td><td>Laravel, Symfony, Slim</td><td>—</td></tr>
+    <tr><td>Swift / Dart</td><td>Vapor</td><td>SwiftUI, Flutter</td></tr>
+  </table>
+</section>
+
+<!-- ═══ CLIENT COMMANDS ═══ -->
+<section>
+  <h2>▸ Commands</h2>
+
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td><code>agent-smith init</code></td><td>Full bootstrap: detect → interview → scaffold → configure</td></tr>
+    <tr><td><code>agent-smith analyze</code></td><td>Detect tech stack, print report. <code>--json</code> for machine output</td></tr>
+    <tr><td><code>agent-smith configure</code></td><td>Re-run MCP installation and configuration</td></tr>
+    <tr><td><code>agent-smith doctor</code></td><td>Health check: MCP connections, skill validity, git state</td></tr>
+    <tr><td><code>agent-smith insights</code></td><td>Read project docs, analyze config, suggest improvements</td></tr>
+    <tr><td><code>agent-smith ticket &lt;ID&gt;</code></td><td>Fetch Jira ticket → run 6-phase autonomous pipeline</td></tr>
+    <tr><td><code>agent-smith pipeline</code></td><td>Run pipeline on current branch changes</td></tr>
+  </table>
+
+  <h3>Init Flags</h3>
+  <table>
+    <tr><th>Flag</th><th>Effect</th></tr>
+    <tr><td><code>--dir &lt;path&gt;</code></td><td>Target project directory</td></tr>
+    <tr><td><code>--auto</code></td><td>Skip interactive interview</td></tr>
+    <tr><td><code>--no-interview</code></td><td>Skip interview, keep defaults</td></tr>
+    <tr><td><code>--caveman</code></td><td>Compress generated skills (~75% token savings)</td></tr>
+    <tr><td><code>--dry-run</code></td><td>Show what would be done without writing files</td></tr>
+    <tr><td><code>--platform &lt;name&gt;</code></td><td>Target: claude-code, cursor, continue, smithery</td></tr>
+  </table>
+</section>
+
+<!-- ═══ SKILLS ═══ -->
+<section>
+  <h2>▸ Scaffolded Skills</h2>
+
+  <table>
+    <tr><th>Skill</th><th>Trigger</th><th>What It Does</th></tr>
+    <tr><td><code>/backend</code></td><td>Backend task</td><td>Implements backend tasks with gitnexus→serena→git-memory 3-phase workflow</td></tr>
+    <tr><td><code>/frontend</code></td><td>UI task</td><td>Implements UI tasks with mandatory browser-verified visual loop via Playwright</td></tr>
+    <tr><td><code>/test</code></td><td>Test task</td><td>Orchestrates test writing — dispatches backend + frontend subagents in parallel</td></tr>
+    <tr><td><code>/pr-review</code></td><td>PR review</td><td>Reviews branch diff — dispatches backend + frontend reviewers, merges reports</td></tr>
+    <tr><td><code>/documentation</code></td><td>Docs task</td><td>Generates API annotations + Playwright screenshots + Obsidian user guides</td></tr>
+    <tr><td><code>/git</code></td><td>Commit work</td><td>Conventional commits, pre-push gates, branch rules</td></tr>
+    <tr><td><code>/insights</code></td><td>Project health</td><td>Analyzes project config, suggests improvements with health score</td></tr>
+    <tr><td><code>/caveman</code></td><td>Token efficiency</td><td>Toggle caveman compression mode (lite/full/ultra/off)</td></tr>
+  </table>
+</section>
+
+<!-- ═══ HOOKS ═══ -->
+<section>
+  <h2>▸ Automation Hooks</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>🩺 SessionStart</h4>
+      <p>Runs health check at every session start. Reports missing MCPs, uncommitted changes, stale gitnexus index, setup status.</p>
+    </div>
+    <div class="card">
+      <h4>🛡 PreToolUse</h4>
+      <p>Intercepts git commands — validates conventional commit format, shows pre-push gates, warns on destructive operations. Suspends caveman during memory writes.</p>
+    </div>
+    <div class="card">
+      <h4>📋 Stop</h4>
+      <p>Detects uncommitted changes at session end. Categorizes by backend/frontend/docs. Suggests /git and /documentation.</p>
+    </div>
+    <div class="card">
+      <h4>🧠 PostToolUse</h4>
+      <p>Resumes caveman after memory writes. Edge case: never auto-enables caveman if user explicitly turned it off.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ INSTALL ═══ -->
+<section>
+  <h2>▸ Installation</h2>
+
+  <h3>Prerequisites</h3>
+  <table>
+    <tr><th>Tool</th><th>Why</th><th>Install</th></tr>
+    <tr><td>Node.js ≥ 20</td><td>Runtime for JS/TS MCPs</td><td><a href="https://nodejs.org">nodejs.org</a></td></tr>
+    <tr><td>git ≥ 2.30</td><td>git-memory, gitnexus</td><td><a href="https://git-scm.com">git-scm.com</a></td></tr>
+    <tr><td>Python ≥ 3.12</td><td>serena, mempalace, ouroboros</td><td><code>brew install python</code></td></tr>
+    <tr><td>pipx</td><td>Isolated Python installs</td><td><code>brew install pipx</code></td></tr>
+    <tr><td>GitHub CLI</td><td>PR creation (optional)</td><td><code>brew install gh</code></td></tr>
+  </table>
+
+  <h3>Quick Start</h3>
+  <pre><code># Install globally
+npm i -g @gunesbizim/agent-smith
+
+# Bootstrap a project
+cd your-project
+agent-smith init
+
+# Or one-shot via npx
+npx @gunesbizim/agent-smith init --dir /path/to/project</code></pre>
+
+  <h3>Claude Code Plugin</h3>
+  <pre><code># Install as a Claude Code plugin
+claude plugin install @gunesbizim/agent-smith
+
+# Or from GitHub
+claude plugin install github:gunesbizim/agent-smith</code></pre>
+</section>
+
+<!-- ═══ CI/CD ═══ -->
+<section>
+  <h2>▸ Security & CI/CD</h2>
+
+  <table>
+    <tr><th>Check</th><th>Status</th></tr>
+    <tr><td>Secret scanning + push protection</td><td><span style="color:var(--green)">✓ Enabled</span></td></tr>
+    <tr><td>CodeQL (security-extended)</td><td><span style="color:var(--green)">✓ Passing</span></td></tr>
+    <tr><td>Dependabot (weekly)</td><td><span style="color:var(--green)">✓ Active</span></td></tr>
+    <tr><td>Dependency review</td><td><span style="color:var(--green)">✓ Blocks high severity</span></td></tr>
+    <tr><td>SonarCloud analysis</td><td><span style="color:var(--green)">✓ Configured</span></td></tr>
+    <tr><td>npm audit</td><td><span style="color:var(--green)">✓ In CI pipeline</span></td></tr>
+    <tr><td>TypeScript strict</td><td><span style="color:var(--green)">✓ Zero errors</span></td></tr>
+    <tr><td>Tests (Node 20/22)</td><td><span style="color:var(--green)">✓ 226 passing</span></td></tr>
+  </table>
+</section>
+
+</div>
+
+<footer>
+  <p>Agent Smith · MIT License · <a href="https://github.com/gunesbizim/agent-smith">github.com/gunesbizim/agent-smith</a></p>
+</footer>
+
+</body>
+</html>

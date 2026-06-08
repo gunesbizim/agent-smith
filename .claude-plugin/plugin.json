@@ -1,0 +1,54 @@
+{
+  "name": "agent-smith",
+  "version": "0.2.2",
+  "description": "Autonomous development pipeline — auto-configures MCP servers, scaffolds project-aware Claude Code skills, and drives ticket-to-PR workflows",
+  "author": {
+    "name": "Gunes Bizim",
+    "url": "https://github.com/gunesbizim"
+  },
+  "homepage": "https://gunesbizim.github.io/agent-smith",
+  "repository": "https://github.com/gunesbizim/agent-smith",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "mcp",
+    "skills",
+    "pipeline",
+    "autonomous",
+    "devtools",
+    "automation",
+    "ci-cd",
+    "code-review",
+    "documentation"
+  ],
+  "skills": "./commands/",
+  "mcpServers": {
+    "agent-smith": {
+      "command": "npx",
+      "args": ["@gunesbizim/agent-smith", "init", "--auto", "--no-interview"]
+    }
+  },
+  "interface": {
+    "displayName": "Agent Smith",
+    "shortDescription": "One command to set up your entire AI-powered development pipeline",
+    "longDescription": "Agent Smith bootstraps your Claude Code project in seconds. It detects your tech stack (38 frameworks, 12 languages), installs and configures 11 MCP servers, generates 12+ project-specific skills, and sets up autonomous ticket-to-PR workflows. Includes interactive project interviews, caveman compression, health checks, and cross-platform support for macOS, Linux, and Windows.",
+    "developerName": "Gunes Bizim",
+    "category": "DevTools Automation",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Interactive",
+      "Agent"
+    ],
+    "websiteURL": "https://gunesbizim.github.io/agent-smith",
+    "privacyPolicyURL": "https://github.com/gunesbizim/agent-smith",
+    "termsOfServiceURL": "https://github.com/gunesbizim/agent-smith",
+    "defaultPrompt": [
+      "Initialize this project with agent-smith",
+      "Analyze my project and detect the tech stack",
+      "Run the project health check",
+      "Show me insights and improvement suggestions"
+    ],
+    "brandColor": "#00D4AA"
+  }
+}

@@ -2,7 +2,6 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { homeDir } from "../shared/platform-utils.js";
-import type { TemplateVariables } from "../shared/types.js";
 
 export async function scaffoldConfigs(
   targetDir: string,

@@ -1,8 +1,8 @@
 // Skill customizer — adapts skill stubs for the detected project
 import path from "node:path";
 import fs from "fs-extra";
-import { resolveTemplate } from "../shared/templates.js";
 import type { TemplateVariables } from "../shared/types.js";
+import { resolveTemplate } from "../shared/templates.js";
 
 const SKILL_FILES = [
   ".claude/skills/pr-review-backend/SKILL.md",

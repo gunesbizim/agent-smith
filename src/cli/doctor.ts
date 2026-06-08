@@ -1,11 +1,11 @@
 // doctor command — health check for the agent-smith installation
 import chalk from "chalk";
-import ora from "ora";
+
 import fs from "fs-extra";
 import path from "node:path";
 import { checkDependencies } from "../install/dependency-checker.js";
 import { commandExists } from "../shared/platform-utils.js";
-import type { HealthCheck, HealthReport } from "../shared/types.js";
+import type { HealthCheck } from "../shared/types.js";
 
 export async function doctorCommand(): Promise<void> {
   const cwd = process.cwd();

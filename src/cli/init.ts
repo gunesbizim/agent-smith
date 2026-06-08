@@ -86,7 +86,6 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   // Step 4b — Interactive interview (unless --auto or --no-interview)
   let interviewAnswers = null;
   if (!opts.auto && !opts.noInterview && !opts.dryRun) {
-    const interviewSpinner = ora().stop(); // just for spacing
     try {
       interviewAnswers = await runInterview(cwd, project);
       if (interviewAnswers) {

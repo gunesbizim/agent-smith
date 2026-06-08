@@ -81,10 +81,10 @@ report.gitnexus = {
 // Generate context for the LLM
 let additionalContext = "";
 
-if (!report.setup.initialized) {
-  additionalContext += `\n⚠ Agent Smith not initialized — run \`npx agent-smith init\` to set up skills and MCPs.\n`;
-} else {
+if (report.setup.initialized) {
   additionalContext += `\n✓ Agent Smith skills are set up (${report.projectRoot}/.claude/)\n`;
+} else {
+  additionalContext += `\n⚠ Agent Smith not initialized — run \`npx agent-smith init\` to set up skills and MCPs.\n`;
 }
 
 const missingMCPs = mcpStatus.filter((m) => !m.installed);

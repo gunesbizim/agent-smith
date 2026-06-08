@@ -1,7 +1,5 @@
 // Caveman compressor — reduces token count ~75% while preserving technical accuracy.
 // Rules: drop articles, shorten verbs, keep code blocks intact, preserve CLI commands.
-import { resolveTemplate } from "../shared/templates.js";
-import type { TemplateVariables } from "../shared/types.js";
 
 export function cavemanCompress(content: string): string {
   let compressed = content;
@@ -79,8 +77,8 @@ export function cavemanCompress(content: string): string {
   compressed = compressed.replace(/\n{3,}/g, "\n\n");
 
   // Restore code
-  compressed = compressed.replace(/__CODEBLOCK_(\d+)__/g, (_, i) => codeBlocks[parseInt(i)]);
-  compressed = compressed.replace(/__INLINE_(\d+)__/g, (_, i) => inlineCodes[parseInt(i)]);
+  compressed = compressed.replace(/__CODEBLOCK_(\d+)__/g, (_, i) => codeBlocks[Number.parseInt(i)]);
+  compressed = compressed.replace(/__INLINE_(\d+)__/g, (_, i) => inlineCodes[Number.parseInt(i)]);
 
   return compressed;
 }

@@ -27,6 +27,18 @@ export interface InterviewQuestion {
   options?: string[];
 }
 
+function getDefaultTesting(hasFrontend: boolean, isCLI: boolean): string {
+  if (hasFrontend) return "unit tests for new logic, role/permission tests, happy+error+edge paths, no empty test stubs";
+  if (isCLI) return "unit tests for new logic, happy+error+edge paths, no empty test stubs";
+  return "unit tests mandatory, integration tests marked separately, happy+error+edge+permission paths";
+}
+
+function getDefaultArchRules(hasBackend: boolean, isCLI: boolean): string {
+  if (hasBackend) return "no ORM in views, services return data not HTTP, repository pattern for data access, absolute imports, structured logging with trace_id";
+  if (isCLI) return "modular design, no circular imports, typed function signatures, error handling at boundaries";
+  return "modular design, typed interfaces, error handling at boundaries, no circular imports";
+}
+
 function buildQuestions(project: DetectedProject): InterviewQuestion[] {
   const hasBackend = !!project.backend;
   const hasFrontend = !!project.frontend;
@@ -72,22 +84,14 @@ function buildQuestions(project: DetectedProject): InterviewQuestion[] {
       id: "testingRequirements",
       question: "Testing requirements? (comma-separated)",
       hint: "e.g. unit tests mandatory, integration tests marked, coverage >80%, E2E for critical paths",
-      defaultValue: hasFrontend
-        ? "unit tests for new logic, role/permission tests, happy+error+edge paths, no empty test stubs"
-        : isCLI
-        ? "unit tests for new logic, happy+error+edge paths, no empty test stubs"
-        : "unit tests mandatory, integration tests marked separately, happy+error+edge+permission paths",
+      defaultValue: getDefaultTesting(hasFrontend, isCLI),
       type: "multi",
     },
     {
       id: "architectureRules",
       question: "Architecture rules that are PR blockers? (comma-separated)",
       hint: "e.g. no ORM in views, services return data not Response, absolute imports only, PII must be encrypted",
-      defaultValue: hasBackend
-        ? "no ORM in views, services return data not HTTP, repository pattern for data access, absolute imports, structured logging with trace_id"
-        : isCLI
-        ? "modular design, no circular imports, typed function signatures, error handling at boundaries"
-        : "modular design, typed interfaces, error handling at boundaries, no circular imports",
+      defaultValue: getDefaultArchRules(hasBackend, isCLI),
       type: "multi",
     },
     {

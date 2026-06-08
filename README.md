@@ -142,11 +142,11 @@ Jira Ticket
 
 ```
 npx @gunesbizim/agent-smith init              # Full project bootstrap
-npx agent-smith analyze           # Detect tech stack and print report
-npx agent-smith configure         # Re-run MCP configuration only
-npx agent-smith doctor            # Health check: MCPs + skills + git
-npx agent-smith ticket PROJ-123  # Jira ticket → autonomous pipeline
-npx agent-smith pipeline          # Run pipeline on current branch
+npx @gunesbizim/agent-smith analyze           # Detect tech stack and print report
+npx @gunesbizim/agent-smith configure         # Re-run MCP configuration only
+npx @gunesbizim/agent-smith doctor            # Health check: MCPs + skills + git
+npx @gunesbizim/agent-smith ticket PROJ-123  # Jira ticket → autonomous pipeline
+npx @gunesbizim/agent-smith pipeline          # Run pipeline on current branch
 ```
 
 ---
@@ -184,7 +184,7 @@ npx tsc --noEmit # zero type errors
 ## Import / Integrate
 
 ```typescript
-import { detectProject, installMCPs, scaffoldSkills, customizeSkills } from "agent-smith";
+import { detectProject, installMCPs, scaffoldSkills, customizeSkills } from "@gunesbizim/agent-smith";
 ```
 
 Or via Smithery: `smithery install agent-smith`

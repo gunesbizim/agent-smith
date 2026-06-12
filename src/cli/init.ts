@@ -4,7 +4,7 @@ import ora from "ora";
 import path from "node:path";
 import fs from "fs-extra";
 import { detectProject } from "../analyze/project-detector.js";
-import { sniffArchitecture } from "../analyze/architecture-sniffer.js";
+import { sniffArchitecture, probeSentrux } from "../analyze/architecture-sniffer.js";
 import { mapBestPractices } from "../analyze/best-practice-mapper.js";
 import { scanPackages } from "../analyze/package-scanner.js";
 import { runInterview, applyInterviewAnswers } from "../adapt/project-interview.js";
@@ -15,7 +15,7 @@ import { scaffoldSkills } from "../scaffold/skills.js";
 import { scaffoldConfigs } from "../scaffold/configs.js";
 import { scaffoldHooks } from "../scaffold/hooks.js";
 import { customizeSkills } from "../adapt/skill-customizer.js";
-import { writeArchitectureDocs } from "../adapt/architecture-writer.js";
+import { writeArchitectureDocs, writeSentruxRules } from "../adapt/architecture-writer.js";
 import { cavemanCompress } from "../adapt/caveman-compress.js";
 import type { TemplateVariables } from "../shared/types.js";
 import { DEFAULT_TEMPLATE_VARS } from "../shared/templates.js";
@@ -83,11 +83,48 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   let templateVars: TemplateVariables = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, packageUsage);
   bpSpinner.succeed("Best practices mapped");
 
+  // Step 4c — Sentrux probe (live scan to seed rules.toml thresholds)
+  const sentruxSpinner = ora("Probing architecture quality (sentrux scan)...").start();
+  const sentruxProbe = await probeSentrux(cwd);
+  if (sentruxProbe.available) {
+    const cycles = sentruxProbe.cycles ?? 0;
+
+    if (cycles === 0) {
+      // Enforce mode: zero cycles now → keep it that way
+      templateVars.SENTRUX_MAX_CYCLES = "0";
+      sentruxSpinner.succeed(
+        `sentrux: max_cycles=0 (enforce mode) — 0 cycles detected, quality_signal=${sentruxProbe.qualitySignal ?? "n/a"}`,
+      );
+    } else {
+      // Ratchet mode: existing debt → lock current count, block increases
+      templateVars.SENTRUX_MAX_CYCLES = String(cycles);
+      sentruxSpinner.warn(
+        `sentrux: max_cycles=0 would FAIL now (${cycles} cycle${cycles === 1 ? "" : "s"}) → seeding max_cycles=${cycles} (ratchet)`,
+      );
+    }
+
+    if (sentruxProbe.maxCC != null) {
+      templateVars.SENTRUX_MAX_CC = String(sentruxProbe.maxCC);
+    }
+    if (sentruxProbe.couplingGrade != null) {
+      templateVars.SENTRUX_MAX_COUPLING = sentruxProbe.couplingGrade;
+    }
+  } else {
+    // Probe failed (binary missing or scan error) — advisory mode
+    templateVars.SENTRUX_MAX_CYCLES = "unknown";
+    sentruxSpinner.warn(
+      "sentrux not available — rules.toml will have max_cycles commented out (advisory mode). Install sentrux and re-run.",
+    );
+  }
+
   // Step 4b — Interactive interview (unless --auto or --no-interview)
   let interviewAnswers = null;
   if (!opts.auto && !opts.noInterview && !opts.dryRun) {
+    const sentruxForInterview = sentruxProbe.available
+      ? { cycles: sentruxProbe.cycles, maxCC: sentruxProbe.maxCC }
+      : undefined;
     try {
-      interviewAnswers = await runInterview(cwd, project);
+      interviewAnswers = await runInterview(cwd, project, sentruxForInterview);
       if (interviewAnswers) {
         templateVars = applyInterviewAnswers(templateVars, interviewAnswers);
       }
@@ -119,6 +156,11 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   const archDocSpinner = ora("Generating architecture documentation...").start();
   await writeArchitectureDocs(targetDir, templateVars, opts.dryRun);
   archDocSpinner.succeed("Architecture docs written");
+
+  // Step 8c — Write .sentrux/rules.toml
+  const sentruxRulesSpinner = ora("Writing .sentrux/rules.toml...").start();
+  await writeSentruxRules(targetDir, templateVars, opts.dryRun);
+  sentruxRulesSpinner.succeed(".sentrux/rules.toml written");
 
   // Step 8b — Caveman compression (if enabled)
   if (opts.caveman && !opts.dryRun) {

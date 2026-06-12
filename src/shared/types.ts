@@ -119,13 +119,15 @@ export interface DatabaseInfo {
 
 // ----- MCP Server -----
 
+export type PlatformInstall = string | { darwin?: string; linux?: string; win32?: string };
+
 export interface MCPServerDefinition {
   name: string;
   description: string;
   category: "code-intelligence" | "browser" | "documentation" | "quality" | "memory" | "pm" | "design";
   scope: "project" | "user" | "both";
-  installType: "npm" | "npx" | "pipx" | "python" | "manual";
-  installCommand: string;
+  installType: "npm" | "npx" | "pipx" | "python" | "shell" | "manual";
+  installCommand: PlatformInstall;
   checkCommand: string;
   requiredEnvVars: string[];
   configTemplate: MCPConfigEntry;
@@ -171,6 +173,13 @@ export interface TemplateVariables {
   ORM: string;
   PRE_PUSH_GATES: string;
   API_DOCS_LIBRARY: string;
+
+  // Sentrux quality gate
+  SENTRUX_MAX_CYCLES: string;
+  SENTRUX_MAX_CC: string;
+  SENTRUX_MAX_COUPLING: string;
+  SENTRUX_LAYERS: string;
+  SENTRUX_BOUNDARIES: string;
 
   // Project
   PROJECT_NAME: string;
@@ -246,6 +255,7 @@ export interface PhaseResult {
   filesChanged: string[];
   errors: string[];
   warnings: string[];
+  qualitySignal?: { before: number; after: number; bottleneck: string };
 }
 
 // ----- Jira -----

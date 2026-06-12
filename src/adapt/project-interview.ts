@@ -16,6 +16,8 @@ export interface InterviewAnswers {
   securityRequirements: string[];
   codeStyle: string[];
   customNotes: string;
+  allowCycles: string;
+  maxCC: string;
 }
 
 export interface InterviewQuestion {
@@ -23,6 +25,8 @@ export interface InterviewQuestion {
   question: string;
   hint: string;
   defaultValue: string;
+  /** Probe-derived default shown separately (optional) */
+  probeDefault?: string;
   type: "text" | "multi" | "boolean";
   options?: string[];
 }
@@ -39,11 +43,21 @@ function getDefaultArchRules(hasBackend: boolean, isCLI: boolean): string {
   return "modular design, typed interfaces, error handling at boundaries, no circular imports";
 }
 
-function buildQuestions(project: DetectedProject): InterviewQuestion[] {
+interface SentruxProbeDefaults {
+  cycles: number | null;
+  maxCC: number | null;
+}
+
+function buildQuestions(project: DetectedProject, sentruxDefaults?: SentruxProbeDefaults): InterviewQuestion[] {
   const hasBackend = !!project.backend;
   const hasFrontend = !!project.frontend;
   const isCLI = project.projectType === "cli-tool";
   const isLibrary = project.projectType === "library";
+
+  const defaultMaxCC = sentruxDefaults?.maxCC != null ? String(sentruxDefaults.maxCC) : "25";
+  const cyclesNote = sentruxDefaults?.cycles != null
+    ? ` (probe found ${sentruxDefaults.cycles} cycle${sentruxDefaults.cycles === 1 ? "" : "s"})`
+    : "";
 
   return [
     {
@@ -119,6 +133,21 @@ function buildQuestions(project: DetectedProject): InterviewQuestion[] {
       defaultValue: "",
       type: "text",
     },
+    {
+      id: "allowCycles",
+      question: `Allow dependency cycles?${cyclesNote} (yes/no)`,
+      hint: "no = enforce zero cycles (fail on any new cycle). yes = ratchet mode (lock current count, block increases)",
+      defaultValue: "no",
+      type: "boolean",
+    },
+    {
+      id: "maxCC",
+      question: "Max cyclomatic complexity per function?",
+      hint: "Functions above this threshold are flagged by sentrux. Lower = cleaner code. Recommended: 10-25",
+      defaultValue: defaultMaxCC,
+      probeDefault: defaultMaxCC,
+      type: "text",
+    },
   ];
 }
 
@@ -132,14 +161,18 @@ function smartDefaults(project: DetectedProject): Partial<InterviewAnswers> {
     answers.ticketPrefix = "TICKET-";
   }
 
+  answers.allowCycles = "no";
+  answers.maxCC = "25";
+
   return answers;
 }
 
 export async function runInterview(
   projectRoot: string,
   project: DetectedProject,
+  sentruxDefaults?: SentruxProbeDefaults,
 ): Promise<InterviewAnswers> {
-  const questions = buildQuestions(project);
+  const questions = buildQuestions(project, sentruxDefaults);
   const defaults = smartDefaults(project);
   const answers: InterviewAnswers = {
     branchNaming: "",
@@ -151,6 +184,8 @@ export async function runInterview(
     securityRequirements: [],
     codeStyle: [],
     customNotes: "",
+    allowCycles: "no",
+    maxCC: sentruxDefaults?.maxCC != null ? String(sentruxDefaults.maxCC) : "25",
   };
 
   console.log(chalk.bold.cyan("\n📋 Project Conventions Interview\n"));
@@ -329,6 +364,22 @@ export function applyInterviewAnswers(
 
   if (answers.prChecklist.length > 0) {
     v.PR_CHECKLIST = answers.prChecklist.join("; ");
+  }
+
+  // Sentrux: allowCycles overrides the probe-seeded value if the user explicitly said yes
+  if (answers.allowCycles?.toLowerCase().startsWith("y")) {
+    // User allows cycles — keep existing ratchet value (do not override to 0)
+    // If there was no probe value yet, leave SENTRUX_MAX_CYCLES as-is
+  } else {
+    // User said no → only force to "0" (enforce mode) if no probe set a ratchet already
+    if (!v.SENTRUX_MAX_CYCLES || v.SENTRUX_MAX_CYCLES === "unknown") {
+      v.SENTRUX_MAX_CYCLES = "0";
+    }
+  }
+
+  // Sentrux: max CC from interview (may override probe default)
+  if (answers.maxCC && /^\d+$/.test(answers.maxCC.trim())) {
+    v.SENTRUX_MAX_CC = answers.maxCC.trim();
   }
 
   return v;

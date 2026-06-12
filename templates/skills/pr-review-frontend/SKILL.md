@@ -30,6 +30,22 @@ gitnexus_impact("storeActionOrApiFn")                  # callers of changed acti
 
 ---
 
+## Step 1.5 — Architectural quality gate (sentrux)
+
+```
+mcp__sentrux__check_rules()    # validate .sentrux/rules.toml constraints
+mcp__sentrux__dsm()            # dependency structure matrix — spot new cycles/coupling
+mcp__sentrux__session_end()    # compare architecture signal vs baseline saved at session_start
+```
+
+**Blockers:**
+- Any `check_rules` violation (cycle budget exceeded, coupling grade, CC threshold, god-file rule).
+- `session_end.pass == false` — the PR degraded the architecture signal; include `session_end.summary` in the blocker text.
+
+Do not proceed to Step 2 if either blocker is present. Report them under **Blockers** in the output.
+
+---
+
 ## Step 2 — Serena diagnostics
 
 For each changed file:
@@ -114,6 +130,7 @@ Components, stores, API functions, backend endpoints affected beyond the raw dif
 
 ## Blockers
 Must fix before merge (i18n parity failures, layering violations, broken role gating).
+- **[sentrux]** check_rules violations or session_end.pass==false (architecture degraded).
 
 ## Required changes
 Should fix (type holes, missing tests, design-token violations).

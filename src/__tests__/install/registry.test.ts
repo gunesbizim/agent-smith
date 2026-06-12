@@ -20,6 +20,7 @@ describe("MCP Registry", () => {
     expect(names).toContain("mempalace");
     expect(names).toContain("ouroboros");
     expect(names).toContain("jira");
+    expect(names).toContain("sentrux");
   });
 
   it("has no duplicate names", () => {
@@ -107,5 +108,57 @@ describe("getMCPByScope", () => {
     const names = user.map((s) => s.name);
     expect(names).toContain("sonarqube");
     expect(names).toContain("mempalace");
+  });
+});
+
+describe("sentrux registry entry", () => {
+  it("has category quality", () => {
+    const s = getMCPServer("sentrux");
+    expect(s).toBeDefined();
+    expect(s!.category).toBe("quality");
+  });
+
+  it("has scope project", () => {
+    const s = getMCPServer("sentrux");
+    expect(s!.scope).toBe("project");
+  });
+
+  it("has installType shell", () => {
+    const s = getMCPServer("sentrux");
+    expect(s!.installType).toBe("shell");
+  });
+
+  it("configTemplate.command is sentrux", () => {
+    const s = getMCPServer("sentrux");
+    expect(s!.configTemplate.command).toBe("sentrux");
+  });
+
+  it("configTemplate.args includes --mcp", () => {
+    const s = getMCPServer("sentrux");
+    expect(s!.configTemplate.args).toContain("--mcp");
+  });
+
+  it("installCommand is platform-keyed with darwin, linux, win32 keys", () => {
+    const s = getMCPServer("sentrux");
+    expect(typeof s!.installCommand).toBe("object");
+    const cmd = s!.installCommand as Record<string, string>;
+    expect(cmd).toHaveProperty("darwin");
+    expect(cmd).toHaveProperty("linux");
+    expect(cmd).toHaveProperty("win32");
+    expect(typeof cmd.darwin).toBe("string");
+    expect(typeof cmd.linux).toBe("string");
+    expect(typeof cmd.win32).toBe("string");
+  });
+
+  it("is returned by getMCPByCategory quality", () => {
+    const quality = getMCPByCategory("quality");
+    const names = quality.map((s) => s.name);
+    expect(names).toContain("sentrux");
+  });
+
+  it("is returned by getMCPByScope project", () => {
+    const project = getMCPByScope("project");
+    const names = project.map((s) => s.name);
+    expect(names).toContain("sentrux");
   });
 });

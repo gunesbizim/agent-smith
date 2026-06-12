@@ -32,6 +32,22 @@ gitnexus_impact("ChangedClassName")    # what else does this change break?
 
 ---
 
+## Step 1.5 — Architectural quality gate (sentrux)
+
+```
+mcp__sentrux__check_rules()    # validate .sentrux/rules.toml constraints
+mcp__sentrux__dsm()            # dependency structure matrix — spot new cycles/coupling
+mcp__sentrux__session_end()    # compare architecture signal vs baseline saved at session_start
+```
+
+**Blockers:**
+- Any `check_rules` violation (cycle budget exceeded, coupling grade, CC threshold, god-file rule).
+- `session_end.pass == false` — the PR degraded the architecture signal; include `session_end.summary` in the blocker text.
+
+Do not proceed to Step 2 if either blocker is present. Report them under **Blockers** in the output.
+
+---
+
 ## Step 2 — Historical context (git-memory)
 
 ```
@@ -109,6 +125,7 @@ Endpoints and symbols flagged as affected beyond the raw diff.
 
 ## Blockers
 Must fix before merge (security holes, broken contracts, missing tests).
+- **[sentrux]** check_rules violations or session_end.pass==false (architecture degraded).
 
 ## Required changes
 Should fix (arch violations, missing codes, test gaps).

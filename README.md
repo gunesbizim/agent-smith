@@ -14,7 +14,7 @@ npx @gunesbizim/agent-smith init
 
 ### The Problem
 
-Claude Code is powerful with MCP servers (gitnexus, git-memory, serena, etc.), but setting them up for a new project is painful: you need to manually configure 11+ MCP servers across 3 JSON files, write skills that reference project-specific commands, and teach Claude your team's conventions — every time you start a new project.
+Claude Code is powerful with MCP servers (gitnexus, git-memory, serena, etc.), but setting them up for a new project is painful: you need to manually configure 12+ MCP servers across 3 JSON files, write skills that reference project-specific commands, and teach Claude your team's conventions — every time you start a new project.
 
 ### The Solution
 
@@ -80,6 +80,7 @@ Agent Smith installs and configures the MCP servers your project needs. Each ser
 | **ouroboros** | PM agent — seed-based interviews, AC generation | **Planning.** Takes business requirements and generates acceptance criteria |
 | **jira** | Issue tracking — create, update, search tickets | **Pipeline entry.** A Jira ticket triggers the full autonomous pipeline |
 | **vuetify** | Vuetify 3 component API lookup | **Frontend.** Never guesses Vuetify prop/slot/event names |
+| **sentrux** | Real-time architectural sensor — quality signal, cycle detection, coupling grades, test gaps | **REVIEW-phase gate.** Saves a baseline at implementation start; enforces zero architectural regression at review via session gate + check_rules |
 
 ### 3. Skill Scaffolding & Customization
 
@@ -125,6 +126,7 @@ Jira Ticket
     │
     ▼
 ┌─ IMPLEMENT ─────────────────────────────────────┐
+│ sentrux session_start baseline                  │
 │ serena find_symbol → insert → replace → diagnose│
 │ vuetify component API lookup (frontend)         │
 │ gitnexus_detect_changes (mid-impl check)        │
@@ -143,6 +145,7 @@ Jira Ticket
 │ Self-review via pr-review skills                │
 │ gitnexus_shape_check + api_impact               │
 │ sonarqube quality gate                          │
+│ sentrux check_rules + session_end gate          │
 │ Produces: review report, blockers fixed         │
 └─────────────────────────────────────────────────┘
     │

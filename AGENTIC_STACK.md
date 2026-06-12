@@ -13,6 +13,7 @@ Complete reference for all MCP servers, Claude Code skills, and workflow pattern
 | **gitnexus** | Code intelligence graph — impact analysis, execution flows, blast radius |
 | **git-memory** | Semantic search over git history — past decisions, bug fixes, file timelines |
 | **serena** | LSP-backed symbol navigation — find symbols, callers, diagnostics inline |
+| **sentrux** | Real-time architectural sensor — quality signal, cycle detection, coupling grades, test gaps; REVIEW-phase session gate |
 
 ### Global User-Level (`~/.claude.json`)
 
@@ -107,6 +108,22 @@ Complete reference for all MCP servers, Claude Code skills, and workflow pattern
 | `measures_component` | Coverage, duplication, reliability metrics. |
 | `source_code` | View annotated source with issue markers. |
 | `markIssueFalsePositive` / `markIssueWontFix` | Resolve issues with rationale. |
+
+### sentrux
+
+Real-time architectural sensor. Exposes `quality_signal` (0–10000) derived from five root causes: acyclicity (Tarjan SCC cycle count), depth (max dependency depth), equality (Gini of per-function cyclomatic complexity), redundancy (dead+dup ratio), and modularity (Newman Q). Start with `sentrux --mcp` (stdio).
+
+| Tool | Usage |
+|------|-------|
+| `scan(path)` | Full architectural scan — returns `quality_signal`, `files`, `bottleneck`, and `root_causes` with `score` + `raw` per dimension. **Run at session start to establish baseline.** |
+| `health()` | Metric breakdown by dimension — inspect individual scores without a full rescan. |
+| `session_start()` | Save a quality-signal baseline for the current work session. **Call at the start of IMPLEMENT phase.** |
+| `session_end()` | Compare current signal against baseline — returns `{ pass, signal_before, signal_after, summary }`. **Call at end of REVIEW phase as regression gate.** |
+| `rescan(path)` | Re-run scan after code changes; cheaper than a cold `scan` when the project is already indexed. |
+| `check_rules()` | Validate `.sentrux/rules.toml` against live metrics — reports which thresholds are violated. **Run before PR.** |
+| `evolution()` | Quality-signal trend over time — useful for tracking architectural drift across sprints. |
+| `dsm(path)` | Render the dependency structure matrix — visualise coupling between modules. |
+| `test_gaps()` | Identify undertested high-risk modules ranked by cyclomatic complexity and coupling. |
 
 ### ouroboros
 

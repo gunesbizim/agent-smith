@@ -65,7 +65,16 @@ async function executePlanPhase(ctx: PipelineContext): Promise<PhaseResult> {
 }
 
 async function executeImplementPhase(ctx: PipelineContext): Promise<PhaseResult> {
-  // serena find_symbol + insert_before_symbol + replace_symbol_body + get_diagnostics
+  // 1. mcp__sentrux__session_start() — save architecture baseline before any edits.
+  //    The baseline captured here is compared by session_end() in the review phase
+  //    to detect regressions introduced during implementation.
+  //
+  // 2. serena find_symbol + insert_before_symbol + replace_symbol_body + get_diagnostics
+  //    — perform the actual code changes.
+  //
+  // 3. mcp__sentrux__rescan() — re-analyse the working tree mid-implementation so the
+  //    DSM and root_causes reflect the post-edit state before tests run.  Useful for
+  //    catching cycle introductions early rather than at the review gate.
   return {
     phase: "implement",
     success: true,
@@ -89,14 +98,51 @@ async function executeTestPhase(ctx: PipelineContext): Promise<PhaseResult> {
 }
 
 async function executeReviewPhase(ctx: PipelineContext): Promise<PhaseResult> {
-  // Self-review via pr-review skills
+  // 1. mcp__sentrux__check_rules()
+  //    Validates .sentrux/rules.toml constraints (max_cycles, max_coupling, max_cc,
+  //    no_god_files, layer boundaries).  Any violation is a hard blocker.
+  //
+  // 2. mcp__sentrux__session_end()
+  //    Compares current architecture signal against the baseline saved by session_start()
+  //    in executeImplementPhase.  If session_end.pass === false the PR introduced an
+  //    architecture regression and the pipeline must not proceed to PR creation.
+  //
+  // 3. Self-review via pr-review skills (architecture, security, tests, etc.)
+
+  // --- Stub values: real implementation reads from sentrux MCP responses ---
+  const checkRulesViolations: string[] = [];   // populated from check_rules() result
+  const sessionEndPass = true;                  // populated from session_end().pass
+  const signalBefore = 0;                       // from session_end().signal_before
+  const signalAfter = 0;                        // from session_end().signal_after
+  const bottleneck = "";                        // from most recent scan().bottleneck
+  const sessionSummary = "";                    // from session_end().summary
+
+  const errors: string[] = [];
+
+  if (checkRulesViolations.length > 0) {
+    errors.push(`sentrux check_rules violations: ${checkRulesViolations.join("; ")}`);
+  }
+
+  if (!sessionEndPass) {
+    errors.push(`sentrux session_end: architecture signal degraded — ${sessionSummary}`);
+  }
+
+  const success = errors.length === 0;
+
   return {
     phase: "review",
-    success: true,
-    summary: "Review complete — no blockers",
+    success,
+    summary: success
+      ? "Review complete — no blockers"
+      : `Review blocked: ${errors.join(" | ")}`,
     filesChanged: [],
-    errors: [],
+    errors,
     warnings: [],
+    qualitySignal: {
+      before: signalBefore,
+      after: signalAfter,
+      bottleneck,
+    },
   };
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "agent-smith",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Autonomous development pipeline — auto-configures MCP servers, scaffolds project-aware Claude Code skills, and drives ticket-to-PR workflows",
   "author": {
     "name": "Gunes Bizim",
@@ -31,7 +31,7 @@
   "interface": {
     "displayName": "Agent Smith",
     "shortDescription": "One command to set up your entire AI-powered development pipeline",
-    "longDescription": "Agent Smith bootstraps your Claude Code project in seconds. It detects your tech stack (38 frameworks, 12 languages), installs and configures 11 MCP servers, generates 12+ project-specific skills, and sets up autonomous ticket-to-PR workflows. Includes interactive project interviews, caveman compression, health checks, and cross-platform support for macOS, Linux, and Windows.",
+    "longDescription": "Agent Smith bootstraps your Claude Code project in seconds. It detects your tech stack (38 frameworks, 12 languages), installs and configures 12 MCP servers, generates 12+ project-specific skills, and sets up autonomous ticket-to-PR workflows. Includes interactive project interviews, caveman compression, health checks, and cross-platform support for macOS, Linux, and Windows.",
     "developerName": "Gunes Bizim",
     "category": "DevTools Automation",
     "capabilities": [

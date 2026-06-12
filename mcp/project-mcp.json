@@ -1,5 +1,11 @@
 {
   "mcpServers": {
+    "sentrux": {
+      "type": "stdio",
+      "command": "sentrux",
+      "args": ["--mcp"],
+      "env": {}
+    },
     "chrome-devtools": {
       "command": "npx",
       "args": [

@@ -76,6 +76,23 @@ if (branch) {
   }
 }
 
+// Sentrux architectural quality gate — compare against saved baseline
+const sentruxInstalled = !!(cmd(process.platform === "win32" ? "where sentrux" : "command -v sentrux"));
+if (sentruxInstalled) {
+  let gateOutput = null;
+  let gateExitCode = 0;
+  try {
+    const { execSync: execSyncGate } = require("node:child_process");
+    gateOutput = execSyncGate("sentrux gate .", { encoding: "utf-8", timeout: 15000, cwd: cwd() }).trim();
+  } catch (err) {
+    gateExitCode = err.status ?? 1;
+    gateOutput = err.stdout ? err.stdout.trim() : null;
+  }
+  if (gateExitCode !== 0 || (gateOutput && gateOutput.toLowerCase().includes("degradation"))) {
+    report.suggestions.push("sentrux: architectural quality regressed this session — run `sentrux gate .` for details");
+  }
+}
+
 // Write state for SessionStart hook to pick up
 const stateDir = path.join(os.homedir(), ".claude", "agent-smith");
 try {

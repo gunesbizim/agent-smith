@@ -8,10 +8,10 @@
  * Configure in .claude/settings.json:
  *   "Stop": [{ "hooks": [{ "type": "command", "command": "node hooks/stop-change-detector.js" }] }]
  */
-const { execSync } = require("node:child_process");
-const fs = require("node:fs");
-const path = require("node:path");
-const os = require("node:os");
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 function cwd() {
   return process.cwd();
@@ -31,10 +31,10 @@ const report = {
   timestamp: new Date().toISOString(),
   projectRoot: cwd(),
   hasUncommittedChanges: false,
-  changedBackendFiles: [] as string[],
-  changedFrontendFiles: [] as string[],
-  changedDocsFiles: [] as string[],
-  suggestions: [] as string[],
+  changedBackendFiles: [],
+  changedFrontendFiles: [],
+  changedDocsFiles: [],
+  suggestions: [],
 };
 
 // Check for uncommitted changes
@@ -82,8 +82,7 @@ if (sentruxInstalled) {
   let gateOutput = null;
   let gateExitCode = 0;
   try {
-    const { execSync: execSyncGate } = require("node:child_process");
-    gateOutput = execSyncGate("sentrux gate .", { encoding: "utf-8", timeout: 15000, cwd: cwd() }).trim();
+    gateOutput = execSync("sentrux gate .", { encoding: "utf-8", timeout: 15000, cwd: cwd() }).trim();
   } catch (err) {
     gateExitCode = err.status ?? 1;
     gateOutput = err.stdout ? err.stdout.trim() : null;

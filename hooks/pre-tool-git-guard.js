@@ -12,9 +12,9 @@
  *
  * The hook reads tool_input from stdin (Claude Code passes full tool call context).
  */
-const { execSync } = require("node:child_process");
-const fs = require("node:fs");
-const path = require("node:path");
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 
 function cwd() {
   return process.cwd();

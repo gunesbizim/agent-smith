@@ -6,9 +6,9 @@
  * Configure in .claude/settings.json:
  *   "SessionStart": [{ "hooks": [{ "type": "command", "command": "node hooks/session-start-doctor.js" }] }]
  */
-const { execSync } = require("node:child_process");
-const fs = require("node:fs");
-const path = require("node:path");
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 
 function cwd() {
   // The hook runs from the project root (Claude Code sets CWD to project root)

@@ -30,9 +30,10 @@ export async function probeSentrux(rootPath: string): Promise<SentruxProbeResult
   };
 
   try {
-    const stdout = execSync(`sentrux scan "${rootPath}"`, {
+    const stdout = execSync("sentrux scan", {
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 30_000,
+      cwd: rootPath,
     }).toString("utf-8").trim();
 
     // sentrux scan may print JSONL (one object per line) or a single JSON object.

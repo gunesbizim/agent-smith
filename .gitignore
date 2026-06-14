@@ -11,7 +11,9 @@ dist/
 .cursor/
 .mcp.json
 .serena/
-.sentrux/
+.sentrux/*
+!.sentrux/rules.toml
+!.sentrux/baseline.json
 docs/architecture/
 
 # Temp files

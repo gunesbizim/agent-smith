@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
+import readline from "node:readline";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
@@ -373,5 +374,41 @@ describe("runInterview — defaults accepted via mocked readline", () => {
     const answers = await runInterview(tmpDir, project, probe);
     expect(typeof answers.maxCC).toBe("string");
     expect(typeof answers.allowCycles).toBe("string");
+  });
+});
+
+describe("runInterview — skip and custom inputs", () => {
+  let tmpDir: string;
+  beforeAll(() => { tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "interview-skip-")); });
+  afterAll(() => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+  it("handles 'skip' for first question (covers skip branch)", async () => {
+    let callCount = 0;
+    const mockInterface = {
+      question: vi.fn().mockImplementation((_: string, cb: (s: string) => void) => {
+        cb(callCount++ === 0 ? "skip" : "");
+      }),
+      close: vi.fn(),
+    };
+    vi.mocked(readline.createInterface).mockReturnValueOnce(mockInterface as unknown as ReturnType<typeof readline.createInterface>);
+    const answers = await runInterview(tmpDir, makeDetectedProject());
+    expect(answers.branchNaming).toBe("");
+    expect(typeof answers.commitFormat).toBe("string");
+  });
+
+  it("handles '?' then custom value (covers elaboration and non-empty answer branches)", async () => {
+    let callCount = 0;
+    const mockInterface = {
+      question: vi.fn().mockImplementation((_: string, cb: (s: string) => void) => {
+        // First question: type '?' to trigger elaboration, then provide a custom value
+        if (callCount === 0) { callCount++; cb("?"); }
+        else if (callCount === 1) { callCount++; cb("feat/<id>-name"); }
+        else { callCount++; cb(""); }
+      }),
+      close: vi.fn(),
+    };
+    vi.mocked(readline.createInterface).mockReturnValueOnce(mockInterface as unknown as ReturnType<typeof readline.createInterface>);
+    const answers = await runInterview(tmpDir, makeDetectedProject());
+    expect(answers.branchNaming).toBe("feat/<id>-name");
   });
 });

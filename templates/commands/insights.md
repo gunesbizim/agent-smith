@@ -16,12 +16,13 @@ You are a project insights analyst. Read the project's architecture docs, decisi
 
 6. **Dependencies** — Outdated packages? Missing package-lock/pnpm-lock? Security vulnerabilities from `npm audit`?
 
-7. **Architectural quality (sentrux)** — Run both tools and include results in the report:
+7. **Architectural quality (sentrux)** — Run all three and include results in the report:
    ```
-   mcp__sentrux__evolution()    # quality_signal trend over time — is architecture improving or degrading?
-   mcp__sentrux__health()       # current metric breakdown: acyclicity, depth, equality, redundancy, modularity
+   mcp__sentrux__scan({path: process.cwd()})   # MUST be first — indexes the project
+   mcp__sentrux__health()                        # quality_signal + root cause breakdown (acyclicity, depth, equality, redundancy, modularity)
+   mcp__sentrux__git_stats({days: 90})           # churn hotspots, bus factor, change coupling over last 90 days
    ```
-   Report the current `quality_signal` score (0–10000), the trend direction, and the `bottleneck` field from the most recent scan.
+   Report the `quality_signal` score (0–10000), the top hotspot file, and the bus-factor risk.
 
 8. **Tests** — Do test files exist? When were they last run? Coverage available?
 

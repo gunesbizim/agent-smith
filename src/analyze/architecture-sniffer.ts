@@ -15,8 +15,9 @@ export interface SentruxProbeResult {
 }
 
 /**
- * Run `sentrux scan <rootPath>` and parse root_causes.
- * Returns { available: false, ... } on any failure (binary missing, scan error, parse error).
+ * Run `sentrux check <rootPath>` and parse quality score from text output.
+ * Returns { available: false, ... } on any failure (binary missing, scan error, no output).
+ * `check` exits 0 (no violations) or 1 (violations) — both cases output a Quality score line.
  */
 export async function probeSentrux(rootPath: string): Promise<SentruxProbeResult> {
   const empty: SentruxProbeResult = {
@@ -29,64 +30,16 @@ export async function probeSentrux(rootPath: string): Promise<SentruxProbeResult
   };
 
   try {
-    const result = spawnSync("sentrux", ["scan"], { // NOSONAR — fixed binary, no shell, cwd is project root
-      stdio: ["ignore", "pipe", "ignore"],
-      timeout: 30_000,
-      cwd: rootPath,
+    const result = spawnSync("sentrux", ["check", rootPath], { // NOSONAR — fixed binary, no shell
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 15_000,
       encoding: "utf-8",
     });
-    if (result.status !== 0 || !result.stdout) return empty;
-    const stdout = result.stdout.trim();
-
-    // sentrux scan may print JSONL (one object per line) or a single JSON object.
-    // Find the last line that parses as valid JSON.
-    const lines = stdout.split("\n").filter(Boolean);
-    let parsed: Record<string, unknown> | null = null;
-    for (let i = lines.length - 1; i >= 0; i--) {
-      try {
-        parsed = JSON.parse(lines[i]) as Record<string, unknown>;
-        break;
-      } catch {
-        // keep looking
-      }
-    }
-    if (!parsed) return empty;
-
-    const rc = parsed["root_causes"] as Record<string, { score: number; raw: number }> | undefined;
-    if (!rc) return empty;
-
-    const cycles = typeof rc["acyclicity"]?.raw === "number" ? rc["acyclicity"].raw : null;
-    const equalityRaw = typeof rc["equality"]?.raw === "number" ? rc["equality"].raw : null;
-    const modularityRaw = typeof rc["modularity"]?.raw === "number" ? rc["modularity"].raw : null;
-    const qualitySignal = typeof parsed["quality_signal"] === "number"
-      ? (parsed["quality_signal"] as number)
-      : null;
-    const bottleneck = typeof parsed["bottleneck"] === "string"
-      ? (parsed["bottleneck"] as string)
-      : null;
-
-    // Derive maxCC from equality.raw (Gini coefficient of cyclomatic complexity).
-    // Gini 0.0-0.2 => CC threshold 10, 0.2-0.4 => 15, 0.4-0.6 => 20, >0.6 => 25
-    let maxCC: number | null = null;
-    if (equalityRaw !== null) {
-      if (equalityRaw <= 0.2) maxCC = 10;
-      else if (equalityRaw <= 0.4) maxCC = 15;
-      else if (equalityRaw <= 0.6) maxCC = 20;
-      else maxCC = 25;
-    }
-
-    // Derive coupling grade from modularity.raw (Newman Q).
-    // Q >= 0.6 => A, 0.4-0.6 => B, 0.2-0.4 => C, 0.0-0.2 => D, < 0 => F
-    let couplingGrade: string | null = null;
-    if (modularityRaw !== null) {
-      if (modularityRaw >= 0.6) couplingGrade = "A";
-      else if (modularityRaw >= 0.4) couplingGrade = "B";
-      else if (modularityRaw >= 0.2) couplingGrade = "C";
-      else if (modularityRaw >= 0.0) couplingGrade = "D";
-      else couplingGrade = "F";
-    }
-
-    return { available: true, cycles, maxCC, couplingGrade, qualitySignal, bottleneck };
+    if (result.error) return empty; // binary not found
+    const combined = (result.stdout ?? "") + (result.stderr ?? "");
+    const qMatch = /Quality:\s*(\d+)/.exec(combined);
+    if (!qMatch) return empty;
+    return { available: true, cycles: null, maxCC: null, couplingGrade: null, qualitySignal: Number.parseInt(qMatch[1], 10), bottleneck: null };
   } catch {
     return empty;
   }

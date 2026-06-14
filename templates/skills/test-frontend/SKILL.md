@@ -35,7 +35,8 @@ gitnexus_api_impact()                                    # backend endpoints the
 ## Step 1.5 — Sentrux test gap analysis
 
 ```
-mcp__sentrux__test_gaps()    # identify undertested high-coupling / high-risk modules
+mcp__sentrux__scan({path: process.cwd()})   # MUST be first — indexes the project
+mcp__sentrux__test_gaps()                    # identify undertested high-coupling / high-risk modules
 ```
 
 Use the returned list to **prioritize** which modules to cover first. Modules flagged by sentrux as high-risk with no or low test coverage must be addressed before lower-risk gaps.

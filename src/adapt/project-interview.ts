@@ -54,10 +54,10 @@ export function buildQuestions(project: DetectedProject, sentruxDefaults?: Sentr
   const isCLI = project.projectType === "cli-tool";
   const isLibrary = project.projectType === "library";
 
-  const defaultMaxCC = sentruxDefaults?.maxCC != null ? String(sentruxDefaults.maxCC) : "25";
-  const cyclesNote = sentruxDefaults?.cycles != null
-    ? ` (probe found ${sentruxDefaults.cycles} cycle${sentruxDefaults.cycles === 1 ? "" : "s"})`
-    : "";
+  const defaultMaxCC = sentruxDefaults?.maxCC == null ? "25" : String(sentruxDefaults.maxCC);
+  const cycleCount = sentruxDefaults?.cycles;
+  const cyclePlural = cycleCount === 1 ? "cycle" : "cycles";
+  const cyclesNote = cycleCount == null ? "" : ` (probe found ${cycleCount} ${cyclePlural})`;
 
   return [
     {
@@ -185,7 +185,7 @@ export async function runInterview(
     codeStyle: [],
     customNotes: "",
     allowCycles: "no",
-    maxCC: sentruxDefaults?.maxCC != null ? String(sentruxDefaults.maxCC) : "25",
+    maxCC: sentruxDefaults?.maxCC == null ? "25" : String(sentruxDefaults.maxCC),
   };
 
   console.log(chalk.bold.cyan("\n📋 Project Conventions Interview\n"));
@@ -370,11 +370,9 @@ export function applyInterviewAnswers(
   if (answers.allowCycles?.toLowerCase().startsWith("y")) {
     // User allows cycles — keep existing ratchet value (do not override to 0)
     // If there was no probe value yet, leave SENTRUX_MAX_CYCLES as-is
-  } else {
+  } else if (!v.SENTRUX_MAX_CYCLES || v.SENTRUX_MAX_CYCLES === "unknown") {
     // User said no → only force to "0" (enforce mode) if no probe set a ratchet already
-    if (!v.SENTRUX_MAX_CYCLES || v.SENTRUX_MAX_CYCLES === "unknown") {
-      v.SENTRUX_MAX_CYCLES = "0";
-    }
+    v.SENTRUX_MAX_CYCLES = "0";
   }
 
   // Sentrux: max CC from interview (may override probe default)

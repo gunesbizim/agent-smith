@@ -82,7 +82,7 @@ if (sentruxInstalled) {
   let gateOutput = null;
   let gateExitCode = 0;
   try {
-    gateOutput = execSync("sentrux gate .", { encoding: "utf-8", timeout: 15000, cwd: cwd() }).trim();
+    gateOutput = execSync("sentrux gate .", { encoding: "utf-8", timeout: 15000, cwd: cwd() }).trim(); // NOSONAR
   } catch (err) {
     gateExitCode = err.status ?? 1;
     gateOutput = err.stdout ? err.stdout.trim() : null;

@@ -42,7 +42,7 @@ jobs:
       - run: npm test
       - name: Upload coverage
         if: matrix.node-version == 22
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: |
@@ -103,7 +103,7 @@ jobs:
             exit 1
           fi
           echo "Build OK — $(find dist -name '*.js' | wc -l) JS files"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/

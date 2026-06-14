@@ -39,7 +39,7 @@ export async function probeSentrux(rootPath: string): Promise<SentruxProbeResult
     const combined = (result.stdout ?? "") + (result.stderr ?? "");
     const qMatch = /Quality:\s*(\d+)/.exec(combined);
     if (!qMatch) return empty;
-    return { available: true, cycles: null, maxCC: null, couplingGrade: null, qualitySignal: parseInt(qMatch[1], 10), bottleneck: null };
+    return { available: true, cycles: null, maxCC: null, couplingGrade: null, qualitySignal: Number.parseInt(qMatch[1], 10), bottleneck: null };
   } catch {
     return empty;
   }

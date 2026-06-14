@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import os from "node:os";
+import path from "node:path";
+import fs from "fs-extra";
 import { makeDetectedProject as makeProject } from "../fixtures.js";
 
 // Mock child_process before importing the module so spawnSync is intercepted
@@ -490,6 +492,32 @@ describe("sniffArchitecture — backend project (covers sniffBackendPatterns)", 
     expect(names).not.toContain("pii-encryption");
     expect(names).not.toContain("openapi-annotations");
     expect(names).not.toContain("audit-immutability");
+  });
+
+  it("detects Django pii-encryption, openapi-annotations, audit-immutability when grep matches", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "django-test-"));
+    try {
+      // Write Python files with the strings grepInFiles searches for
+      fs.writeFileSync(path.join(tmpDir, "models.py"), "class MyModel:\n    secret = EncryptedField()\n");
+      fs.writeFileSync(path.join(tmpDir, "views.py"), "from drf_spectacular.utils import extend_schema\n");
+      fs.writeFileSync(path.join(tmpDir, "audit.py"), "-- DENY UPDATE|DENY DELETE ON audit_log\n");
+
+      const project = makeProject({
+        rootPath: tmpDir,
+        backend: {
+          framework: "django", hasHexagonalArch: false, hasServiceRepo: false,
+          usesAPIView: false, usesFunctionViews: false, rolePattern: "none",
+          importStyle: "absolute", loggingPattern: "unstructured",
+        } as any,
+      });
+      const patterns = await sniffArchitecture(tmpDir, project);
+      const names = patterns.map((p) => p.name);
+      expect(names).toContain("pii-encryption");
+      expect(names).toContain("openapi-annotations");
+      expect(names).toContain("audit-immutability");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
 

@@ -102,4 +102,27 @@ describe("Pipeline Orchestrator", () => {
     const prResult = result.phaseResults.get("pr")!;
     expect(prResult.summary.toLowerCase()).toContain("pr");
   });
+
+  it("gate=all: auto-approves all phases and completes pipeline", async () => {
+    const ctx = makeContext({ approvalGate: "all" });
+    const result = await runPipeline(ctx);
+    expect(result.phasesCompleted).toHaveLength(6);
+  });
+
+  it("gate=plan: auto-approves plan gate and completes pipeline", async () => {
+    const ctx = makeContext({ approvalGate: "plan" });
+    const result = await runPipeline(ctx);
+    expect(result.phasesCompleted).toHaveLength(6);
+    expect(result.phasesCompleted[0]).toBe("plan");
+  });
+
+  it("review phase qualitySignal has before/after/bottleneck fields", async () => {
+    const ctx = makeContext({ approvalGate: "none" });
+    const result = await runPipeline(ctx);
+    const reviewResult = result.phaseResults.get("review")!;
+    expect(reviewResult).toHaveProperty("qualitySignal");
+    expect(reviewResult.qualitySignal).toHaveProperty("before");
+    expect(reviewResult.qualitySignal).toHaveProperty("after");
+    expect(reviewResult.qualitySignal).toHaveProperty("bottleneck");
+  });
 });

@@ -49,6 +49,12 @@ cd {{FRONTEND_DIR}} && {{FRONTEND_TYPE_CHECK_CMD}}
 cd {{FRONTEND_DIR}} && {{FRONTEND_LINT_CMD}}
 ```
 
+Architecture gate (always run when source files changed):
+```bash
+sentrux check .      # exit 0 = rules satisfied; exit 1 = violations — fix before pushing
+sentrux gate .       # compare signal vs saved baseline; exit 1 = regression introduced
+```
+
 All gates must pass before pushing.
 
 ### 4. Commit + push

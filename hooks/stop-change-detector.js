@@ -8,10 +8,10 @@
  * Configure in .claude/settings.json:
  *   "Stop": [{ "hooks": [{ "type": "command", "command": "node hooks/stop-change-detector.js" }] }]
  */
-const { execSync } = require("node:child_process");
-const fs = require("node:fs");
-const path = require("node:path");
-const os = require("node:os");
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 function cwd() {
   return process.cwd();
@@ -31,10 +31,10 @@ const report = {
   timestamp: new Date().toISOString(),
   projectRoot: cwd(),
   hasUncommittedChanges: false,
-  changedBackendFiles: [] as string[],
-  changedFrontendFiles: [] as string[],
-  changedDocsFiles: [] as string[],
-  suggestions: [] as string[],
+  changedBackendFiles: [],
+  changedFrontendFiles: [],
+  changedDocsFiles: [],
+  suggestions: [],
 };
 
 // Check for uncommitted changes
@@ -50,7 +50,7 @@ if (branch) {
     report.hasUncommittedChanges = true;
 
     for (const file of allChanged) {
-      if (file.startsWith("backend/") || file.includes("apps/") && (file.endsWith(".py") || file.endsWith(".go"))) {
+      if ((file.startsWith("backend/") || file.includes("apps/")) && (file.endsWith(".py") || file.endsWith(".go"))) {
         report.changedBackendFiles.push(file);
       }
       if (file.startsWith("frontend/") || (file.includes("apps/") && (file.endsWith(".tsx") || file.endsWith(".ts") || file.endsWith(".vue")))) {
@@ -73,6 +73,22 @@ if (branch) {
     if (report.changedDocsFiles.length > 0 && report.changedBackendFiles.length === 0 && report.changedFrontendFiles.length === 0) {
       report.suggestions.push("commit: documentation-only changes ready to commit");
     }
+  }
+}
+
+// Sentrux architectural quality gate — compare against saved baseline
+const sentruxInstalled = !!(cmd(process.platform === "win32" ? "where sentrux" : "command -v sentrux"));
+if (sentruxInstalled) {
+  let gateOutput = null;
+  let gateExitCode = 0;
+  try {
+    gateOutput = execSync("sentrux gate .", { encoding: "utf-8", timeout: 15000, cwd: cwd() }).trim();
+  } catch (err) {
+    gateExitCode = err.status ?? 1;
+    gateOutput = err.stdout ? err.stdout.trim() : null;
+  }
+  if (gateExitCode !== 0 || (gateOutput && gateOutput.toLowerCase().includes("degradation"))) {
+    report.suggestions.push("sentrux: architectural quality regressed this session — run `sentrux gate .` for details");
   }
 }
 

@@ -16,7 +16,14 @@ You are a project insights analyst. Read the project's architecture docs, decisi
 
 6. **Dependencies** — Outdated packages? Missing package-lock/pnpm-lock? Security vulnerabilities from `npm audit`?
 
-7. **Tests** — Do test files exist? When were they last run? Coverage available?
+7. **Architectural quality (sentrux)** — Run both tools and include results in the report:
+   ```
+   mcp__sentrux__evolution()    # quality_signal trend over time — is architecture improving or degrading?
+   mcp__sentrux__health()       # current metric breakdown: acyclicity, depth, equality, redundancy, modularity
+   ```
+   Report the current `quality_signal` score (0–10000), the trend direction, and the `bottleneck` field from the most recent scan.
+
+8. **Tests** — Do test files exist? When were they last run? Coverage available?
 
 8. **Documentation gaps** — Views/endpoints without API docs? Screenshots captured for user guide?
 
@@ -40,6 +47,10 @@ You are a project insights analyst. Read the project's architecture docs, decisi
 
 ### 📊 Health Score
 <XX/100> — <one-sentence summary>
+
+### 🏗 Architectural Quality (sentrux)
+quality_signal: <0-10000> | trend: <improving/stable/degrading> | bottleneck: <module>
+acyclicity: <score> | depth: <score> | equality: <score> | redundancy: <score> | modularity: <score>
 ```
 
 ## Rules

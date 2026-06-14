@@ -71,6 +71,13 @@ export const DEFAULT_TEMPLATE_VARS: TemplateVariables = {
 
   TESTING_REQUIREMENTS: "unit tests for new logic, happy+error+edge paths, no empty test stubs",
   PR_CHECKLIST: "all tests pass, lint clean, 1+ reviewer approval, docs updated",
+
+  // Sentrux quality gate
+  SENTRUX_MAX_CYCLES: "0",
+  SENTRUX_MAX_CC: "10",
+  SENTRUX_MAX_COUPLING: "C",
+  SENTRUX_LAYERS: "",
+  SENTRUX_BOUNDARIES: "",
 };
 
 export const TEMPLATE_VAR_PATTERN = /\{\{(\w+)\}\}/g;

@@ -104,6 +104,27 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     },
   },
 
+  {
+    name: "sentrux",
+    description: "Real-time architectural sensor — quality score (0-10000), layer/boundary rule enforcement, DSM, test-gap detection",
+    category: "quality",
+    scope: "project",
+    installType: "shell",
+    installCommand: {
+      darwin: "brew install sentrux/tap/sentrux",
+      linux: "curl -fsSL https://raw.githubusercontent.com/sentrux/sentrux/main/install.sh | sh",
+      win32: "powershell -Command \"Invoke-WebRequest https://github.com/sentrux/sentrux/releases/latest/download/sentrux-windows-x86_64.exe -OutFile \\\"$env:LOCALAPPDATA\\Microsoft\\WindowsApps\\sentrux.exe\\\"\"",
+    },
+    checkCommand: "sentrux --version",
+    requiredEnvVars: [],
+    configTemplate: {
+      type: "stdio",
+      command: "sentrux",
+      args: ["--mcp"],
+      env: {},
+    },
+  },
+
   // ---- Design ----
   {
     name: "vuetify",

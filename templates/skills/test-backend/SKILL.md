@@ -31,6 +31,16 @@ gitnexus_context("path/to/file")           # full module context
 
 ---
 
+## Step 1.5 — Sentrux test gap analysis
+
+```
+mcp__sentrux__test_gaps()    # identify undertested high-coupling / high-risk modules
+```
+
+Use the returned list to **prioritize** which modules to cover first. Modules flagged by sentrux as high-risk with no or low test coverage must be addressed before lower-risk gaps.
+
+---
+
 ## Step 2 — Serena symbol navigation
 
 ```

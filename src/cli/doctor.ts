@@ -43,7 +43,7 @@ export async function doctorCommand(): Promise<void> {
   });
 
   // MCP servers
-  const mcpServers = ["gitnexus", "git-memory", "serena"];
+  const mcpServers = ["gitnexus", "git-memory", "serena", "sentrux"];
   for (const server of mcpServers) {
     if (commandExists(server)) {
       checks.push({ name: `mcp:${server}`, status: "pass", message: `${server} installed` });
@@ -65,6 +65,7 @@ export async function doctorCommand(): Promise<void> {
     [".claude/commands/frontend.md", "Frontend command"],
     [".claude/skills/pr-review-backend/SKILL.md", "PR review backend skill"],
     [".claude/skills/docs-frontend/SKILL.md", "Docs frontend skill"],
+    [".sentrux/rules.toml", "Sentrux architectural rules"],
   ];
   for (const [relPath, label] of configFiles) {
     const exists = fs.existsSync(path.join(cwd, relPath));

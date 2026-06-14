@@ -4,7 +4,12 @@ import path from "node:path";
 import fs from "fs-extra";
 import ora from "ora";
 import { MCP_REGISTRY, getMCPServer } from "./registry.js";
-import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle } from "../shared/types.js";
+import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall } from "../shared/types.js";
+
+function resolveInstall(cmd: PlatformInstall): string {
+  if (typeof cmd === "string") return cmd;
+  return cmd[process.platform as "darwin" | "linux" | "win32"] ?? "";
+}
 
 interface InstallOptions {
   servers?: string[];
@@ -31,13 +36,15 @@ export async function installMCPs(opts: InstallOptions = {}): Promise<void> {
       // Not installed — proceed
     }
 
-    if (server.installType === "manual" || !server.installCommand) {
-      spinner.warn(`${server.name} requires manual installation: ${server.installCommand || "see docs"}`);
+    const resolved = resolveInstall(server.installCommand);
+
+    if (server.installType === "manual" || !resolved) {
+      spinner.warn(`${server.name} requires manual installation: ${resolved || "see docs"}`);
       continue;
     }
 
     try {
-      execSync(server.installCommand, { stdio: "pipe" });
+      execSync(resolved, { stdio: "pipe" });
       spinner.succeed(`${server.name} installed`);
     } catch (err) {
       spinner.fail(`${server.name} failed: ${err instanceof Error ? err.message : err}`);

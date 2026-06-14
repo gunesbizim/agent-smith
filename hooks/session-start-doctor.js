@@ -6,9 +6,9 @@
  * Configure in .claude/settings.json:
  *   "SessionStart": [{ "hooks": [{ "type": "command", "command": "node hooks/session-start-doctor.js" }] }]
  */
-const { execSync } = require("node:child_process");
-const fs = require("node:fs");
-const path = require("node:path");
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 
 function cwd() {
   // The hook runs from the project root (Claude Code sets CWD to project root)
@@ -62,7 +62,7 @@ report.setup = {
 
 // MCP health check
 const mcpStatus = [];
-const mcpServers = ["gitnexus", "git-memory", "serena"];
+const mcpServers = ["gitnexus", "git-memory", "serena", "sentrux"];
 for (const server of mcpServers) {
   mcpStatus.push({
     server,
@@ -99,6 +99,15 @@ if (report.git.isRepo && report.git.hasUncommittedChanges) {
 
 if (report.gitnexus.stale) {
   additionalContext += `\n⚠ GitNexus index is stale. Run \`npx gitnexus analyze\` to refresh.\n`;
+}
+
+// Sentrux baseline — save architectural quality gate at session start
+const sentruxInstalled = mcpStatus.find((m) => m.server === "sentrux")?.installed;
+if (sentruxInstalled) {
+  const gateResult = cmd("sentrux gate --save .");
+  if (gateResult !== null) {
+    additionalContext += `\nsentrux baseline saved — architectural quality gate active; run \`sentrux gate .\` before commit.\n`;
+  }
 }
 
 // Output must be JSON with hookSpecificOutput

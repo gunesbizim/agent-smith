@@ -133,9 +133,9 @@ describe("sentrux registry entry", () => {
     expect(s!.configTemplate.command).toBe("sentrux");
   });
 
-  it("configTemplate.args includes --mcp", () => {
+  it("configTemplate.args includes mcp subcommand", () => {
     const s = getMCPServer("sentrux");
-    expect(s!.configTemplate.args).toContain("--mcp");
+    expect(s!.configTemplate.args).toContain("mcp");
   });
 
   it("installCommand is platform-keyed with darwin, linux, win32 keys", () => {

@@ -120,7 +120,7 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     configTemplate: {
       type: "stdio",
       command: "sentrux",
-      args: ["--mcp"],
+      args: ["mcp"],
       env: {},
     },
   },

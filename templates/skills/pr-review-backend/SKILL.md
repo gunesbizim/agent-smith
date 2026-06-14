@@ -35,9 +35,10 @@ gitnexus_impact("ChangedClassName")    # what else does this change break?
 ## Step 1.5 — Architectural quality gate (sentrux)
 
 ```
-mcp__sentrux__check_rules()    # validate .sentrux/rules.toml constraints
-mcp__sentrux__dsm()            # dependency structure matrix — spot new cycles/coupling
-mcp__sentrux__session_end()    # compare architecture signal vs baseline saved at session_start
+mcp__sentrux__scan({path: process.cwd()})   # MUST be first — indexes the project
+mcp__sentrux__check_rules()                  # validate .sentrux/rules.toml constraints
+mcp__sentrux__dsm()                          # dependency structure matrix — spot new cycles/coupling
+mcp__sentrux__session_end()                  # compare quality signal vs baseline saved at session_start
 ```
 
 **Blockers:**

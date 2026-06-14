@@ -1,7 +1,6 @@
 // Architecture writer — generates architecture docs from detected patterns
 import path from "node:path";
 import fs from "fs-extra";
-import { resolveTemplate } from "../shared/templates.js";
 import type { TemplateVariables } from "../shared/types.js";
 
 /**

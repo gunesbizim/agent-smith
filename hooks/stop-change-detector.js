@@ -50,7 +50,7 @@ if (branch) {
     report.hasUncommittedChanges = true;
 
     for (const file of allChanged) {
-      if (file.startsWith("backend/") || file.includes("apps/") && (file.endsWith(".py") || file.endsWith(".go"))) {
+      if ((file.startsWith("backend/") || file.includes("apps/")) && (file.endsWith(".py") || file.endsWith(".go"))) {
         report.changedBackendFiles.push(file);
       }
       if (file.startsWith("frontend/") || (file.includes("apps/") && (file.endsWith(".tsx") || file.endsWith(".ts") || file.endsWith(".vue")))) {

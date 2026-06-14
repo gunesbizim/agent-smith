@@ -16,7 +16,7 @@ describe("CLI Commands", () => {
 
     it("handles --auto mode", async () => {
       await expect(
-        initCommand({ auto: true }),
+        initCommand({ auto: true, dryRun: true }),
       ).resolves.not.toThrow();
     });
   });

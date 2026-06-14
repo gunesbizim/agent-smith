@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { DetectedProject } from "../../shared/types.js";
 
-// Mock child_process before importing the module so execSync is intercepted
+// Mock child_process before importing the module so spawnSync is intercepted
 vi.mock("node:child_process", () => ({
-  execSync: vi.fn(),
+  spawnSync: vi.fn(),
 }));
 
 import { probeSentrux, sniffArchitecture } from "../../analyze/architecture-sniffer.js";
-import { execSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 
-const mockExecSync = vi.mocked(execSync);
+const mockSpawnSync = vi.mocked(spawnSync);
 
 function makeProject(overrides: Partial<DetectedProject> = {}): DetectedProject {
   return {
@@ -30,7 +30,7 @@ function makeProject(overrides: Partial<DetectedProject> = {}): DetectedProject 
 
 describe("probeSentrux — binary missing", () => {
   beforeEach(() => {
-    mockExecSync.mockImplementation(() => { throw new Error("command not found: sentrux"); });
+    mockSpawnSync.mockImplementation(() => { throw new Error("command not found: sentrux"); });
   });
 
   afterEach(() => vi.clearAllMocks());
@@ -50,9 +50,22 @@ describe("probeSentrux — binary missing", () => {
   });
 });
 
+describe("probeSentrux — non-zero exit", () => {
+  beforeEach(() => {
+    mockSpawnSync.mockReturnValue({ status: 1, stdout: "", stderr: "error" } as any);
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it("returns available: false on non-zero exit", async () => {
+    const result = await probeSentrux("/tmp/test-project");
+    expect(result.available).toBe(false);
+  });
+});
+
 describe("probeSentrux — empty stdout", () => {
   beforeEach(() => {
-    mockExecSync.mockReturnValue(Buffer.from(""));
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: "", stderr: "" } as any);
   });
 
   afterEach(() => vi.clearAllMocks());
@@ -65,7 +78,7 @@ describe("probeSentrux — empty stdout", () => {
 
 describe("probeSentrux — non-JSON output", () => {
   beforeEach(() => {
-    mockExecSync.mockReturnValue(Buffer.from("error: no source files found"));
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: "error: no source files found", stderr: "" } as any);
   });
 
   afterEach(() => vi.clearAllMocks());
@@ -78,7 +91,7 @@ describe("probeSentrux — non-JSON output", () => {
 
 describe("probeSentrux — JSON missing root_causes", () => {
   beforeEach(() => {
-    mockExecSync.mockReturnValue(Buffer.from(JSON.stringify({ status: "ok" })));
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({ status: "ok" }), stderr: "" } as any);
   });
 
   afterEach(() => vi.clearAllMocks());
@@ -103,7 +116,7 @@ describe("probeSentrux — full valid output", () => {
   });
 
   beforeEach(() => {
-    mockExecSync.mockReturnValue(Buffer.from(validOutput));
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: validOutput, stderr: "" } as any);
   });
 
   it("returns available: true", async () => {
@@ -141,33 +154,33 @@ describe("probeSentrux — maxCC thresholds", () => {
   afterEach(() => vi.clearAllMocks());
 
   it("maps equality.raw ≤ 0.2 → maxCC 10", async () => {
-    mockExecSync.mockReturnValue(Buffer.from(JSON.stringify({
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
       root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.1 }, modularity: { raw: 0.5 } },
-    })));
+    }), stderr: "" } as any);
     const r = await probeSentrux("/tmp");
     expect(r.maxCC).toBe(10);
   });
 
   it("maps equality.raw ≤ 0.4 → maxCC 15", async () => {
-    mockExecSync.mockReturnValue(Buffer.from(JSON.stringify({
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
       root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.35 }, modularity: { raw: 0.5 } },
-    })));
+    }), stderr: "" } as any);
     const r = await probeSentrux("/tmp");
     expect(r.maxCC).toBe(15);
   });
 
   it("maps equality.raw ≤ 0.6 → maxCC 20", async () => {
-    mockExecSync.mockReturnValue(Buffer.from(JSON.stringify({
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
       root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.55 }, modularity: { raw: 0.5 } },
-    })));
+    }), stderr: "" } as any);
     const r = await probeSentrux("/tmp");
     expect(r.maxCC).toBe(20);
   });
 
   it("maps equality.raw > 0.6 → maxCC 25", async () => {
-    mockExecSync.mockReturnValue(Buffer.from(JSON.stringify({
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
       root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.8 }, modularity: { raw: 0.5 } },
-    })));
+    }), stderr: "" } as any);
     const r = await probeSentrux("/tmp");
     expect(r.maxCC).toBe(25);
   });
@@ -183,27 +196,27 @@ describe("probeSentrux — couplingGrade thresholds", () => {
   }
 
   it("grade A when modularity ≥ 0.6", async () => {
-    mockExecSync.mockReturnValue(Buffer.from(outputWith(0.7)));
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.7), stderr: "" } as any);
     expect((await probeSentrux("/tmp")).couplingGrade).toBe("A");
   });
 
   it("grade B when modularity 0.4–0.6", async () => {
-    mockExecSync.mockReturnValue(Buffer.from(outputWith(0.5)));
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.5), stderr: "" } as any);
     expect((await probeSentrux("/tmp")).couplingGrade).toBe("B");
   });
 
   it("grade C when modularity 0.2–0.4", async () => {
-    mockExecSync.mockReturnValue(Buffer.from(outputWith(0.3)));
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.3), stderr: "" } as any);
     expect((await probeSentrux("/tmp")).couplingGrade).toBe("C");
   });
 
   it("grade D when modularity 0.0–0.2", async () => {
-    mockExecSync.mockReturnValue(Buffer.from(outputWith(0.1)));
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.1), stderr: "" } as any);
     expect((await probeSentrux("/tmp")).couplingGrade).toBe("D");
   });
 
   it("grade F when modularity < 0", async () => {
-    mockExecSync.mockReturnValue(Buffer.from(outputWith(-0.1)));
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(-0.1), stderr: "" } as any);
     expect((await probeSentrux("/tmp")).couplingGrade).toBe("F");
   });
 });
@@ -218,7 +231,7 @@ describe("probeSentrux — JSONL (last valid JSON line wins)", () => {
       "Done",
       JSON.stringify({ quality_signal: 9000, root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.1 }, modularity: { raw: 0.8 } } }),
     ].join("\n");
-    mockExecSync.mockReturnValue(Buffer.from(jsonl));
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: jsonl, stderr: "" } as any);
     const r = await probeSentrux("/tmp");
     expect(r.available).toBe(true);
     expect(r.cycles).toBe(0);

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { applyInterviewAnswers } from "../../adapt/project-interview.js";
-import type { TemplateVariables } from "../../shared/types.js";
-import type { InterviewAnswers } from "../../adapt/project-interview.js";
+import { applyInterviewAnswers, buildQuestions, smartDefaults } from "../../adapt/project-interview.js";
+import type { TemplateVariables, DetectedProject } from "../../shared/types.js";
+import type { InterviewAnswers, SentruxProbeDefaults } from "../../adapt/project-interview.js";
 
 function makeVars(overrides: Partial<TemplateVariables> = {}): TemplateVariables {
   return {
@@ -225,5 +225,151 @@ describe("applyInterviewAnswers — all fields pass through unchanged", () => {
     const result = applyInterviewAnswers(vars, answers);
     expect(result.BACKEND_LANG).toBe("Python");
     expect(result.DB_ENGINE).toBe("mysql");
+  });
+});
+
+// ---- buildQuestions ----
+
+function makeProject(overrides: Partial<DetectedProject> = {}): DetectedProject {
+  return {
+    rootPath: "/tmp/test",
+    projectType: "cli-tool",
+    backend: null,
+    frontend: null,
+    testing: { backend: null, frontend: null },
+    linting: { backend: null, frontend: null },
+    cicd: null,
+    monorepo: null,
+    database: null,
+    ...overrides,
+  };
+}
+
+describe("buildQuestions — default (no sentrux probe)", () => {
+  it("returns the expected question ids", () => {
+    const qs = buildQuestions(makeProject());
+    const ids = qs.map((q) => q.id);
+    expect(ids).toContain("branchNaming");
+    expect(ids).toContain("commitFormat");
+    expect(ids).toContain("ticketPrefix");
+    expect(ids).toContain("prChecklist");
+    expect(ids).toContain("testingRequirements");
+    expect(ids).toContain("architectureRules");
+    expect(ids).toContain("securityRequirements");
+    expect(ids).toContain("codeStyle");
+    expect(ids).toContain("customNotes");
+    expect(ids).toContain("allowCycles");
+    expect(ids).toContain("maxCC");
+  });
+
+  it("allowCycles question has no cycles note when no probe", () => {
+    const qs = buildQuestions(makeProject());
+    const q = qs.find((q) => q.id === "allowCycles")!;
+    expect(q.question).not.toContain("probe found");
+  });
+
+  it("maxCC defaultValue is '25' when no probe", () => {
+    const qs = buildQuestions(makeProject());
+    const q = qs.find((q) => q.id === "maxCC")!;
+    expect(q.defaultValue).toBe("25");
+  });
+
+  it("every question has required shape", () => {
+    const qs = buildQuestions(makeProject());
+    for (const q of qs) {
+      expect(typeof q.id).toBe("string");
+      expect(typeof q.question).toBe("string");
+      expect(typeof q.hint).toBe("string");
+      expect(typeof q.defaultValue).toBe("string");
+      expect(["text", "multi", "boolean"]).toContain(q.type);
+    }
+  });
+});
+
+describe("buildQuestions — with sentrux probe defaults", () => {
+  const probe: SentruxProbeDefaults = { cycles: 3, maxCC: 15 };
+
+  it("allowCycles question includes cycles note from probe", () => {
+    const qs = buildQuestions(makeProject(), probe);
+    const q = qs.find((q) => q.id === "allowCycles")!;
+    expect(q.question).toContain("probe found 3 cycle");
+  });
+
+  it("maxCC defaultValue reflects probe maxCC", () => {
+    const qs = buildQuestions(makeProject(), probe);
+    const q = qs.find((q) => q.id === "maxCC")!;
+    expect(q.defaultValue).toBe("15");
+  });
+
+  it("cycles note uses singular when cycles = 1", () => {
+    const qs = buildQuestions(makeProject(), { cycles: 1, maxCC: null });
+    const q = qs.find((q) => q.id === "allowCycles")!;
+    expect(q.question).toContain("1 cycle)");
+    expect(q.question).not.toContain("cycles)");
+  });
+
+  it("cycles note is absent when cycles is null", () => {
+    const qs = buildQuestions(makeProject(), { cycles: null, maxCC: 20 });
+    const q = qs.find((q) => q.id === "allowCycles")!;
+    expect(q.question).not.toContain("probe found");
+  });
+
+  it("maxCC stays '25' when probe maxCC is null", () => {
+    const qs = buildQuestions(makeProject(), { cycles: 0, maxCC: null });
+    const q = qs.find((q) => q.id === "maxCC")!;
+    expect(q.defaultValue).toBe("25");
+  });
+});
+
+describe("buildQuestions — project-type-specific defaults", () => {
+  it("frontend project uses frontend testing default", () => {
+    const project = makeProject({
+      frontend: {
+        framework: "react",
+        uiLibrary: "none",
+        componentPattern: "functional",
+        usesI18n: false,
+        i18nLibrary: null,
+        usesTypeScript: true,
+        stateManagement: "none",
+        routerLibrary: null,
+        testRunner: "vitest",
+      } as any,
+    });
+    const qs = buildQuestions(project);
+    const q = qs.find((q) => q.id === "testingRequirements")!;
+    expect(q.defaultValue).toContain("role/permission");
+  });
+
+  it("CLI project uses CLI testing default", () => {
+    const project = makeProject({ projectType: "cli-tool" });
+    const qs = buildQuestions(project);
+    const q = qs.find((q) => q.id === "testingRequirements")!;
+    expect(q.defaultValue).not.toContain("role/permission");
+    expect(q.defaultValue).toContain("happy+error+edge");
+  });
+});
+
+// ---- smartDefaults ----
+
+describe("smartDefaults", () => {
+  it("sets allowCycles to 'no' always", () => {
+    const d = smartDefaults(makeProject());
+    expect(d.allowCycles).toBe("no");
+  });
+
+  it("sets maxCC to '25' always", () => {
+    const d = smartDefaults(makeProject());
+    expect(d.maxCC).toBe("25");
+  });
+
+  it("CLI projects get branchNaming default", () => {
+    const d = smartDefaults(makeProject({ projectType: "cli-tool" }));
+    expect(d.branchNaming).toBeTruthy();
+  });
+
+  it("non-CLI projects get no branchNaming preset", () => {
+    const d = smartDefaults(makeProject({ projectType: "library" }));
+    expect(d.branchNaming).toBeUndefined();
   });
 });

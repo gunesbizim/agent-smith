@@ -109,39 +109,19 @@ async function executeReviewPhase(ctx: PipelineContext): Promise<PhaseResult> {
   //
   // 3. Self-review via pr-review skills (architecture, security, tests, etc.)
 
-  // --- Stub values: real implementation reads from sentrux MCP responses ---
-  const checkRulesViolations: string[] = [];   // populated from check_rules() result
-  const sessionEndPass = true;                  // populated from session_end().pass
-  const signalBefore = 0;                       // from session_end().signal_before
-  const signalAfter = 0;                        // from session_end().signal_after
-  const bottleneck = "";                        // from most recent scan().bottleneck
-  const sessionSummary = "";                    // from session_end().summary
-
-  const errors: string[] = [];
-
-  if (checkRulesViolations.length > 0) {
-    errors.push(`sentrux check_rules violations: ${checkRulesViolations.join("; ")}`);
-  }
-
-  if (!sessionEndPass) {
-    errors.push(`sentrux session_end: architecture signal degraded — ${sessionSummary}`);
-  }
-
-  const success = errors.length === 0;
-
+  // Stub: real implementation calls mcp__sentrux__check_rules() and
+  // mcp__sentrux__session_end(), then populates violations/pass/signal fields.
   return {
     phase: "review",
-    success,
-    summary: success
-      ? "Review complete — no blockers"
-      : `Review blocked: ${errors.join(" | ")}`,
+    success: true,
+    summary: "Review complete — no blockers",
     filesChanged: [],
-    errors,
+    errors: [],
     warnings: [],
     qualitySignal: {
-      before: signalBefore,
-      after: signalAfter,
-      bottleneck,
+      before: 0,
+      after: 0,
+      bottleneck: "",
     },
   };
 }

@@ -1,6 +1,5 @@
 // Architecture sniffer — detect project conventions and patterns
-import path from "node:path";
-import { execSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import fs from "fs-extra";
 import type { DetectedProject } from "../shared/types.js";
 
@@ -30,11 +29,14 @@ export async function probeSentrux(rootPath: string): Promise<SentruxProbeResult
   };
 
   try {
-    const stdout = execSync("sentrux scan", {
+    const result = spawnSync("sentrux", ["scan"], {
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 30_000,
       cwd: rootPath,
-    }).toString("utf-8").trim();
+      encoding: "utf-8",
+    });
+    if (result.status !== 0 || !result.stdout) return empty;
+    const stdout = result.stdout.trim();
 
     // sentrux scan may print JSONL (one object per line) or a single JSON object.
     // Find the last line that parses as valid JSON.

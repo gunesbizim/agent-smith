@@ -43,12 +43,12 @@ function getDefaultArchRules(hasBackend: boolean, isCLI: boolean): string {
   return "modular design, typed interfaces, error handling at boundaries, no circular imports";
 }
 
-interface SentruxProbeDefaults {
+export interface SentruxProbeDefaults {
   cycles: number | null;
   maxCC: number | null;
 }
 
-function buildQuestions(project: DetectedProject, sentruxDefaults?: SentruxProbeDefaults): InterviewQuestion[] {
+export function buildQuestions(project: DetectedProject, sentruxDefaults?: SentruxProbeDefaults): InterviewQuestion[] {
   const hasBackend = !!project.backend;
   const hasFrontend = !!project.frontend;
   const isCLI = project.projectType === "cli-tool";
@@ -151,7 +151,7 @@ function buildQuestions(project: DetectedProject, sentruxDefaults?: SentruxProbe
   ];
 }
 
-function smartDefaults(project: DetectedProject): Partial<InterviewAnswers> {
+export function smartDefaults(project: DetectedProject): Partial<InterviewAnswers> {
   const answers: Partial<InterviewAnswers> = {};
   const isCLI = project.projectType === "cli-tool";
 

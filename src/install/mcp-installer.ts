@@ -1,5 +1,5 @@
 // MCP installer — downloads and configures MCP servers
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import path from "node:path";
 import fs from "fs-extra";
 import ora from "ora";
@@ -194,11 +194,17 @@ export function registerLocalMCPs(
     }
 
     const config = resolveConfigEnv(server.configTemplate, vars);
-    const cmdParts = [config.command, ...config.args].map(shellQuote).join(" ");
-    const addCmd = `claude mcp add --scope local --transport stdio ${server.name} -- ${cmdParts}`;
+    // execFileSync passes args as an array (no shell), so no quoting/injection
+    // concerns. Env vars are forwarded with --env so local servers that need
+    // credentials register correctly.
+    const envFlags = Object.entries(config.env).flatMap(([k, v]) => ["--env", `${k}=${v}`]);
+    const addArgs = [
+      "mcp", "add", "--scope", "local", "--transport", "stdio", server.name,
+      ...envFlags, "--", config.command, ...config.args,
+    ];
 
     try {
-      execSync(addCmd, { stdio: "pipe" });
+      execFileSync("claude", addArgs, { stdio: "pipe" });
       registered.push(server.name);
     } catch {
       skipped.push(server.name);
@@ -206,10 +212,6 @@ export function registerLocalMCPs(
   }
 
   return { registered, skipped };
-}
-
-function shellQuote(arg: string): string {
-  return /[^A-Za-z0-9_\-./:@]/.test(arg) ? `'${arg.replace(/'/g, "'\\''")}'` : arg;
 }
 
 /**

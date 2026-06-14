@@ -3,78 +3,24 @@ import fs from "fs-extra";
 import path from "node:path";
 import os from "node:os";
 import { writeSentruxRules } from "../../adapt/architecture-writer.js";
-import type { TemplateVariables } from "../../shared/types.js";
+import { makeTemplateVars } from "../fixtures.js";
 
-// Minimal TemplateVariables — only populate fields; other fields default to empty strings
-function makeVars(overrides: Partial<TemplateVariables>): TemplateVariables {
-  return {
-    BACKEND_LANG: "TypeScript",
-    BACKEND_FRAMEWORK: "express",
-    BACKEND_FRAMEWORK_DETAIL: "Express 4",
-    BACKEND_TEST_CMD: "npx vitest run",
-    BACKEND_LINT_CMD: "npx eslint src",
-    BACKEND_TYPE_CHECK_CMD: "npx tsc --noEmit",
-    BACKEND_FORMAT_CMD: "npx prettier --check .",
-    BACKEND_DIR: "src",
-    BACKEND_SETTINGS_MODULE: "",
-    BACKEND_MIGRATE_CMD: "",
-    FRONTEND_FRAMEWORK: "react",
-    FRONTEND_UI_LIBRARY: "none",
-    FRONTEND_TEST_CMD: "npx vitest run",
-    FRONTEND_LINT_CMD: "npx eslint src",
-    FRONTEND_TYPE_CHECK_CMD: "npx tsc --noEmit",
-    FRONTEND_DIR: "frontend",
-    FRONTEND_DEV_SERVER_CMD: "npm run dev",
-    ROLE_SYSTEM: "none",
-    ROLE_VALID_VALUES: "",
-    AUTH_METHOD: "none",
-    IMPORT_STYLE: "absolute",
-    DB_ENGINE: "postgresql",
-    ORM: "none",
-    PRE_PUSH_GATES: "none",
-    API_DOCS_LIBRARY: "none",
-    SENTRUX_MAX_CYCLES: "0",
-    SENTRUX_MAX_CC: "25",
-    SENTRUX_MAX_COUPLING: "B",
-    SENTRUX_LAYERS: "",
-    SENTRUX_BOUNDARIES: "",
-    PROJECT_NAME: "test-project",
-    REPO_NAME: "test-project",
-    GIT_HOST: "github.com",
-    LOGGING_PATTERN: "unstructured",
-    LOGGING_CANONICAL_KEYS: "",
-    ORM_PACKAGE: "none",
-    ORM_PACKAGE_VERSION: "",
-    AUTH_PACKAGE: "none",
-    AUTH_PACKAGE_VERSION: "",
-    VALIDATION_PACKAGE: "none",
-    VALIDATION_PACKAGE_VERSION: "",
-    LOGGING_PACKAGE: "none",
-    LOGGING_PACKAGE_VERSION: "",
-    DB_DRIVER_PACKAGE: "none",
-    DB_DRIVER_PACKAGE_VERSION: "",
-    CACHE_PACKAGE: "none",
-    CACHE_PACKAGE_VERSION: "",
-    UI_PACKAGE: "none",
-    UI_PACKAGE_VERSION: "",
-    STATE_PACKAGE: "none",
-    STATE_PACKAGE_VERSION: "",
-    FORM_PACKAGE: "none",
-    FORM_PACKAGE_VERSION: "",
-    ROUTER_PACKAGE: "none",
-    ROUTER_PACKAGE_VERSION: "",
-    RENDER_PACKAGE: "none",
-    RENDER_PACKAGE_VERSION: "",
-    TEST_FRAMEWORK_PACKAGE: "none",
-    TEST_FRAMEWORK_PACKAGE_VERSION: "",
-    E2E_PACKAGE: "none",
-    E2E_PACKAGE_VERSION: "",
-    MOCK_PACKAGE: "none",
-    MOCK_PACKAGE_VERSION: "",
-    TESTING_REQUIREMENTS: "unit tests",
-    PR_CHECKLIST: "tests pass, lint clean",
-    ...overrides,
-  };
+const SENTRUX_DEFAULTS = {
+  FRONTEND_FRAMEWORK: "react",
+  FRONTEND_TEST_CMD: "npx vitest run",
+  FRONTEND_LINT_CMD: "npx eslint src",
+  FRONTEND_TYPE_CHECK_CMD: "npx tsc --noEmit",
+  FRONTEND_DIR: "frontend",
+  FRONTEND_DEV_SERVER_CMD: "npm run dev",
+  SENTRUX_MAX_CYCLES: "0",
+  SENTRUX_MAX_COUPLING: "B",
+  PROJECT_NAME: "test-project",
+  REPO_NAME: "test-project",
+  PR_CHECKLIST: "tests pass, lint clean",
+};
+
+function makeVars(overrides: Parameters<typeof makeTemplateVars>[0] = {}) {
+  return makeTemplateVars({ ...SENTRUX_DEFAULTS, ...overrides });
 }
 
 let tmpDir: string;

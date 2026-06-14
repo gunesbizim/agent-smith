@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import os from "node:os";
-import type { DetectedProject } from "../../shared/types.js";
+import { makeDetectedProject as makeProject } from "../fixtures.js";
 
 // Mock child_process before importing the module so spawnSync is intercepted
 vi.mock("node:child_process", () => ({
@@ -11,21 +11,6 @@ import { probeSentrux, sniffArchitecture } from "../../analyze/architecture-snif
 import { spawnSync } from "node:child_process";
 
 const mockSpawnSync = vi.mocked(spawnSync);
-
-function makeProject(overrides: Partial<DetectedProject> = {}): DetectedProject {
-  return {
-    rootPath: `${os.tmpdir()}/test-project`,
-    projectType: "cli-tool",
-    backend: null,
-    frontend: null,
-    testing: { backend: null, frontend: null },
-    linting: { backend: null, frontend: null },
-    cicd: null,
-    monorepo: null,
-    database: null,
-    ...overrides,
-  };
-}
 
 // ---- probeSentrux ----
 

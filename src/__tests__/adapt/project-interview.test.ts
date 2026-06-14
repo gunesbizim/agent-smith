@@ -1,79 +1,7 @@
 import { describe, it, expect } from "vitest";
-import os from "node:os";
 import { applyInterviewAnswers, buildQuestions, smartDefaults } from "../../adapt/project-interview.js";
-import type { TemplateVariables, DetectedProject } from "../../shared/types.js";
+import { makeTemplateVars as makeVars, makeDetectedProject } from "../fixtures.js";
 import type { InterviewAnswers, SentruxProbeDefaults } from "../../adapt/project-interview.js";
-
-function makeVars(overrides: Partial<TemplateVariables> = {}): TemplateVariables {
-  return {
-    BACKEND_LANG: "TypeScript",
-    BACKEND_FRAMEWORK: "express",
-    BACKEND_FRAMEWORK_DETAIL: "Express 4",
-    BACKEND_TEST_CMD: "npx vitest run",
-    BACKEND_LINT_CMD: "npx eslint src",
-    BACKEND_TYPE_CHECK_CMD: "npx tsc --noEmit",
-    BACKEND_FORMAT_CMD: "npx prettier --check .",
-    BACKEND_DIR: "src",
-    BACKEND_SETTINGS_MODULE: "",
-    BACKEND_MIGRATE_CMD: "",
-    FRONTEND_FRAMEWORK: "none",
-    FRONTEND_UI_LIBRARY: "none",
-    FRONTEND_TEST_CMD: "",
-    FRONTEND_LINT_CMD: "",
-    FRONTEND_TYPE_CHECK_CMD: "",
-    FRONTEND_DIR: "",
-    FRONTEND_DEV_SERVER_CMD: "",
-    ROLE_SYSTEM: "none",
-    ROLE_VALID_VALUES: "",
-    AUTH_METHOD: "none",
-    IMPORT_STYLE: "absolute",
-    DB_ENGINE: "postgresql",
-    ORM: "none",
-    PRE_PUSH_GATES: "none",
-    API_DOCS_LIBRARY: "none",
-    SENTRUX_MAX_CYCLES: "",
-    SENTRUX_MAX_CC: "25",
-    SENTRUX_MAX_COUPLING: "C",
-    SENTRUX_LAYERS: "",
-    SENTRUX_BOUNDARIES: "",
-    PROJECT_NAME: "my-project",
-    REPO_NAME: "my-project",
-    GIT_HOST: "github.com",
-    LOGGING_PATTERN: "unstructured",
-    LOGGING_CANONICAL_KEYS: "",
-    ORM_PACKAGE: "none",
-    ORM_PACKAGE_VERSION: "",
-    AUTH_PACKAGE: "none",
-    AUTH_PACKAGE_VERSION: "",
-    VALIDATION_PACKAGE: "none",
-    VALIDATION_PACKAGE_VERSION: "",
-    LOGGING_PACKAGE: "none",
-    LOGGING_PACKAGE_VERSION: "",
-    DB_DRIVER_PACKAGE: "none",
-    DB_DRIVER_PACKAGE_VERSION: "",
-    CACHE_PACKAGE: "none",
-    CACHE_PACKAGE_VERSION: "",
-    UI_PACKAGE: "none",
-    UI_PACKAGE_VERSION: "",
-    STATE_PACKAGE: "none",
-    STATE_PACKAGE_VERSION: "",
-    FORM_PACKAGE: "none",
-    FORM_PACKAGE_VERSION: "",
-    ROUTER_PACKAGE: "none",
-    ROUTER_PACKAGE_VERSION: "",
-    RENDER_PACKAGE: "none",
-    RENDER_PACKAGE_VERSION: "",
-    TEST_FRAMEWORK_PACKAGE: "none",
-    TEST_FRAMEWORK_PACKAGE_VERSION: "",
-    E2E_PACKAGE: "none",
-    E2E_PACKAGE_VERSION: "",
-    MOCK_PACKAGE: "none",
-    MOCK_PACKAGE_VERSION: "",
-    TESTING_REQUIREMENTS: "unit tests",
-    PR_CHECKLIST: "tests pass",
-    ...overrides,
-  };
-}
 
 function makeAnswers(overrides: Partial<InterviewAnswers> = {}): InterviewAnswers {
   return {
@@ -231,20 +159,7 @@ describe("applyInterviewAnswers — all fields pass through unchanged", () => {
 
 // ---- buildQuestions ----
 
-function makeProject(overrides: Partial<DetectedProject> = {}): DetectedProject {
-  return {
-    rootPath: `${os.tmpdir()}/test`,
-    projectType: "cli-tool",
-    backend: null,
-    frontend: null,
-    testing: { backend: null, frontend: null },
-    linting: { backend: null, frontend: null },
-    cicd: null,
-    monorepo: null,
-    database: null,
-    ...overrides,
-  };
-}
+const makeProject = makeDetectedProject;
 
 describe("buildQuestions — default (no sentrux probe)", () => {
   it("returns the expected question ids", () => {

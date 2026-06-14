@@ -102,7 +102,7 @@ jobs:
             -Dsonar.typescript.tsconfigPath=tsconfig.json
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
       - name: SonarCloud Quality Gate
-        uses: sonarsource/sonarqube-quality-gate-action@v4  # Dependabot auto-updates
+        uses: sonarsource/sonarqube-quality-gate-action@v1.2.0
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

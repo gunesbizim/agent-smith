@@ -23,6 +23,8 @@ describe("Screenshot Driver", () => {
       expect(Array.isArray(job.actions)).toBe(true);
       expect(job.filename).toContain("login-admin-");
       expect(job.filename).toContain(".png");
+      // Screenshots must live under the gitignored .playwright-mcp/ dir.
+      expect(job.filename.startsWith(".playwright-mcp/")).toBe(true);
     });
 
     it("includes navigate + snapshot + screenshot actions per job", () => {

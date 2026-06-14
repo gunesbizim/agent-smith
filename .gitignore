@@ -19,3 +19,11 @@ docs/architecture/
 # Temp files
 a
 coverage/
+
+# Obsidian vault — keep dir scaffold, ignore private notes
+vault/*
+!vault/README.md
+
+# Playwright MCP screenshots/traces — generated artifacts, never commit
+.playwright-mcp/
+docs/screenshots/

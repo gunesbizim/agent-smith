@@ -65,8 +65,25 @@ export async function configureMCPs(
   };
 
   for (const server of MCP_REGISTRY) {
+    // Skip servers whose required env vars are unset/empty — otherwise we'd write
+    // a broken entry (e.g. `mcp-obsidian ""` with no vault path, or a credential-less
+    // sonarqube/jira). Surface the skip so it isn't silent.
+    if (!hasRequiredEnv(server.requiredEnvVars)) {
+      if (!dryRun) {
+        console.warn(
+          `  ⚠ Skipping ${server.name} — set ${server.requiredEnvVars.join(", ")} then re-run to configure it.`,
+        );
+      }
+      continue;
+    }
+
     const config = resolveConfigEnv(server.configTemplate, vars);
 
+    // "local" scope is not file-based — it lives in ~/.claude.json, registered
+    // separately via registerLocalMCPs(). Skip it here.
+    if (server.scope === "local") {
+      continue;
+    }
     if (server.scope === "project" || server.scope === "both") {
       bundle.projectSettings[server.name] = { type: "stdio", ...config };
     }
@@ -142,3 +159,79 @@ function resolveEnvVars(template: string, vars: TemplateVariables): string {
     return process.env[name] ?? defaultValue ?? "";
   });
 }
+
+/** True when every required env var is set to a non-empty value (none required → true). */
+export function hasRequiredEnv(requiredEnvVars: string[]): boolean {
+  return requiredEnvVars.every((name) => (process.env[name] ?? "").trim().length > 0);
+}
+
+/**
+ * Register "local" scope MCP servers into Claude Code's per-project private config
+ * (~/.claude.json) via `claude mcp add --scope local`. These are per-repo and never
+ * committed, so a single agent-smith install serves many repos, each with its own
+ * config (e.g. a distinct Obsidian vault path). Only runs on the claude-code platform.
+ *
+ * Servers with unmet required env vars are skipped (prompt for them before calling).
+ */
+export function registerLocalMCPs(
+  vars: TemplateVariables,
+  platform: string = "claude-code",
+): { registered: string[]; skipped: string[] } {
+  const registered: string[] = [];
+  const skipped: string[] = [];
+
+  if (platform !== "claude-code") {
+    // Other platforms have no equivalent of Claude Code local scope.
+    return { registered, skipped: MCP_REGISTRY.filter((s) => s.scope === "local").map((s) => s.name) };
+  }
+
+  for (const server of MCP_REGISTRY) {
+    if (server.scope !== "local") continue;
+
+    if (!hasRequiredEnv(server.requiredEnvVars)) {
+      skipped.push(server.name);
+      continue;
+    }
+
+    const config = resolveConfigEnv(server.configTemplate, vars);
+    const cmdParts = [config.command, ...config.args].map(shellQuote).join(" ");
+    const addCmd = `claude mcp add --scope local --transport stdio ${server.name} -- ${cmdParts}`;
+
+    try {
+      execSync(addCmd, { stdio: "pipe" });
+      registered.push(server.name);
+    } catch {
+      skipped.push(server.name);
+    }
+  }
+
+  return { registered, skipped };
+}
+
+function shellQuote(arg: string): string {
+  return /[^A-Za-z0-9_\-./:@]/.test(arg) ? `'${arg.replace(/'/g, "'\\''")}'` : arg;
+}
+
+/**
+ * Idempotently append entries to the target repo's .gitignore. Used to ensure
+ * Playwright screenshot output (.playwright-mcp/) is never committed. Returns the
+ * entries that were newly added.
+ */
+export function ensureGitignore(projectRoot: string, entries: string[]): string[] {
+  const gitignorePath = path.join(projectRoot, ".gitignore");
+  const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, "utf-8") : "";
+  const present = new Set(
+    existing.split("\n").map((line) => line.trim().replace(/\/$/, "")),
+  );
+
+  const toAdd = entries.filter((e) => !present.has(e.trim().replace(/\/$/, "")));
+  if (toAdd.length === 0) return [];
+
+  const prefix = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
+  const block = `${prefix}\n# Playwright MCP screenshots/traces — generated artifacts, never commit\n${toAdd.join("\n")}\n`;
+  fs.appendFileSync(gitignorePath, block);
+  return toAdd;
+}
+
+/** Directory where the playwright MCP writes screenshots/traces (gitignored). */
+export const PLAYWRIGHT_OUTPUT_DIR = ".playwright-mcp";

@@ -1,4 +1,12 @@
 // Playwright screenshot driver — captures UI screenshots per role
+
+/**
+ * Gitignored directory where Playwright screenshots are stored. Matches the
+ * --output-dir passed to the playwright MCP server, and is added to .gitignore
+ * by the installer so captured artifacts are never committed.
+ */
+export const SCREENSHOT_DIR = ".playwright-mcp";
+
 export interface ScreenshotJob {
   flow: string;
   role: string;
@@ -36,7 +44,7 @@ export function planScreenshots(
           { type: "snapshot" },
           { type: "screenshot" },
         ],
-        filename: `docs/screenshots/${flow}-${role}-01-entry.png`,
+        filename: `${SCREENSHOT_DIR}/${flow}-${role}-01-entry.png`,
       });
     }
   }

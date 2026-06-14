@@ -64,7 +64,9 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     requiredEnvVars: [],
     configTemplate: {
       command: "npx",
-      args: ["-y", "@playwright/mcp@latest", "--viewport-size=1440,900"],
+      // --output-dir routes all screenshots/traces into a gitignored dir so captured
+      // artifacts are never committed (see ensureGitignore in mcp-installer).
+      args: ["-y", "@playwright/mcp@latest", "--viewport-size=1440,900", "--output-dir", ".playwright-mcp"],
       env: {},
     },
   },
@@ -147,7 +149,9 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     name: "obsidian",
     description: "Read/write the Obsidian knowledge vault",
     category: "documentation",
-    scope: "user",
+    // local scope: per-repo, private to each developer (~/.claude.json), never committed.
+    // Each repo points at its own vault path — supports multi-repo from one install.
+    scope: "local",
     installType: "npx",
     installCommand: "",
     checkCommand: "npx mcp-obsidian --version",

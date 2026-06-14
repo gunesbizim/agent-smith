@@ -220,7 +220,8 @@ export function registerLocalMCPs(
 
     try {
       // Resolving the `claude` CLI via PATH is intentional — it's the user's
-      // installed Claude Code binary. Args are passed as an array (no shell). NOSONAR
+      // installed Claude Code binary. Args are passed as an array (no shell).
+      // The S4036 hotspot is excluded for this file in sonar-project.properties.
       execFileSync("claude", addArgs, { stdio: "pipe" });
       registered.push(server.name);
     } catch {

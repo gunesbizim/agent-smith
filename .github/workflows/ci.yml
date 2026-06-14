@@ -90,9 +90,10 @@ jobs:
       - name: Tests with coverage
         run: npx vitest run --coverage --coverage.reporter=lcov 2>&1 || true
       - name: SonarCloud Scan
-        uses: sonarsource/sonarqube-scan-action@v4  # Dependabot auto-updates
+        uses: sonarsource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
         with:
           args: >
             -Dsonar.organization=gunesbizim
@@ -106,3 +107,4 @@ jobs:
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io

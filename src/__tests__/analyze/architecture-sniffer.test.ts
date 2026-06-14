@@ -514,3 +514,82 @@ describe("sniffArchitecture — frontend patterns", () => {
     expect(names).toContain("vuetify-design-system");
   });
 });
+
+describe("sniffArchitecture — backend project (covers sniffBackendPatterns)", () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it("returns empty array for minimal backend (no special patterns)", async () => {
+    const project = makeProject({
+      backend: {
+        framework: "express",
+        hasHexagonalArch: false,
+        hasServiceRepo: false,
+        usesAPIView: false,
+        usesFunctionViews: false,
+        rolePattern: "none",
+        importStyle: "absolute",
+        loggingPattern: "unstructured",
+      } as any,
+    });
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
+    expect(Array.isArray(patterns)).toBe(true);
+  });
+
+  it("detects hexagonal-architecture pattern", async () => {
+    const project = makeProject({
+      backend: {
+        framework: "django",
+        hasHexagonalArch: true,
+        hasServiceRepo: false,
+        usesAPIView: false,
+        usesFunctionViews: false,
+        rolePattern: "none",
+        importStyle: "absolute",
+        loggingPattern: "unstructured",
+      } as any,
+    });
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
+    const names = patterns.map((p) => p.name);
+    expect(names).toContain("hexagonal-architecture");
+  });
+
+  it("detects service-repository-pattern", async () => {
+    const project = makeProject({
+      backend: {
+        framework: "express",
+        hasHexagonalArch: false,
+        hasServiceRepo: true,
+        usesAPIView: false,
+        usesFunctionViews: false,
+        rolePattern: "none",
+        importStyle: "absolute",
+        loggingPattern: "unstructured",
+      } as any,
+    });
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
+    const names = patterns.map((p) => p.name);
+    expect(names).toContain("service-repository-pattern");
+  });
+
+  it("runs Django-specific grepInFiles checks (covers grepInFiles return false path)", async () => {
+    const project = makeProject({
+      backend: {
+        framework: "django",
+        hasHexagonalArch: false,
+        hasServiceRepo: false,
+        usesAPIView: false,
+        usesFunctionViews: false,
+        rolePattern: "none",
+        importStyle: "absolute",
+        loggingPattern: "unstructured",
+      } as any,
+    });
+    // tmpdir has no .py files → grepInFiles returns false for all Django checks
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
+    const names = patterns.map((p) => p.name);
+    expect(names).not.toContain("pii-encryption");
+    expect(names).not.toContain("openapi-annotations");
+    expect(names).not.toContain("audit-immutability");
+  });
+});
+

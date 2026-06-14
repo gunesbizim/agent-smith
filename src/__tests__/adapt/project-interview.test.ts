@@ -1,7 +1,18 @@
-import { describe, it, expect } from "vitest";
-import { applyInterviewAnswers, buildQuestions, smartDefaults } from "../../adapt/project-interview.js";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
+import os from "node:os";
+import path from "node:path";
+import fs from "fs-extra";
+import { applyInterviewAnswers, buildQuestions, smartDefaults, runInterview } from "../../adapt/project-interview.js";
 import { makeTemplateVars as makeVars, makeDetectedProject } from "../fixtures.js";
 import type { InterviewAnswers, SentruxProbeDefaults } from "../../adapt/project-interview.js";
+
+vi.mock("node:readline", () => {
+  const mockInterface = {
+    question: vi.fn().mockImplementation((_prompt: string, cb: (input: string) => void) => cb("")),
+    close: vi.fn(),
+  };
+  return { default: { createInterface: vi.fn().mockReturnValue(mockInterface) } };
+});
 
 function makeAnswers(overrides: Partial<InterviewAnswers> = {}): InterviewAnswers {
   return {
@@ -287,5 +298,80 @@ describe("smartDefaults", () => {
   it("non-CLI projects get no branchNaming preset", () => {
     const d = smartDefaults(makeProject({ projectType: "library" }));
     expect(d.branchNaming).toBeUndefined();
+  });
+});
+
+// ---- getDefaultTesting / getDefaultArchRules fallback branches ----
+
+describe("buildQuestions — backend-only project (no frontend, not CLI)", () => {
+  it("testingRequirements default includes integration tests (line 37 branch)", () => {
+    const project = makeDetectedProject({
+      projectType: "web-app",
+      backend: {
+        framework: "express",
+        hasHexagonalArch: false,
+        hasServiceRepo: false,
+        usesAPIView: false,
+        usesFunctionViews: false,
+        rolePattern: "none",
+        importStyle: "absolute",
+        loggingPattern: "unstructured",
+      } as any,
+      frontend: null,
+    });
+    const qs = buildQuestions(project);
+    const q = qs.find((q) => q.id === "testingRequirements")!;
+    expect(q.defaultValue).toContain("integration tests");
+  });
+
+  it("architectureRules default uses fallback (line 43 branch) for library with no backend", () => {
+    const project = makeDetectedProject({ projectType: "library", backend: null, frontend: null });
+    const qs = buildQuestions(project);
+    const q = qs.find((q) => q.id === "architectureRules")!;
+    expect(q.defaultValue).toContain("typed interfaces");
+    expect(q.defaultValue).not.toContain("ORM");
+  });
+});
+
+// ---- runInterview (readline mocked — all Enter → accepts defaults) ----
+
+describe("runInterview — defaults accepted via mocked readline", () => {
+  let tmpDir: string;
+
+  beforeAll(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-smith-interview-"));
+  });
+
+  afterAll(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("returns a complete InterviewAnswers object", async () => {
+    const project = makeDetectedProject();
+    const answers = await runInterview(tmpDir, project);
+    expect(typeof answers.branchNaming).toBe("string");
+    expect(typeof answers.commitFormat).toBe("string");
+    expect(typeof answers.allowCycles).toBe("string");
+    expect(typeof answers.maxCC).toBe("string");
+    expect(Array.isArray(answers.prChecklist)).toBe(true);
+    expect(Array.isArray(answers.testingRequirements)).toBe(true);
+    expect(Array.isArray(answers.architectureRules)).toBe(true);
+  });
+
+  it("writes decisions.md to docs/architecture/", async () => {
+    const project = makeDetectedProject();
+    await runInterview(tmpDir, project);
+    const decPath = path.join(tmpDir, "docs", "architecture", "decisions.md");
+    expect(fs.existsSync(decPath)).toBe(true);
+    const content = fs.readFileSync(decPath, "utf-8");
+    expect(content).toContain("Project Decisions");
+  });
+
+  it("accepts sentrux probe defaults and returns valid answers", async () => {
+    const project = makeDetectedProject();
+    const probe: SentruxProbeDefaults = { cycles: 2, maxCC: 12 };
+    const answers = await runInterview(tmpDir, project, probe);
+    expect(typeof answers.maxCC).toBe("string");
+    expect(typeof answers.allowCycles).toBe("string");
   });
 });

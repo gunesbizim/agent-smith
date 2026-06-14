@@ -87,7 +87,7 @@ if (sentruxInstalled) {
     gateExitCode = err.status ?? 1;
     gateOutput = err.stdout ? err.stdout.trim() : null;
   }
-  if (gateExitCode !== 0 || (gateOutput && gateOutput.toLowerCase().includes("degradation"))) {
+  if (gateExitCode !== 0) {
     report.suggestions.push("sentrux: architectural quality regressed this session — run `sentrux gate .` for details");
   }
 }

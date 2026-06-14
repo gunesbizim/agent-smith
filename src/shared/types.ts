@@ -125,7 +125,7 @@ export interface MCPServerDefinition {
   name: string;
   description: string;
   category: "code-intelligence" | "browser" | "documentation" | "quality" | "memory" | "pm" | "design";
-  scope: "project" | "user" | "both";
+  scope: "project" | "user" | "both" | "local";
   installType: "npm" | "npx" | "pipx" | "python" | "shell" | "manual";
   installCommand: PlatformInstall;
   checkCommand: string;

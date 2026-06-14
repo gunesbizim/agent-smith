@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { configureMCPs } from "../../install/mcp-installer.js";
+import { configureMCPs, hasRequiredEnv, registerLocalMCPs, ensureGitignore } from "../../install/mcp-installer.js";
 import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
 
 const OUROBOROS_PERM = "mcp__ouroboros__ouroboros_pm_interview";
@@ -107,5 +107,99 @@ describe("configureMCPs — dryRun: true — no files written", () => {
     const bundle = await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", true);
     expect(bundle.projectSettings.sentrux).toBeDefined();
     expect(bundle.projectSettings.sentrux.command).toBe("sentrux");
+  });
+
+  it("never writes obsidian (local scope) into project files", async () => {
+    const bundle = await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", true);
+    expect(bundle.projectSettings.obsidian).toBeUndefined();
+    expect(bundle.projectMcp.obsidian).toBeUndefined();
+    expect(bundle.userMcp.obsidian).toBeUndefined();
+  });
+});
+
+describe("hasRequiredEnv", () => {
+  const VAR = "AGENT_SMITH_TEST_VAULT_PATH";
+
+  afterEach(() => {
+    delete process.env[VAR];
+  });
+
+  it("returns true when there are no required vars", () => {
+    expect(hasRequiredEnv([])).toBe(true);
+  });
+
+  it("returns false when a required var is unset", () => {
+    delete process.env[VAR];
+    expect(hasRequiredEnv([VAR])).toBe(false);
+  });
+
+  it("returns false when a required var is empty/whitespace", () => {
+    process.env[VAR] = "   ";
+    expect(hasRequiredEnv([VAR])).toBe(false);
+  });
+
+  it("returns true when a required var is set", () => {
+    process.env[VAR] = "/some/path";
+    expect(hasRequiredEnv([VAR])).toBe(true);
+  });
+});
+
+describe("registerLocalMCPs", () => {
+  afterEach(() => {
+    delete process.env.OBSIDIAN_VAULT_PATH;
+  });
+
+  it("reports local servers as skipped on non-claude-code platforms", () => {
+    const { registered, skipped } = registerLocalMCPs(DEFAULT_TEMPLATE_VARS, "cursor");
+    expect(registered).toEqual([]);
+    expect(skipped).toContain("obsidian");
+  });
+
+  it("skips obsidian when OBSIDIAN_VAULT_PATH is unset", () => {
+    delete process.env.OBSIDIAN_VAULT_PATH;
+    const { registered, skipped } = registerLocalMCPs(DEFAULT_TEMPLATE_VARS, "claude-code");
+    expect(registered).not.toContain("obsidian");
+    expect(skipped).toContain("obsidian");
+  });
+});
+
+describe("ensureGitignore", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "gitignore-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("creates .gitignore and adds the entry when none exists", () => {
+    const added = ensureGitignore(tmpDir, [".playwright-mcp/"]);
+    expect(added).toEqual([".playwright-mcp/"]);
+    const content = fs.readFileSync(path.join(tmpDir, ".gitignore"), "utf-8");
+    expect(content).toContain(".playwright-mcp/");
+  });
+
+  it("is idempotent — does not re-add an existing entry", () => {
+    fs.writeFileSync(path.join(tmpDir, ".gitignore"), "node_modules/\n.playwright-mcp/\n");
+    const added = ensureGitignore(tmpDir, [".playwright-mcp/"]);
+    expect(added).toEqual([]);
+    const content = fs.readFileSync(path.join(tmpDir, ".gitignore"), "utf-8");
+    expect(content.match(/\.playwright-mcp/g)?.length).toBe(1);
+  });
+
+  it("treats trailing-slash variants as the same entry", () => {
+    fs.writeFileSync(path.join(tmpDir, ".gitignore"), ".playwright-mcp\n");
+    const added = ensureGitignore(tmpDir, [".playwright-mcp/"]);
+    expect(added).toEqual([]);
+  });
+
+  it("preserves existing entries when appending", () => {
+    fs.writeFileSync(path.join(tmpDir, ".gitignore"), "node_modules/\n");
+    ensureGitignore(tmpDir, [".playwright-mcp/"]);
+    const content = fs.readFileSync(path.join(tmpDir, ".gitignore"), "utf-8");
+    expect(content).toContain("node_modules/");
+    expect(content).toContain(".playwright-mcp/");
   });
 });

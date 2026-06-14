@@ -48,7 +48,7 @@ describe("MCP Registry", () => {
   });
 
   it("every server has valid scope", () => {
-    const validScopes = ["project", "user", "both"];
+    const validScopes = ["project", "user", "both", "local"];
     for (const server of MCP_REGISTRY) {
       expect(validScopes).toContain(server.scope);
     }

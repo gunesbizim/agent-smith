@@ -64,7 +64,9 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     requiredEnvVars: [],
     configTemplate: {
       command: "npx",
-      args: ["-y", "@playwright/mcp@latest", "--viewport-size=1440,900"],
+      // --output-dir routes all screenshots/traces into a gitignored dir so captured
+      // artifacts are never committed (see ensureGitignore in mcp-installer).
+      args: ["-y", "@playwright/mcp@latest", "--viewport-size=1440,900", "--output-dir", ".playwright-mcp"],
       env: {},
     },
   },
@@ -93,7 +95,8 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     installType: "npx",
     installCommand: "npm install -g sonarqube-mcp-server",
     checkCommand: "npx sonarqube-mcp-server@latest --version",
-    requiredEnvVars: ["SONARQUBE_TOKEN", "SONARQUBE_URL"],
+    // Only vars without a template default are truly required; SONARQUBE_URL has a default.
+    requiredEnvVars: ["SONARQUBE_TOKEN"],
     configTemplate: {
       command: "npx",
       args: ["-y", "sonarqube-mcp-server@latest"],
@@ -147,7 +150,9 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     name: "obsidian",
     description: "Read/write the Obsidian knowledge vault",
     category: "documentation",
-    scope: "user",
+    // local scope: per-repo, private to each developer (~/.claude.json), never committed.
+    // Each repo points at its own vault path — supports multi-repo from one install.
+    scope: "local",
     installType: "npx",
     installCommand: "",
     checkCommand: "npx mcp-obsidian --version",
@@ -204,7 +209,8 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     installType: "npx",
     installCommand: "",
     checkCommand: "npx @anthropic/jira-mcp --version",
-    requiredEnvVars: ["JIRA_API_TOKEN", "JIRA_BASE_URL"],
+    // Only vars without a template default are truly required; JIRA_BASE_URL has a default.
+    requiredEnvVars: ["JIRA_API_TOKEN"],
     configTemplate: {
       command: "npx",
       args: ["-y", "@anthropic/jira-mcp"],

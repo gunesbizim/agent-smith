@@ -47,7 +47,7 @@ mcp__playwright__browser_navigate("http://localhost:3000/<route>")
 mcp__playwright__browser_resize(1440, 900)
 mcp__playwright__browser_snapshot()              # a11y tree — find elements to interact with
 mcp__playwright__browser_click / browser_type / browser_fill_form   # walk the real flow
-mcp__playwright__browser_take_screenshot(filename="docs/screenshots/<flow>-<role>-<step>.png")
+mcp__playwright__browser_take_screenshot(filename="<flow>-<role>-<step>.png")
 mcp__playwright__browser_wait_for(...)           # wait for async states (job polling, toasts)
 ```
 
@@ -55,7 +55,7 @@ mcp__playwright__browser_wait_for(...)           # wait for async states (job po
 - Screenshot every meaningful step: entry screen → filled form → confirmation → result.
 - Capture role differences explicitly.
 - Capture state variants: empty list, loading, success toast, error banner.
-- Name files `docs/screenshots/<flow>-<role>-<step>.png` — stable, re-runnable names.
+- Name files `<flow>-<role>-<step>.png` — stable, re-runnable names. The playwright MCP is configured with `--output-dir .playwright-mcp`, so files land in the gitignored `.playwright-mcp/` directory (never committed). Reference them as `.playwright-mcp/<flow>-<role>-<step>.png` when embedding.
 
 **Console check:** `mcp__playwright__browser_console_messages` after each flow — flag errors as a smoke test but continue documenting.
 

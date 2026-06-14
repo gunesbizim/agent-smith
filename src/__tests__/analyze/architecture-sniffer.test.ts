@@ -572,7 +572,9 @@ describe("sniffArchitecture — backend project (covers sniffBackendPatterns)", 
   });
 
   it("runs Django-specific grepInFiles checks (covers grepInFiles return false path)", async () => {
+    // rootPath must be an EXISTING directory so globFn doesn't throw and reaches return false
     const project = makeProject({
+      rootPath: os.tmpdir(),
       backend: {
         framework: "django",
         hasHexagonalArch: false,
@@ -584,7 +586,7 @@ describe("sniffArchitecture — backend project (covers sniffBackendPatterns)", 
         loggingPattern: "unstructured",
       } as any,
     });
-    // tmpdir has no .py files → grepInFiles returns false for all Django checks
+    // tmpdir has no .py files → globFn returns [] → loop skipped → return false (line 311)
     const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).not.toContain("pii-encryption");

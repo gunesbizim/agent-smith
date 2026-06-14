@@ -65,7 +65,8 @@ export async function configureCommand(opts: ConfigureOptions): Promise<void> {
   if (registered.length > 0) {
     localSpinner.succeed(`Registered local MCP servers: ${registered.join(", ")}`);
   } else {
-    localSpinner.info(`No local MCP servers registered${skipped.length ? ` (skipped: ${skipped.join(", ")})` : ""}`);
+    const skippedNote = skipped.length ? ` (skipped: ${skipped.join(", ")})` : "";
+    localSpinner.info(`No local MCP servers registered${skippedNote}`);
   }
 
   console.log(chalk.bold.green("\n✓ MCP configuration complete\n"));

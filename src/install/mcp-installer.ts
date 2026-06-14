@@ -4,7 +4,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import ora from "ora";
 import { MCP_REGISTRY, getMCPServer } from "./registry.js";
-import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall } from "../shared/types.js";
+import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall, MCPServerDefinition } from "../shared/types.js";
 
 function resolveInstall(cmd: PlatformInstall): string {
   if (typeof cmd === "string") return cmd;
@@ -65,31 +65,7 @@ export async function configureMCPs(
   };
 
   for (const server of MCP_REGISTRY) {
-    // Skip servers whose required env vars are unset/empty — otherwise we'd write
-    // a broken entry (e.g. `mcp-obsidian ""` with no vault path, or a credential-less
-    // sonarqube/jira). Surface the skip so it isn't silent.
-    if (!hasRequiredEnv(server.requiredEnvVars)) {
-      if (!dryRun) {
-        console.warn(
-          `  ⚠ Skipping ${server.name} — set ${server.requiredEnvVars.join(", ")} then re-run to configure it.`,
-        );
-      }
-      continue;
-    }
-
-    const config = resolveConfigEnv(server.configTemplate, vars);
-
-    // "local" scope is not file-based — it lives in ~/.claude.json, registered
-    // separately via registerLocalMCPs(). Skip it here.
-    if (server.scope === "local") {
-      continue;
-    }
-    if (server.scope === "project" || server.scope === "both") {
-      bundle.projectSettings[server.name] = { type: "stdio", ...config };
-    }
-    if (server.scope === "user" || server.scope === "both") {
-      bundle.userMcp[server.name] = { type: "stdio", ...config };
-    }
+    addServerToBundle(bundle, server, vars, dryRun);
   }
 
   // Also put browser tools in .mcp.json scope
@@ -97,43 +73,82 @@ export async function configureMCPs(
   bundle.projectMcp["chrome-devtools"] = bundle.projectSettings["chrome-devtools"];
 
   if (!dryRun) {
-    // Write project settings
-    const settingsPath = path.join(projectRoot, ".claude", "settings.json");
-    fs.ensureDirSync(path.dirname(settingsPath));
-
-    let existingSettings: Record<string, unknown> = {};
-    if (fs.existsSync(settingsPath)) {
-      existingSettings = fs.readJsonSync(settingsPath);
-    }
-
-    existingSettings.mcpServers = {
-      ...(existingSettings.mcpServers as Record<string, unknown> ?? {}),
-      ...bundle.projectSettings,
-    };
-    const existingAllow = ((existingSettings.permissions as Record<string, unknown>)?.allow as string[] ?? []);
-    existingSettings.permissions = {
-      ...(existingSettings.permissions as Record<string, unknown> ?? {}),
-      allow: existingAllow.includes("mcp__ouroboros__ouroboros_pm_interview")
-        ? existingAllow
-        : [...existingAllow, "mcp__ouroboros__ouroboros_pm_interview"],
-    };
-
-    fs.writeJsonSync(settingsPath, existingSettings, { spaces: 2 });
-
-    // Write project .mcp.json
-    const mcpPath = path.join(projectRoot, ".mcp.json");
-    let existingMcp: Record<string, unknown> = {};
-    if (fs.existsSync(mcpPath)) {
-      existingMcp = fs.readJsonSync(mcpPath);
-    }
-    existingMcp.mcpServers = {
-      ...(existingMcp.mcpServers as Record<string, unknown> ?? {}),
-      ...bundle.projectMcp,
-    };
-    fs.writeJsonSync(mcpPath, existingMcp, { spaces: 2 });
+    writeClaudeSettings(projectRoot, bundle);
+    writeProjectMcp(projectRoot, bundle);
   }
 
   return bundle;
+}
+
+/** Add a single registry server to the bundle under its file-based scope(s). */
+function addServerToBundle(
+  bundle: MCPConfigBundle,
+  server: MCPServerDefinition,
+  vars: TemplateVariables,
+  dryRun: boolean,
+): void {
+  // Skip servers whose required env vars are unset/empty — otherwise we'd write
+  // a broken entry (e.g. `mcp-obsidian ""` with no vault path, or a credential-less
+  // sonarqube/jira). Surface the skip so it isn't silent.
+  if (!hasRequiredEnv(server.requiredEnvVars)) {
+    if (!dryRun) {
+      console.warn(
+        `  ⚠ Skipping ${server.name} — set ${server.requiredEnvVars.join(", ")} then re-run to configure it.`,
+      );
+    }
+    return;
+  }
+
+  // "local" scope is not file-based — it lives in ~/.claude.json, registered
+  // separately via registerLocalMCPs(). Skip it here.
+  if (server.scope === "local") return;
+
+  const entry = { type: "stdio" as const, ...resolveConfigEnv(server.configTemplate, vars) };
+  if (server.scope === "project" || server.scope === "both") {
+    bundle.projectSettings[server.name] = entry;
+  }
+  if (server.scope === "user" || server.scope === "both") {
+    bundle.userMcp[server.name] = entry;
+  }
+}
+
+/** Merge bundle.projectSettings (and the ouroboros permission) into .claude/settings.json. */
+function writeClaudeSettings(projectRoot: string, bundle: MCPConfigBundle): void {
+  const settingsPath = path.join(projectRoot, ".claude", "settings.json");
+  fs.ensureDirSync(path.dirname(settingsPath));
+
+  let existingSettings: Record<string, unknown> = {};
+  if (fs.existsSync(settingsPath)) {
+    existingSettings = fs.readJsonSync(settingsPath);
+  }
+
+  existingSettings.mcpServers = {
+    ...(existingSettings.mcpServers as Record<string, unknown> ?? {}),
+    ...bundle.projectSettings,
+  };
+  const existingAllow = ((existingSettings.permissions as Record<string, unknown>)?.allow as string[] ?? []);
+  existingSettings.permissions = {
+    ...(existingSettings.permissions as Record<string, unknown> ?? {}),
+    allow: existingAllow.includes("mcp__ouroboros__ouroboros_pm_interview")
+      ? existingAllow
+      : [...existingAllow, "mcp__ouroboros__ouroboros_pm_interview"],
+  };
+
+  fs.writeJsonSync(settingsPath, existingSettings, { spaces: 2 });
+}
+
+/** Merge bundle.projectMcp into the repo's .mcp.json. */
+function writeProjectMcp(projectRoot: string, bundle: MCPConfigBundle): void {
+  const mcpPath = path.join(projectRoot, ".mcp.json");
+  let existingMcp: Record<string, unknown> = {};
+  if (fs.existsSync(mcpPath)) {
+    existingMcp = fs.readJsonSync(mcpPath);
+  }
+  existingMcp.mcpServers = {
+    ...(existingMcp.mcpServers as Record<string, unknown> ?? {}),
+    ...bundle.projectMcp,
+  };
+  fs.writeJsonSync(mcpPath, existingMcp, { spaces: 2 });
 }
 
 function resolveConfigEnv(
@@ -204,6 +219,8 @@ export function registerLocalMCPs(
     ];
 
     try {
+      // Resolving the `claude` CLI via PATH is intentional — it's the user's
+      // installed Claude Code binary. Args are passed as an array (no shell). NOSONAR
       execFileSync("claude", addArgs, { stdio: "pipe" });
       registered.push(server.name);
     } catch {
@@ -221,7 +238,14 @@ export function registerLocalMCPs(
  */
 export function ensureGitignore(projectRoot: string, entries: string[]): string[] {
   const gitignorePath = path.join(projectRoot, ".gitignore");
-  const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, "utf-8") : "";
+  // Read directly and treat a missing file as empty — avoids an exists()/read()
+  // time-of-check/time-of-use race.
+  let existing = "";
+  try {
+    existing = fs.readFileSync(gitignorePath, "utf-8");
+  } catch {
+    // No .gitignore yet — appendFileSync below creates it.
+  }
   const present = new Set(
     existing.split("\n").map((line) => line.trim().replace(/\/$/, "")),
   );

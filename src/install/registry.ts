@@ -113,7 +113,7 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     installCommand: {
       darwin: "brew install sentrux/tap/sentrux",
       linux: "curl -fsSL https://raw.githubusercontent.com/sentrux/sentrux/main/install.sh | sh",
-      win32: "powershell -Command \"Invoke-WebRequest https://github.com/sentrux/sentrux/releases/latest/download/sentrux-windows-x86_64.exe -OutFile \\\"$env:LOCALAPPDATA\\Microsoft\\WindowsApps\\sentrux.exe\\\"\"",
+      win32: String.raw`powershell -Command "Invoke-WebRequest https://github.com/sentrux/sentrux/releases/latest/download/sentrux-windows-x86_64.exe -OutFile \"$env:LOCALAPPDATA\Microsoft\WindowsApps\sentrux.exe\""`,
     },
     checkCommand: "sentrux --version",
     requiredEnvVars: [],

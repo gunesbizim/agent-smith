@@ -13,20 +13,23 @@ import { spawnSync } from "node:child_process";
 const mockSpawnSync = vi.mocked(spawnSync);
 
 // ---- probeSentrux ----
+// probeSentrux calls `sentrux check <path>` and parses "Quality: N" from text output.
 
-describe("probeSentrux — binary missing", () => {
+const CHECK_OUTPUT_CLEAN = "sentrux check — 2 rules checked\n\nQuality: 8500\n\n✓ 0 violation(s) found";
+const CHECK_OUTPUT_VIOLATIONS = "sentrux check — 2 rules checked\n\nQuality: 6278\n\n✗ [Error] max_cc: 3 function(s) exceed\n✗ 1 violation(s) found";
+
+describe("probeSentrux — binary missing (spawnSync throws)", () => {
   beforeEach(() => {
     mockSpawnSync.mockImplementation(() => { throw new Error("command not found: sentrux"); });
   });
-
   afterEach(() => vi.clearAllMocks());
 
-  it("returns available: false when binary not in PATH", async () => {
+  it("returns available: false", async () => {
     const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.available).toBe(false);
   });
 
-  it("returns all null fields when binary missing", async () => {
+  it("returns all null fields", async () => {
     const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.cycles).toBeNull();
     expect(result.maxCC).toBeNull();
@@ -36,192 +39,87 @@ describe("probeSentrux — binary missing", () => {
   });
 });
 
-describe("probeSentrux — non-zero exit", () => {
+describe("probeSentrux — binary not in PATH (result.error set)", () => {
   beforeEach(() => {
-    mockSpawnSync.mockReturnValue({ status: 1, stdout: "", stderr: "error" } as any);
+    mockSpawnSync.mockReturnValue({ error: new Error("ENOENT"), status: null, stdout: "", stderr: "" } as any);
   });
-
   afterEach(() => vi.clearAllMocks());
 
-  it("returns available: false on non-zero exit", async () => {
+  it("returns available: false when result.error is set", async () => {
     const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.available).toBe(false);
   });
 });
 
-describe("probeSentrux — empty stdout", () => {
+describe("probeSentrux — no Quality line in output", () => {
   beforeEach(() => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: "", stderr: "" } as any);
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: "Scanning...\n[build_project_map] done", stderr: "" } as any);
   });
-
   afterEach(() => vi.clearAllMocks());
 
-  it("returns available: false on empty output", async () => {
+  it("returns available: false when Quality line absent", async () => {
     const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.available).toBe(false);
   });
 });
 
-describe("probeSentrux — non-JSON output", () => {
+describe("probeSentrux — clean output (no violations)", () => {
   beforeEach(() => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: "error: no source files found", stderr: "" } as any);
+    mockSpawnSync.mockReturnValue({ status: 0, stdout: CHECK_OUTPUT_CLEAN, stderr: "" } as any);
   });
-
   afterEach(() => vi.clearAllMocks());
-
-  it("returns available: false when output is not JSON", async () => {
-    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
-    expect(result.available).toBe(false);
-  });
-});
-
-describe("probeSentrux — JSON missing root_causes", () => {
-  beforeEach(() => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({ status: "ok" }), stderr: "" } as any);
-  });
-
-  afterEach(() => vi.clearAllMocks());
-
-  it("returns available: false when root_causes missing", async () => {
-    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
-    expect(result.available).toBe(false);
-  });
-});
-
-describe("probeSentrux — full valid output", () => {
-  afterEach(() => vi.clearAllMocks());
-
-  const validOutput = JSON.stringify({
-    quality_signal: 8500,
-    bottleneck: "src/core/god-module.ts",
-    root_causes: {
-      acyclicity: { score: 0.9, raw: 3 },
-      equality: { score: 0.7, raw: 0.3 },
-      modularity: { score: 0.8, raw: 0.5 },
-    },
-  });
-
-  beforeEach(() => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: validOutput, stderr: "" } as any);
-  });
 
   it("returns available: true", async () => {
-    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
-    expect(result.available).toBe(true);
+    expect((await probeSentrux(os.tmpdir())).available).toBe(true);
   });
 
-  it("extracts cycles from acyclicity.raw", async () => {
-    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
-    expect(result.cycles).toBe(3);
+  it("extracts qualitySignal from Quality: line", async () => {
+    expect((await probeSentrux(os.tmpdir())).qualitySignal).toBe(8500);
   });
 
-  it("derives maxCC from equality.raw (0.3 → 15)", async () => {
-    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
-    expect(result.maxCC).toBe(15);
+  it("returns null for cycles (not in text output)", async () => {
+    expect((await probeSentrux(os.tmpdir())).cycles).toBeNull();
   });
 
-  it("derives couplingGrade from modularity.raw (0.5 → B)", async () => {
-    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
-    expect(result.couplingGrade).toBe("B");
+  it("returns null for maxCC (not in text output)", async () => {
+    expect((await probeSentrux(os.tmpdir())).maxCC).toBeNull();
   });
 
-  it("extracts quality_signal", async () => {
-    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
-    expect(result.qualitySignal).toBe(8500);
+  it("returns null for couplingGrade (not in text output)", async () => {
+    expect((await probeSentrux(os.tmpdir())).couplingGrade).toBeNull();
   });
 
-  it("extracts bottleneck", async () => {
-    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
-    expect(result.bottleneck).toBe("src/core/god-module.ts");
+  it("returns null for bottleneck (not in text output)", async () => {
+    expect((await probeSentrux(os.tmpdir())).bottleneck).toBeNull();
   });
 });
 
-describe("probeSentrux — maxCC thresholds", () => {
+describe("probeSentrux — violations (exit code 1, Quality still present)", () => {
+  beforeEach(() => {
+    mockSpawnSync.mockReturnValue({ status: 1, stdout: CHECK_OUTPUT_VIOLATIONS, stderr: "" } as any);
+  });
   afterEach(() => vi.clearAllMocks());
 
-  it("maps equality.raw ≤ 0.2 → maxCC 10", async () => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
-      root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.1 }, modularity: { raw: 0.5 } },
-    }), stderr: "" } as any);
-    const r = await probeSentrux(os.tmpdir());
-    expect(r.maxCC).toBe(10);
+  it("returns available: true even when violations found", async () => {
+    expect((await probeSentrux(os.tmpdir())).available).toBe(true);
   });
 
-  it("maps equality.raw ≤ 0.4 → maxCC 15", async () => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
-      root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.35 }, modularity: { raw: 0.5 } },
-    }), stderr: "" } as any);
-    const r = await probeSentrux(os.tmpdir());
-    expect(r.maxCC).toBe(15);
-  });
-
-  it("maps equality.raw ≤ 0.6 → maxCC 20", async () => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
-      root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.55 }, modularity: { raw: 0.5 } },
-    }), stderr: "" } as any);
-    const r = await probeSentrux(os.tmpdir());
-    expect(r.maxCC).toBe(20);
-  });
-
-  it("maps equality.raw > 0.6 → maxCC 25", async () => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
-      root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.8 }, modularity: { raw: 0.5 } },
-    }), stderr: "" } as any);
-    const r = await probeSentrux(os.tmpdir());
-    expect(r.maxCC).toBe(25);
+  it("extracts qualitySignal from violations output", async () => {
+    expect((await probeSentrux(os.tmpdir())).qualitySignal).toBe(6278);
   });
 });
 
-describe("probeSentrux — couplingGrade thresholds", () => {
+describe("probeSentrux — Quality in stderr (debug logs)", () => {
   afterEach(() => vi.clearAllMocks());
 
-  function outputWith(modularityRaw: number): string {
-    return JSON.stringify({
-      root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.3 }, modularity: { raw: modularityRaw } },
-    });
-  }
-
-  it("grade A when modularity ≥ 0.6", async () => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.7), stderr: "" } as any);
-    expect((await probeSentrux(os.tmpdir())).couplingGrade).toBe("A");
-  });
-
-  it("grade B when modularity 0.4–0.6", async () => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.5), stderr: "" } as any);
-    expect((await probeSentrux(os.tmpdir())).couplingGrade).toBe("B");
-  });
-
-  it("grade C when modularity 0.2–0.4", async () => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.3), stderr: "" } as any);
-    expect((await probeSentrux(os.tmpdir())).couplingGrade).toBe("C");
-  });
-
-  it("grade D when modularity 0.0–0.2", async () => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.1), stderr: "" } as any);
-    expect((await probeSentrux(os.tmpdir())).couplingGrade).toBe("D");
-  });
-
-  it("grade F when modularity < 0", async () => {
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(-0.1), stderr: "" } as any);
-    expect((await probeSentrux(os.tmpdir())).couplingGrade).toBe("F");
-  });
-});
-
-describe("probeSentrux — JSONL (last valid JSON line wins)", () => {
-  afterEach(() => vi.clearAllMocks());
-
-  it("picks the last valid JSON line from JSONL output", async () => {
-    const jsonl = [
-      "Scanning...",
-      JSON.stringify({ root_causes: { acyclicity: { raw: 1 }, equality: { raw: 0.1 }, modularity: { raw: 0.7 } } }),
-      "Done",
-      JSON.stringify({ quality_signal: 9000, root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.1 }, modularity: { raw: 0.8 } } }),
-    ].join("\n");
-    mockSpawnSync.mockReturnValue({ status: 0, stdout: jsonl, stderr: "" } as any);
+  it("finds Quality line in stderr when stdout is empty", async () => {
+    mockSpawnSync.mockReturnValue({
+      status: 0, stdout: "",
+      stderr: "sentrux check — 2 rules checked\n\nQuality: 7100\n\n✓ 0 violation(s) found",
+    } as any);
     const r = await probeSentrux(os.tmpdir());
     expect(r.available).toBe(true);
-    expect(r.cycles).toBe(0);
-    expect(r.qualitySignal).toBe(9000);
+    expect(r.qualitySignal).toBe(7100);
   });
 });
 

@@ -65,7 +65,7 @@ jobs:
       - name: Tests with coverage
         run: npx vitest run --coverage --coverage.reporter=lcov 2>&1 || true
       - name: SonarCloud Scan
-        uses: sonarsource/sonarqube-scan-action@v6
+        uses: sonarsource/sonarqube-scan-action@v8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import os from "node:os";
 import type { DetectedProject } from "../../shared/types.js";
 
 // Mock child_process before importing the module so spawnSync is intercepted
@@ -13,7 +14,7 @@ const mockSpawnSync = vi.mocked(spawnSync);
 
 function makeProject(overrides: Partial<DetectedProject> = {}): DetectedProject {
   return {
-    rootPath: "/tmp/test-project",
+    rootPath: `${os.tmpdir()}/test-project`,
     projectType: "cli-tool",
     backend: null,
     frontend: null,
@@ -36,12 +37,12 @@ describe("probeSentrux — binary missing", () => {
   afterEach(() => vi.clearAllMocks());
 
   it("returns available: false when binary not in PATH", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.available).toBe(false);
   });
 
   it("returns all null fields when binary missing", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.cycles).toBeNull();
     expect(result.maxCC).toBeNull();
     expect(result.couplingGrade).toBeNull();
@@ -58,7 +59,7 @@ describe("probeSentrux — non-zero exit", () => {
   afterEach(() => vi.clearAllMocks());
 
   it("returns available: false on non-zero exit", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.available).toBe(false);
   });
 });
@@ -71,7 +72,7 @@ describe("probeSentrux — empty stdout", () => {
   afterEach(() => vi.clearAllMocks());
 
   it("returns available: false on empty output", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.available).toBe(false);
   });
 });
@@ -84,7 +85,7 @@ describe("probeSentrux — non-JSON output", () => {
   afterEach(() => vi.clearAllMocks());
 
   it("returns available: false when output is not JSON", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.available).toBe(false);
   });
 });
@@ -97,7 +98,7 @@ describe("probeSentrux — JSON missing root_causes", () => {
   afterEach(() => vi.clearAllMocks());
 
   it("returns available: false when root_causes missing", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.available).toBe(false);
   });
 });
@@ -120,32 +121,32 @@ describe("probeSentrux — full valid output", () => {
   });
 
   it("returns available: true", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.available).toBe(true);
   });
 
   it("extracts cycles from acyclicity.raw", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.cycles).toBe(3);
   });
 
   it("derives maxCC from equality.raw (0.3 → 15)", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.maxCC).toBe(15);
   });
 
   it("derives couplingGrade from modularity.raw (0.5 → B)", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.couplingGrade).toBe("B");
   });
 
   it("extracts quality_signal", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.qualitySignal).toBe(8500);
   });
 
   it("extracts bottleneck", async () => {
-    const result = await probeSentrux("/tmp/test-project");
+    const result = await probeSentrux(`${os.tmpdir()}/test-project`);
     expect(result.bottleneck).toBe("src/core/god-module.ts");
   });
 });
@@ -157,7 +158,7 @@ describe("probeSentrux — maxCC thresholds", () => {
     mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
       root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.1 }, modularity: { raw: 0.5 } },
     }), stderr: "" } as any);
-    const r = await probeSentrux("/tmp");
+    const r = await probeSentrux(os.tmpdir());
     expect(r.maxCC).toBe(10);
   });
 
@@ -165,7 +166,7 @@ describe("probeSentrux — maxCC thresholds", () => {
     mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
       root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.35 }, modularity: { raw: 0.5 } },
     }), stderr: "" } as any);
-    const r = await probeSentrux("/tmp");
+    const r = await probeSentrux(os.tmpdir());
     expect(r.maxCC).toBe(15);
   });
 
@@ -173,7 +174,7 @@ describe("probeSentrux — maxCC thresholds", () => {
     mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
       root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.55 }, modularity: { raw: 0.5 } },
     }), stderr: "" } as any);
-    const r = await probeSentrux("/tmp");
+    const r = await probeSentrux(os.tmpdir());
     expect(r.maxCC).toBe(20);
   });
 
@@ -181,7 +182,7 @@ describe("probeSentrux — maxCC thresholds", () => {
     mockSpawnSync.mockReturnValue({ status: 0, stdout: JSON.stringify({
       root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.8 }, modularity: { raw: 0.5 } },
     }), stderr: "" } as any);
-    const r = await probeSentrux("/tmp");
+    const r = await probeSentrux(os.tmpdir());
     expect(r.maxCC).toBe(25);
   });
 });
@@ -197,27 +198,27 @@ describe("probeSentrux — couplingGrade thresholds", () => {
 
   it("grade A when modularity ≥ 0.6", async () => {
     mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.7), stderr: "" } as any);
-    expect((await probeSentrux("/tmp")).couplingGrade).toBe("A");
+    expect((await probeSentrux(os.tmpdir())).couplingGrade).toBe("A");
   });
 
   it("grade B when modularity 0.4–0.6", async () => {
     mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.5), stderr: "" } as any);
-    expect((await probeSentrux("/tmp")).couplingGrade).toBe("B");
+    expect((await probeSentrux(os.tmpdir())).couplingGrade).toBe("B");
   });
 
   it("grade C when modularity 0.2–0.4", async () => {
     mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.3), stderr: "" } as any);
-    expect((await probeSentrux("/tmp")).couplingGrade).toBe("C");
+    expect((await probeSentrux(os.tmpdir())).couplingGrade).toBe("C");
   });
 
   it("grade D when modularity 0.0–0.2", async () => {
     mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(0.1), stderr: "" } as any);
-    expect((await probeSentrux("/tmp")).couplingGrade).toBe("D");
+    expect((await probeSentrux(os.tmpdir())).couplingGrade).toBe("D");
   });
 
   it("grade F when modularity < 0", async () => {
     mockSpawnSync.mockReturnValue({ status: 0, stdout: outputWith(-0.1), stderr: "" } as any);
-    expect((await probeSentrux("/tmp")).couplingGrade).toBe("F");
+    expect((await probeSentrux(os.tmpdir())).couplingGrade).toBe("F");
   });
 });
 
@@ -232,7 +233,7 @@ describe("probeSentrux — JSONL (last valid JSON line wins)", () => {
       JSON.stringify({ quality_signal: 9000, root_causes: { acyclicity: { raw: 0 }, equality: { raw: 0.1 }, modularity: { raw: 0.8 } } }),
     ].join("\n");
     mockSpawnSync.mockReturnValue({ status: 0, stdout: jsonl, stderr: "" } as any);
-    const r = await probeSentrux("/tmp");
+    const r = await probeSentrux(os.tmpdir());
     expect(r.available).toBe(true);
     expect(r.cycles).toBe(0);
     expect(r.qualitySignal).toBe(9000);
@@ -244,7 +245,7 @@ describe("probeSentrux — JSONL (last valid JSON line wins)", () => {
 describe("sniffArchitecture — no backend or frontend", () => {
   it("returns empty patterns for plain CLI project", async () => {
     const project = makeProject({ backend: null, frontend: null });
-    const patterns = await sniffArchitecture("/tmp/test-project", project);
+    const patterns = await sniffArchitecture(`${os.tmpdir()}/test-project`, project);
     expect(patterns).toEqual([]);
   });
 });
@@ -267,7 +268,7 @@ describe("sniffArchitecture — backend patterns", () => {
         lintCommand: "flake8",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).toContain("hexagonal-architecture");
   });
@@ -289,7 +290,7 @@ describe("sniffArchitecture — backend patterns", () => {
         lintCommand: "flake8",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).toContain("service-repository-pattern");
   });
@@ -311,7 +312,7 @@ describe("sniffArchitecture — backend patterns", () => {
         lintCommand: "eslint",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).toContain("class-based-views-only");
   });
@@ -333,7 +334,7 @@ describe("sniffArchitecture — backend patterns", () => {
         lintCommand: "eslint",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).not.toContain("class-based-views-only");
   });
@@ -355,7 +356,7 @@ describe("sniffArchitecture — backend patterns", () => {
         lintCommand: "flake8",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).toContain("role-decorator-auth");
   });
@@ -377,7 +378,7 @@ describe("sniffArchitecture — backend patterns", () => {
         lintCommand: "eslint",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).toContain("absolute-imports");
   });
@@ -399,7 +400,7 @@ describe("sniffArchitecture — backend patterns", () => {
         lintCommand: "eslint",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).toContain("structured-logging");
   });
@@ -421,7 +422,7 @@ describe("sniffArchitecture — backend patterns", () => {
         lintCommand: "flake8",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     for (const p of patterns) {
       expect(typeof p.name).toBe("string");
       expect(["structure", "convention", "testing", "security", "logging"]).toContain(p.category);
@@ -447,7 +448,7 @@ describe("sniffArchitecture — frontend patterns", () => {
         testRunner: "vitest",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).toContain("composition-api-script-setup");
   });
@@ -466,7 +467,7 @@ describe("sniffArchitecture — frontend patterns", () => {
         testRunner: "vitest",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).toContain("internationalization");
   });
@@ -485,7 +486,7 @@ describe("sniffArchitecture — frontend patterns", () => {
         testRunner: "vitest",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).toContain("typescript-strict");
   });
@@ -504,7 +505,7 @@ describe("sniffArchitecture — frontend patterns", () => {
         testRunner: "vitest",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).toContain("pinia-store-layering");
   });
@@ -523,7 +524,7 @@ describe("sniffArchitecture — frontend patterns", () => {
         testRunner: "vitest",
       } as any,
     });
-    const patterns = await sniffArchitecture("/tmp", project);
+    const patterns = await sniffArchitecture(os.tmpdir(), project);
     const names = patterns.map((p) => p.name);
     expect(names).toContain("vuetify-design-system");
   });

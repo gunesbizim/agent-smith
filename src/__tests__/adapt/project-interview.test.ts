@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import os from "node:os";
 import { applyInterviewAnswers, buildQuestions, smartDefaults } from "../../adapt/project-interview.js";
 import type { TemplateVariables, DetectedProject } from "../../shared/types.js";
 import type { InterviewAnswers, SentruxProbeDefaults } from "../../adapt/project-interview.js";
@@ -232,7 +233,7 @@ describe("applyInterviewAnswers — all fields pass through unchanged", () => {
 
 function makeProject(overrides: Partial<DetectedProject> = {}): DetectedProject {
   return {
-    rootPath: "/tmp/test",
+    rootPath: `${os.tmpdir()}/test`,
     projectType: "cli-tool",
     backend: null,
     frontend: null,

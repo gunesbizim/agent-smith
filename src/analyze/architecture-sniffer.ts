@@ -29,7 +29,7 @@ export async function probeSentrux(rootPath: string): Promise<SentruxProbeResult
   };
 
   try {
-    const result = spawnSync("sentrux", ["scan"], {
+    const result = spawnSync("sentrux", ["scan"], { // NOSONAR — fixed binary, no shell, cwd is project root
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 30_000,
       cwd: rootPath,

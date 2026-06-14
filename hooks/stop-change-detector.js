@@ -13,6 +13,29 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
+// Read the hook input (JSON on stdin). Stop hooks receive `stop_hook_active`,
+// which is true once a stop-hook cycle is already underway. Injecting
+// additionalContext again on every stop re-prompts the model and creates an
+// infinite stop-loop, so when it's set we return success immediately and let
+// the turn end. The suggestions still surface on the first (stop_hook_active
+// false) fire.
+let hookInput = {};
+try {
+  const raw = fs.readFileSync(0, "utf-8");
+  if (raw.trim()) hookInput = JSON.parse(raw);
+} catch {
+  // No/invalid stdin — proceed as a normal first fire.
+}
+
+if (hookInput.stop_hook_active) {
+  console.log(
+    JSON.stringify({
+      hookSpecificOutput: { hookEventName: "Stop", additionalContext: "" },
+    }),
+  );
+  process.exit(0);
+}
+
 function cwd() {
   return process.cwd();
 }

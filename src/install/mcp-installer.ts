@@ -93,12 +93,12 @@ export async function configureMCPs(
       ...(existingSettings.mcpServers as Record<string, unknown> ?? {}),
       ...bundle.projectSettings,
     };
+    const existingAllow = ((existingSettings.permissions as Record<string, unknown>)?.allow as string[] ?? []);
     existingSettings.permissions = {
       ...(existingSettings.permissions as Record<string, unknown> ?? {}),
-      allow: [
-        ...((existingSettings.permissions as Record<string, unknown>)?.allow as string[] ?? []),
-        "mcp__ouroboros__ouroboros_pm_interview",
-      ],
+      allow: existingAllow.includes("mcp__ouroboros__ouroboros_pm_interview")
+        ? existingAllow
+        : [...existingAllow, "mcp__ouroboros__ouroboros_pm_interview"],
     };
 
     fs.writeJsonSync(settingsPath, existingSettings, { spaces: 2 });

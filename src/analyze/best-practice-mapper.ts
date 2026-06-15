@@ -270,11 +270,13 @@ function detectDefaultBranch(rootPath: string): string {
 }
 
 // Read a git ref file and return its "ref: <target>" pointer, or null.
+// Uses plain string parsing (no regex) — the content is a single short line.
 function readGitRef(refPath: string): string | null {
   try {
     const content = fs.readFileSync(refPath, "utf-8").trim();
-    const match = /^ref:\s*(.+)$/.exec(content);
-    return match ? match[1].trim() : null;
+    if (!content.startsWith("ref:")) return null;
+    const target = content.slice(4).trim();
+    return target || null;
   } catch {
     return null;
   }

@@ -38,6 +38,10 @@ describe("extractJsonObject", () => {
     expect(extractJsonObject('{"note":"uses {curly} braces"}')).toEqual({ note: "uses {curly} braces" });
   });
 
+  it("handles escaped quotes and backslashes inside string values", () => {
+    expect(extractJsonObject('{"q":"a \\" brace } and \\\\ slash"}')).toEqual({ q: 'a " brace } and \\ slash' });
+  });
+
   it("returns null when there is no JSON object", () => {
     expect(extractJsonObject("no json here")).toBeNull();
   });

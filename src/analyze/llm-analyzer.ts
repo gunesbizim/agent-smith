@@ -129,9 +129,19 @@ function buildPrompt(programmatic: DetectedProject, evidence: string): string {
   ].join("\n");
 }
 
+// Advance the string-scanning state machine by one character while inside a JSON string
+// literal. Returns the next `inString`/`escaped` state. Extracted to keep
+// extractJsonObject's cognitive complexity within bounds.
+function stepInsideString(ch: string, escaped: boolean): { inString: boolean; escaped: boolean } {
+  if (escaped) return { inString: true, escaped: false };
+  if (ch === "\\") return { inString: true, escaped: true };
+  if (ch === '"') return { inString: false, escaped: false };
+  return { inString: true, escaped: false };
+}
+
 // Pull the first balanced top-level JSON object out of arbitrary CLI output.
 // Exported for testing.
-export function extractJsonObject(text: string): unknown | null {
+export function extractJsonObject(text: string): unknown {
   const start = text.indexOf("{");
   if (start === -1) return null;
   let depth = 0;
@@ -140,21 +150,16 @@ export function extractJsonObject(text: string): unknown | null {
   for (let i = start; i < text.length; i++) {
     const ch = text[i];
     if (inStr) {
-      if (esc) esc = false;
-      else if (ch === "\\") esc = true;
-      else if (ch === '"') inStr = false;
+      ({ inString: inStr, escaped: esc } = stepInsideString(ch, esc));
       continue;
     }
     if (ch === '"') inStr = true;
     else if (ch === "{") depth++;
-    else if (ch === "}") {
-      depth--;
-      if (depth === 0) {
-        try {
-          return JSON.parse(text.slice(start, i + 1));
-        } catch {
-          return null;
-        }
+    else if (ch === "}" && --depth === 0) {
+      try {
+        return JSON.parse(text.slice(start, i + 1));
+      } catch {
+        return null;
       }
     }
   }
@@ -163,21 +168,28 @@ export function extractJsonObject(text: string): unknown | null {
 
 // Run the headless claude call and return the parsed descriptor, or null on any failure.
 function runClaudeAnalysis(cwd: string, programmatic: DetectedProject): LlmStack | null {
+  // Spawn OUTSIDE the project directory. The evidence is inline, so the model needs no
+  // access to the repo — and running `claude` inside a configured project boots its
+  // SessionStart hooks (and MCP servers), which can hang for minutes. We use a private,
+  // uniquely-named temp dir (mkdtemp → mode 0700) rather than the shared os.tmpdir() so
+  // no other user can read/seed files in the working dir, then remove it afterward.
+  let workDir: string | null = null;
   try {
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-smith-llm-"));
     const prompt = buildPrompt(programmatic, gatherEvidence(cwd));
-    // Spawn OUTSIDE the project directory. The evidence is inline, so the model needs no
-    // access to the repo — and running `claude` inside a configured project boots its
-    // SessionStart hooks (and MCP servers), which can hang for minutes. A temp cwd plus an
-    // empty strict MCP config keeps startup to the bare model round-trip (~25s).
     const out = execFileSync( // NOSONAR — fixed binary, no shell, no user input in argv
       "claude",
       ["-p", prompt, "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}'],
-      { cwd: os.tmpdir(), encoding: "utf-8", timeout: CLAUDE_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 },
+      { cwd: workDir, encoding: "utf-8", timeout: CLAUDE_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 },
     );
     const parsed = extractJsonObject(out);
     return parsed && typeof parsed === "object" ? (parsed as LlmStack) : null;
   } catch {
     return null;
+  } finally {
+    if (workDir) {
+      try { fs.removeSync(workDir); } catch { /* best-effort cleanup */ }
+    }
   }
 }
 

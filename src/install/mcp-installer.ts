@@ -135,7 +135,7 @@ function addServerToBundle(
   }
 }
 
-/** Merge bundle.projectSettings (and the ouroboros permission) into .claude/settings.json. */
+/** Merge bundle.projectSettings into .claude/settings.json. */
 function writeClaudeSettings(projectRoot: string, bundle: MCPConfigBundle): void {
   const settingsPath = path.join(projectRoot, ".claude", "settings.json");
   fs.ensureDirSync(path.dirname(settingsPath));
@@ -148,13 +148,6 @@ function writeClaudeSettings(projectRoot: string, bundle: MCPConfigBundle): void
   existingSettings.mcpServers = {
     ...(existingSettings.mcpServers as Record<string, unknown> ?? {}),
     ...bundle.projectSettings,
-  };
-  const existingAllow = ((existingSettings.permissions as Record<string, unknown>)?.allow as string[] ?? []);
-  existingSettings.permissions = {
-    ...(existingSettings.permissions as Record<string, unknown> ?? {}),
-    allow: existingAllow.includes("mcp__ouroboros__ouroboros_pm_interview")
-      ? existingAllow
-      : [...existingAllow, "mcp__ouroboros__ouroboros_pm_interview"],
   };
 
   fs.writeJsonSync(settingsPath, existingSettings, { spaces: 2 });

@@ -33,7 +33,7 @@ export async function doctorCommand(): Promise<void> {
   checks.push({
     name: "python",
     status: deps.checks.python ? "pass" : "warn",
-    message: deps.checks.python ? "Python found" : "Python not found (needed for serena, mempalace, ouroboros)",
+    message: deps.checks.python ? "Python found" : "Python not found (needed for serena, mempalace)",
   });
   checks.push({
     name: "gh-cli",

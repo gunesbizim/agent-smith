@@ -30,13 +30,6 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
       ...(settings.mcpServers as Record<string, unknown> ?? {}),
       ...configs.projectSettings,
     };
-    settings.permissions = {
-      ...(settings.permissions as Record<string, unknown> ?? {}),
-      allow: [
-        ...((settings.permissions as Record<string, unknown>)?.allow as string[] ?? []),
-        "mcp__ouroboros__ouroboros_pm_interview",
-      ],
-    };
 
     await fs.writeJson(settingsPath, settings, { spaces: 2 });
 

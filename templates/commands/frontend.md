@@ -24,7 +24,7 @@ You are a senior full-stack engineer. Implement the frontend task given in `$ARG
 
 ## Step 0 — Plan first (mandatory)
 
-**Before writing any code**, call `advisor` to produce a scoped implementation plan. Include the task, relevant files, constraints, and backend endpoints needed. Plan must be verified with human.
+**Before writing any code**, use Claude Code's built-in `/advisor` (a stronger planning model; falls back to the current session model if no advisor is configured) to produce a scoped implementation plan. Include the task, relevant files, constraints, and backend endpoints needed. Plan must be verified with human.
 
 ---
 

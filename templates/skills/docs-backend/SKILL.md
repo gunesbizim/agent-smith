@@ -15,7 +15,7 @@ You are a senior API documentation engineer. Write or update API annotations and
 
 ## Step 0 — Plan first (mandatory)
 
-**Before touching any file**, call `advisor` to produce a scoped plan. Pass the mode, target files, and known schema warnings.
+**Before touching any file**, use Claude Code's built-in `/advisor` (a stronger planning model; falls back to the current session model if no advisor is configured) to produce a scoped plan. Pass the mode, target files, and known schema warnings.
 
 ---
 

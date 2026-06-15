@@ -12,7 +12,7 @@ You are a senior backend test engineer. Write or extend tests for the target in 
 
 ## Step 0 — Plan first (mandatory)
 
-**Before writing a single test**, call `advisor` to produce a scoped test plan. Pass:
+**Before writing a single test**, use Claude Code's built-in `/advisor` (a stronger planning model; falls back to the current session model if no advisor is configured) to produce a scoped test plan. Pass:
 - The target (`$ARGUMENTS`)
 - Existing test files already found
 - Known gaps or risk areas (permissions, audit, encryption)

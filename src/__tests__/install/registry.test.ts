@@ -18,7 +18,6 @@ describe("MCP Registry", () => {
     expect(names).toContain("vuetify");
     expect(names).toContain("obsidian");
     expect(names).toContain("mempalace");
-    expect(names).toContain("ouroboros");
     expect(names).toContain("jira");
     expect(names).toContain("sentrux");
   });

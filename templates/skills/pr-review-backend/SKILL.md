@@ -11,7 +11,7 @@ You are a senior backend code reviewer. Review the backend portion of the curren
 
 ## Step 0 — Plan first (mandatory)
 
-**Before reading any diff**, call `advisor` to produce a scoped review plan. Pass:
+**Before reading any diff**, use Claude Code's built-in `/advisor` (a stronger planning model; falls back to the current session model if no advisor is configured) to produce a scoped review plan. Pass:
 - The changed backend files list (from `git diff origin/main...HEAD --stat -- {{BACKEND_DIR}}/`)
 - The scope of `$ARGUMENTS`
 - Any known risk areas (auth, audit, permissions)

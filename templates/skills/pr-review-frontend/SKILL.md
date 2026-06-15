@@ -11,7 +11,7 @@ You are a senior frontend code reviewer. Review the frontend portion of the curr
 
 ## Step 0 — Plan first (mandatory)
 
-**Before reading any diff**, call `advisor` to produce a scoped review plan. Pass:
+**Before reading any diff**, use Claude Code's built-in `/advisor` (a stronger planning model; falls back to the current session model if no advisor is configured) to produce a scoped review plan. Pass:
 - The changed frontend files list (from `git diff origin/main...HEAD --stat -- {{FRONTEND_DIR}}/`)
 - The scope of `$ARGUMENTS`
 - Any known risk areas (role-gated UI, i18n, API contract changes)

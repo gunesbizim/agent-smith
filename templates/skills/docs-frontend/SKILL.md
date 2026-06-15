@@ -11,7 +11,7 @@ You are a senior technical writer. Produce **human-readable, styled user documen
 
 ## Step 0 — Plan first (mandatory)
 
-**Before navigating anywhere**, call `advisor` to produce a scoped documentation plan. Pass:
+**Before navigating anywhere**, use Claude Code's built-in `/advisor` (a stronger planning model; falls back to the current session model if no advisor is configured) to produce a scoped documentation plan. Pass:
 - The target (`$ARGUMENTS` or changed views from `git diff origin/main...HEAD --stat -- {{FRONTEND_DIR}}/`)
 - Which roles see the flow differently
 - Existing guide sections in Obsidian that need updating vs creating

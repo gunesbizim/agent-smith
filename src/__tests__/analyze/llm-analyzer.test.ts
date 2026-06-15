@@ -1,5 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { extractJsonObject, mergeStack } from "../../analyze/llm-analyzer.js";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import os from "node:os";
+import path from "node:path";
+import fs from "fs-extra";
+import { extractJsonObject, mergeStack, gatherEvidence, refineWithLlm, isClaudeAvailable } from "../../analyze/llm-analyzer.js";
 import type { DetectedProject, BackendInfo } from "../../shared/types.js";
 
 const BASE: DetectedProject = {
@@ -83,5 +86,50 @@ describe("mergeStack", () => {
     const merged = mergeStack({ ...BASE, backend: DJANGO_BACKEND }, { backend: { language: "python" } });
     // No framework provided and not explicitly null → leave programmatic backend untouched.
     expect(merged.backend?.framework).toBe("django");
+  });
+});
+
+describe("gatherEvidence", () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-"));
+  });
+  afterEach(() => {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it("includes a top-level listing and present manifest contents", () => {
+    fs.writeJsonSync(path.join(tmp, "package.json"), { name: "demo", bin: { demo: "x.js" } });
+    fs.ensureDirSync(path.join(tmp, "src"));
+    const ev = gatherEvidence(tmp);
+    expect(ev).toContain("Top-level entries:");
+    expect(ev).toContain("package.json");
+    expect(ev).toContain("--- package.json ---");
+    expect(ev).toContain("demo");
+  });
+
+  it("skips manifest files that are not present", () => {
+    const ev = gatherEvidence(tmp);
+    expect(ev).not.toContain("--- go.mod ---");
+    expect(ev).not.toContain("--- Cargo.toml ---");
+  });
+
+  it("truncates oversized manifests to the per-file cap", () => {
+    fs.writeFileSync(path.join(tmp, "requirements.txt"), "x".repeat(10_000));
+    const ev = gatherEvidence(tmp);
+    // 4000-char per-file cap means the full 10k payload is not emitted verbatim.
+    expect(ev.length).toBeLessThan(9_000);
+  });
+});
+
+describe("refineWithLlm fallback", () => {
+  const PROG: DetectedProject = { ...BASE, projectType: "cli-tool" };
+
+  it("returns the programmatic project unchanged when claude is unavailable", () => {
+    if (isClaudeAvailable()) return; // environment-dependent; only assert the fallback path
+    const result = refineWithLlm("/nonexistent", PROG);
+    expect(result.usedLlm).toBe(false);
+    expect(result.project).toEqual(PROG);
+    expect(result.reason).toMatch(/claude/i);
   });
 });

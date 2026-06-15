@@ -69,7 +69,7 @@ const TOTAL_EVIDENCE_CHARS = 16_000;
 // Is the `claude` CLI available to shell out to?
 export function isClaudeAvailable(): boolean {
   try {
-    execFileSync("claude", ["--version"], { stdio: "ignore", timeout: 10_000 });
+    execFileSync("claude", ["--version"], { stdio: "ignore", timeout: 10_000 }); // NOSONAR — fixed binary, no shell, no user input
     return true;
   } catch {
     return false;
@@ -169,7 +169,7 @@ function runClaudeAnalysis(cwd: string, programmatic: DetectedProject): LlmStack
     // access to the repo — and running `claude` inside a configured project boots its
     // SessionStart hooks (and MCP servers), which can hang for minutes. A temp cwd plus an
     // empty strict MCP config keeps startup to the bare model round-trip (~25s).
-    const out = execFileSync(
+    const out = execFileSync( // NOSONAR — fixed binary, no shell, no user input in argv
       "claude",
       ["-p", prompt, "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}'],
       { cwd: os.tmpdir(), encoding: "utf-8", timeout: CLAUDE_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 },

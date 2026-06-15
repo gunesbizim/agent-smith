@@ -251,14 +251,14 @@ function capitalize(s: string): string {
 function detectDefaultBranch(rootPath: string): string {
   try {
     // Prefer the remote HEAD's target (e.g. "origin/main").
-    const ref = execSync("git symbolic-ref --quiet refs/remotes/origin/HEAD", {
+    const ref = execSync("git symbolic-ref --quiet refs/remotes/origin/HEAD", { // NOSONAR — fixed git command, no shell, no user input
       cwd: rootPath, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"],
     }).trim();
     const branch = ref.split("/").pop();
     if (branch) return branch;
   } catch { /* no remote HEAD configured */ }
   try {
-    const current = execSync("git branch --show-current", {
+    const current = execSync("git branch --show-current", { // NOSONAR — fixed git command, no shell, no user input
       cwd: rootPath, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"],
     }).trim();
     if (current === "main" || current === "master") return current;

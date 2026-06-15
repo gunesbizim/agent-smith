@@ -58,4 +58,30 @@ describe("source-dir resolution", () => {
     await writeSourceConfig(tmp, ["src"], true);
     expect(fs.existsSync(path.join(tmp, ".claude", "agent-smith", "config.json"))).toBe(false);
   });
+
+  it("merges sourceDirs into an existing config without dropping other keys", async () => {
+    const cfgDir = path.join(tmp, ".claude", "agent-smith");
+    fs.ensureDirSync(cfgDir);
+    fs.writeJsonSync(path.join(cfgDir, "config.json"), { other: "keep", sourceDirs: ["old"] });
+    await writeSourceConfig(tmp, ["src", "lib"]);
+    const cfg = fs.readJsonSync(path.join(cfgDir, "config.json"));
+    expect(cfg.other).toBe("keep");
+    expect(cfg.sourceDirs).toEqual(["src", "lib"]);
+  });
+
+  it("detects monorepo workspace dirs (packages/apps)", () => {
+    fs.ensureDirSync(path.join(tmp, "packages"));
+    fs.ensureDirSync(path.join(tmp, "apps"));
+    const dirs = detectSourceDirs(tmp, {
+      ...BASE_PROJECT, rootPath: tmp, monorepo: { tool: "turborepo", packages: [] },
+    });
+    expect(dirs).toContain("packages");
+    expect(dirs).toContain("apps");
+  });
+
+  it("returns detected dirs without prompting when interactive but dirs exist", async () => {
+    fs.ensureDirSync(path.join(tmp, "src"));
+    const dirs = await resolveSourceDirs(tmp, { ...BASE_PROJECT, rootPath: tmp }, { interactive: true });
+    expect(dirs).toEqual(["src"]);
+  });
 });

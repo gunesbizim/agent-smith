@@ -2,17 +2,20 @@
 /**
  * PreToolUse hook — deterministic Sentrux architecture gate.
  *
- * Intercepts `git push` and `gh pr create` and enforces the structural
- * baseline (.sentrux/baseline.json) WITHOUT relying on the LLM to remember:
+ * Intercepts `git commit`, `git push` and `gh pr create` and enforces the
+ * structural baseline (.sentrux/baseline.json) WITHOUT relying on the LLM to
+ * remember. Sentrux compares EVERY tracked metric (quality, coupling, cycles,
+ * god files, complexity) and prints its verdict to stdout.
  *
- *   - Regression (gate exits non-zero)  → DENY the tool call. The deny reason
- *     hands the model the gate output and points it at the remediation playbook
- *     in the /pr-review command. The LLM is only woken when there is real
- *     repair work — it never has to "remember" to run the gate.
+ *   - Degradation (sentrux prints "✗ DEGRADED") → ASK the human. We never
+ *     auto-approve a commit/push that erodes architecture; a human must
+ *     explicitly approve it. The prompt hands over the gate metrics and the
+ *     remediation playbook (/pr-review Step 0).
  *
- *   - Improvement (quality up vs baseline) → ratchet automatically:
- *     `sentrux gate . --save`, then commit the new baseline. Zero LLM, zero
- *     tokens. The baseline is monotonic — it only ever moves up.
+ *   - Improvement (any tracked metric better, none worse) → ratchet the
+ *     baseline automatically: `sentrux gate . --save`. On `git push` we also
+ *     commit it so it travels with the push; otherwise we stage it and tell
+ *     the model to commit. Zero LLM, zero tokens — the baseline only moves up.
  *
  *   - No change → allow silently.
  *
@@ -35,8 +38,9 @@ function allow(additionalContext) {
   emit(additionalContext ? { additionalContext } : {});
 }
 
-function deny(reason) {
-  emit({ permissionDecision: "deny", permissionDecisionReason: reason });
+// Surface a yes/no prompt to the human — they decide whether to proceed.
+function ask(reason) {
+  emit({ permissionDecision: "ask", permissionDecisionReason: reason });
 }
 
 // ---- Read the intercepted tool call ----
@@ -49,10 +53,11 @@ try {
 }
 const command = toolCall.tool_input?.command || toolCall.command || "";
 
-// Only gate the operations that publish code: push or PR creation.
+// Gate the operations that record or publish code: commit, push, PR creation.
+const isCommit = /\bgit\s+commit\b/.test(command);
 const isPush = /\bgit\s+push\b/.test(command);
 const isPrCreate = /\bgh\s+pr\s+create\b/.test(command);
-if (!isPush && !isPrCreate) allow();
+if (!isCommit && !isPush && !isPrCreate) allow();
 
 const cwd = process.cwd();
 
@@ -69,7 +74,7 @@ function run(cmd) {
   }
 }
 
-// sentrux must be on PATH; if not, don't block the user's push.
+// sentrux must be on PATH; if not, don't block the user.
 const probe = run("command -v sentrux");
 if (probe.code !== 0) {
   allow("⚠ Sentrux not found on PATH — architecture gate skipped. Install sentrux to enforce the baseline.");
@@ -78,32 +83,31 @@ if (probe.code !== 0) {
 // ---- Run the gate ----
 const gate = run("sentrux gate .");
 
-// Parse "Quality:  <baseline> -> <current>" (arrow may be -> or →).
-const q = gate.out.match(/Quality:\s*(\d+)\s*(?:->|→)\s*(\d+)/);
-const baseline = q ? Number(q[1]) : null;
-const current = q ? Number(q[2]) : null;
-
 // `sentrux gate` signals the verdict in stdout, NOT the exit code — it exits 0
 // even when it reports "✗ DEGRADED". So key off the text, falling back to the
 // exit code. If we recognise neither verdict the gate likely errored — allow
-// the push rather than block on an unparseable failure.
+// rather than block on an unparseable failure.
 const degraded = /DEGRADED/i.test(gate.out);
 const passed = /No degradation detected/i.test(gate.out);
 if (!degraded && !passed && gate.code === 0) {
-  allow("⚠ Sentrux gate produced no recognizable verdict — architecture gate skipped this push.");
+  allow("⚠ Sentrux gate produced no recognizable verdict — architecture gate skipped.");
 }
 
-// ---- Regression → DENY (only path that involves the LLM) ----
+const opName = isPrCreate ? "PR" : isPush ? "push" : "commit";
+
+// ---- Degradation → ASK the human (never auto-approve) ----
 if (degraded || gate.code !== 0) {
-  const metrics = gate.out
+  const detail = gate.out
     .split("\n")
-    .filter((l) => /Quality:|Coupling:|Cycles:|God files:|degrad/i.test(l))
+    .filter((l) => /Quality:|Coupling:|Cycles:|God files:|complex|DEGRADED|✗|dropped|increased/i.test(l))
     .join("\n")
     .trim();
-  deny(
-    `Sentrux architecture gate FAILED — this ${isPrCreate ? "PR" : "push"} regresses below the saved baseline.\n\n` +
-      `${metrics || gate.out.trim()}\n\n` +
-      `Do NOT retry the push. Restore the baseline first (remediation only — no new features):\n` +
+  ask(
+    `Sentrux architecture gate: this ${opName} DEGRADES the saved baseline. ` +
+      `It must not proceed without your explicit approval.\n\n` +
+      `${detail || gate.out.trim()}\n\n` +
+      `Approve only if you intend to accept the regression. Otherwise reject and restore the ` +
+      `baseline first (remediation only — no new features):\n` +
       `  • quality drop / new god file → re-extract the flattened pattern into its proper module\n` +
       `  • new duplication → factor it back into the shared abstraction\n` +
       `  • new cycles / coupling up → break the cycle, restore the layering\n` +
@@ -112,26 +116,53 @@ if (degraded || gate.code !== 0) {
   );
 }
 
-// ---- Improvement → ratchet the baseline automatically (no LLM) ----
-if (baseline !== null && current !== null && current > baseline) {
+// ---- Improvement → ratchet automatically across ALL tracked metrics ----
+// Parse every printed metric. Quality is "higher better"; coupling, cycles and
+// god files are "lower better". Improvement = at least one moved the good way
+// and (sentrux already confirmed) none moved the bad way.
+function metric(label) {
+  const m = gate.out.match(new RegExp(`${label}:\\s*([\\d.]+)\\s*(?:->|→)\\s*([\\d.]+)`));
+  return m ? { from: Number(m[1]), to: Number(m[2]) } : null;
+}
+const quality = metric("Quality");
+const coupling = metric("Coupling");
+const cycles = metric("Cycles");
+const godFiles = metric("God files");
+
+const improved =
+  (quality && quality.to > quality.from) ||
+  (coupling && coupling.to < coupling.from) ||
+  (cycles && cycles.to < cycles.from) ||
+  (godFiles && godFiles.to < godFiles.from);
+
+if (improved) {
+  const deltas = [];
+  if (quality && quality.to !== quality.from) deltas.push(`quality ${quality.from}→${quality.to}`);
+  if (coupling && coupling.to !== coupling.from) deltas.push(`coupling ${coupling.from}→${coupling.to}`);
+  if (cycles && cycles.to !== cycles.from) deltas.push(`cycles ${cycles.from}→${cycles.to}`);
+  if (godFiles && godFiles.to !== godFiles.from) deltas.push(`god-files ${godFiles.from}→${godFiles.to}`);
+  const summary = deltas.join(", ") || "metrics improved";
+
   const save = run("sentrux gate . --save");
-  if (save.code === 0) {
-    // Commit only the baseline file, path-scoped so unrelated staged work is untouched.
-    const commit = run(
-      `git commit .sentrux/baseline.json -m "chore(sentrux): ratchet baseline ${baseline}->${current}"`,
-    );
-    if (commit.code === 0) {
-      allow(`✓ Sentrux baseline ratcheted ${baseline} → ${current} and committed automatically. Proceeding.`);
-    }
-    // Couldn't commit (e.g. nothing changed / no git identity) — stage it and let the model commit.
-    run("git add .sentrux/baseline.json");
-    allow(
-      `✓ Sentrux improved ${baseline} → ${current}; baseline saved and staged. ` +
-        `Commit it as \`chore(sentrux): ratchet baseline ${baseline}->${current}\` before pushing.`,
-    );
+  if (save.code !== 0) {
+    allow(`✓ Sentrux improved (${summary}) but \`--save\` failed; ratchet the baseline manually.`);
   }
-  allow(`✓ Sentrux improved ${baseline} → ${current} but \`--save\` failed; ratchet manually.`);
+
+  // On `git push` the hook runs before the push, so a fresh baseline commit
+  // travels with it. On commit/PR-create, committing here would surprise the
+  // user or land local-only — stage it and let the model commit instead.
+  if (isPush) {
+    const commit = run('git commit .sentrux/baseline.json -m "chore(sentrux): ratchet baseline"');
+    if (commit.code === 0) {
+      allow(`✓ Sentrux baseline ratcheted (${summary}) and committed automatically. Proceeding with push.`);
+    }
+  }
+  run("git add .sentrux/baseline.json");
+  allow(
+    `✓ Sentrux improved (${summary}); baseline saved and staged. ` +
+      `Commit it as \`chore(sentrux): ratchet baseline\` to lock in the gain.`,
+  );
 }
 
-// ---- No regression, no improvement → allow silently ----
+// ---- No degradation, no improvement → allow silently ----
 allow();

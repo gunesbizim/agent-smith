@@ -83,8 +83,18 @@ const q = gate.out.match(/Quality:\s*(\d+)\s*(?:->|→)\s*(\d+)/);
 const baseline = q ? Number(q[1]) : null;
 const current = q ? Number(q[2]) : null;
 
+// `sentrux gate` signals the verdict in stdout, NOT the exit code — it exits 0
+// even when it reports "✗ DEGRADED". So key off the text, falling back to the
+// exit code. If we recognise neither verdict the gate likely errored — allow
+// the push rather than block on an unparseable failure.
+const degraded = /DEGRADED/i.test(gate.out);
+const passed = /No degradation detected/i.test(gate.out);
+if (!degraded && !passed && gate.code === 0) {
+  allow("⚠ Sentrux gate produced no recognizable verdict — architecture gate skipped this push.");
+}
+
 // ---- Regression → DENY (only path that involves the LLM) ----
-if (gate.code !== 0) {
+if (degraded || gate.code !== 0) {
   const metrics = gate.out
     .split("\n")
     .filter((l) => /Quality:|Coupling:|Cycles:|God files:|degrad/i.test(l))

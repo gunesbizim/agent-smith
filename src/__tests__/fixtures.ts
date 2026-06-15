@@ -36,6 +36,8 @@ export function makeTemplateVars(overrides: Partial<TemplateVariables> = {}): Te
     PROJECT_NAME: "my-project",
     REPO_NAME: "my-project",
     GIT_HOST: "github.com",
+    DEFAULT_BRANCH: "main",
+    SHIP_MAX_FIX_ATTEMPTS: "3",
     LOGGING_PATTERN: "unstructured",
     LOGGING_CANONICAL_KEYS: "",
     ORM_PACKAGE: "none",

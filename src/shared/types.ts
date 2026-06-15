@@ -185,6 +185,10 @@ export interface TemplateVariables {
   PROJECT_NAME: string;
   REPO_NAME: string;
   GIT_HOST: string;
+  DEFAULT_BRANCH: string;
+
+  // Ship workflow
+  SHIP_MAX_FIX_ATTEMPTS: string;
 
   // Observability
   LOGGING_PATTERN: string;

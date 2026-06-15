@@ -32,7 +32,7 @@ Generates 12+ skill files customized to YOUR stack — not Django defaults. Pre-
 **Step 4 — Configure.**  
 Writes `.claude/settings.json` (MCP servers + hooks), `.mcp.json` (browser automation), and `docs/architecture/` (generated architecture rules). Hooks auto-check health on session start, enforce git conventions, and auto-suspend caveman during memory writes.
 
-End result: you restart Claude Code and can immediately run `/backend`, `/frontend`, `/test`, `/pr-review`, `/documentation`, `/git`, `/insights` — all referencing your actual stack and conventions.
+End result: you restart Claude Code and can immediately run `/as-backend`, `/as-frontend`, `/as-test`, `/as-pr-review`, `/as-documentation`, `/as-git`, `/as-insights` — all referencing your actual stack and conventions.
 
 ---
 
@@ -89,12 +89,12 @@ Agent Smith generates 12 skill files customized to your project:
 ```
 .claude/
 ├── commands/              ← User-facing slash commands
-│   ├── backend.md         ← /backend — implements backend tasks
-│   ├── frontend.md        ← /frontend — implements frontend tasks
-│   ├── test.md            ← /test — orchestrates test writing
-│   ├── pr-review.md       ← /pr-review — orchestrates PR review
-│   ├── documentation.md   ← /documentation — generates docs
-│   └── git.md             ← /git — conventional commits
+│   ├── as-backend.md      ← /as-backend — implements backend tasks
+│   ├── as-frontend.md     ← /as-frontend — implements frontend tasks
+│   ├── as-test.md         ← /as-test — orchestrates test writing
+│   ├── as-pr-review.md    ← /as-pr-review — orchestrates PR review
+│   ├── as-documentation.md ← /as-documentation — generates docs
+│   └── as-git.md          ← /as-git — conventional commits
 ├── skills/                ← Worker skills (run in subagents)
 │   ├── pr-review-backend/SKILL.md
 │   ├── pr-review-frontend/SKILL.md

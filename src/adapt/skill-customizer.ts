@@ -14,12 +14,12 @@ const SKILL_FILES = [
 ];
 
 const COMMAND_FILES = [
-  ".claude/commands/backend.md",
-  ".claude/commands/frontend.md",
-  ".claude/commands/test.md",
-  ".claude/commands/pr-review.md",
-  ".claude/commands/documentation.md",
-  ".claude/commands/git.md",
+  ".claude/commands/as-backend.md",
+  ".claude/commands/as-frontend.md",
+  ".claude/commands/as-test.md",
+  ".claude/commands/as-pr-review.md",
+  ".claude/commands/as-documentation.md",
+  ".claude/commands/as-git.md",
 ];
 
 export async function customizeSkills(

@@ -14,15 +14,15 @@ function getPackageRoot(): string {
 }
 
 const COMMAND_TEMPLATES: Record<string, string> = {
-  "backend.md": "templates/commands/backend.md",
-  "frontend.md": "templates/commands/frontend.md",
-  "test.md": "templates/commands/test.md",
-  "pr-review.md": "templates/commands/pr-review.md",
-  "documentation.md": "templates/commands/documentation.md",
-  "git.md": "templates/commands/git.md",
-  "ship.md": "templates/commands/ship.md",
-  "caveman.md": "templates/commands/caveman.md",
-  "insights.md": "templates/commands/insights.md",
+  "as-backend.md": "templates/commands/as-backend.md",
+  "as-frontend.md": "templates/commands/as-frontend.md",
+  "as-test.md": "templates/commands/as-test.md",
+  "as-pr-review.md": "templates/commands/as-pr-review.md",
+  "as-documentation.md": "templates/commands/as-documentation.md",
+  "as-git.md": "templates/commands/as-git.md",
+  "as-ship.md": "templates/commands/as-ship.md",
+  "as-caveman.md": "templates/commands/as-caveman.md",
+  "as-insights.md": "templates/commands/as-insights.md",
 };
 
 export async function scaffoldCommands(

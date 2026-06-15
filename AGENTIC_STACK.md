@@ -157,16 +157,16 @@ Real-time architectural sensor. Exposes `quality_signal` (0–10000) derived fro
 
 | Skill | Trigger | What it does |
 |-------|---------|--------------|
-| `/backend` | Backend task | Senior Django/DRF engineer. Implements backend tasks respecting hexagonal arch, view/service/repo split, role decorators, and pre-push CI gates. |
-| `/frontend` | UI task | Senior Vue3/Vuetify3/TypeScript engineer. Implements frontend tasks in Composition API `<script setup>` with Pinia + vue-i18n. |
+| `/as-backend` | Backend task | Senior Django/DRF engineer. Implements backend tasks respecting hexagonal arch, view/service/repo split, role decorators, and pre-push CI gates. |
+| `/as-frontend` | UI task | Senior Vue3/Vuetify3/TypeScript engineer. Implements frontend tasks in Composition API `<script setup>` with Pinia + vue-i18n. |
 | `/apidocs` | API documentation | Writes/updates OpenAPI specs for DRF endpoints. |
-| `/test` | Test writing | Senior test engineer. Writes pytest tests covering happy path, failure paths, and edge cases per the project's test settings. |
+| `/as-test` | Test writing | Senior test engineer. Writes pytest tests covering happy path, failure paths, and edge cases per the project's test settings. |
 
 ### Review & Quality Skills
 
 | Skill | Trigger | What it does |
 |-------|---------|--------------|
-| `/pr-review` | PR review | Reviews current branch diff against main — correctness, arch, role decorator compliance, permission matrix. |
+| `/as-pr-review` | PR review | Reviews current branch diff against main — correctness, arch, role decorator compliance, permission matrix. |
 | `/review` | PR review (alias) | Full pull request review. |
 | `/code-review` | Code review | Diff review at configurable effort level (low/medium/high/max). Pass `--comment` to post inline PR comments, `--fix` to apply fixes. |
 | `/simplify` | Cleanup | Reviews for reuse, simplification, efficiency — applies fixes. Bug-hunting excluded (use `/code-review`). |

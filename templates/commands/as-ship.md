@@ -90,7 +90,7 @@ gh pr checks <pr> || true
 
 ### 7. Review + fix loop (max {{SHIP_MAX_FIX_ATTEMPTS}} attempts)
 
-1. Run `/pr-review` against the PR diff.
+1. Run `/as-pr-review` against the PR diff.
 2. For each **required** blocker you are confident about: fix, re-run step 3 gates, commit, push.
 3. Re-run review. Repeat until no required blockers remain or attempts exhausted.
 4. Unfixable/uncertain blockers → stop and escalate with specifics.

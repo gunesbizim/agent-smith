@@ -14,10 +14,11 @@ These MCP servers are configured for this project — use the ones relevant to t
 
 - **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
 - **git-memory** — why code changed: commit history, bug-fix history, file timelines.
-- **serena** — LSP symbol navigation: find symbols/references, diagnostics.
+- **serena** — LSP symbol navigation & symbolic editing: overview, find symbols/references, replace/insert symbols (0-based lines).
 - **sentrux** — after adding tests, run `sentrux gate .` to confirm coverage/complexity did not regress the baseline.
 
 Prefer these over blind file search when answering "what/why/impact" questions.
+See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especially Serena).
 
 ---
 
@@ -56,14 +57,15 @@ Use the returned list to **prioritize** which modules to cover first. Modules fl
 
 ## Step 2 — Serena symbol navigation
 
+Run `mcp__serena__check_onboarding_performed` once before using Serena; load its tools via tool-search if deferred. Name paths use `/` (not `.`); `find_referencing_symbols` requires BOTH `name_path` and `relative_path`.
+
 ```
-mcp__serena__find_symbol("ServiceName.method_name")        # exact line/file
-mcp__serena__find_implementations("AbstractBase")           # all concrete impls
-mcp__serena__find_referencing_symbols("function_name")      # all call sites
-mcp__serena__get_symbols_overview("path/to/file")           # all testable methods
+mcp__serena__get_symbols_overview(relative_path="path/to/file")                                    # all testable methods (start here)
+mcp__serena__find_symbol(name_path_pattern="ServiceName/method_name")                              # exact line/file
+mcp__serena__find_referencing_symbols(name_path="function_name", relative_path="path/to/file.py")  # all call sites
 ```
 
-**After writing each test file**, call `get_diagnostics_for_file`.
+There is no `find_implementations` tool — find implementations via `find_referencing_symbols` on the base symbol. There is no `get_diagnostics_for_file` tool — verify by running the tests / type-check (`{{BACKEND_TYPE_CHECK_CMD}}`).
 
 ---
 

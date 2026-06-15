@@ -46,17 +46,28 @@ gitnexus_detect_changes()                 # map current git diff to affected flo
 
 ---
 
-## Step 2 — Serena symbol navigation (implementation phase)
+## Step 2 — Serena symbol navigation + editing (implementation phase)
+
+**Handshake first (once per session).** Before any Serena call, run `mcp__serena__check_onboarding_performed`. If Serena tools are deferred/unloaded, load them via tool-search before using them. Serena line numbers are **0-based**.
+
+Navigation — name paths use `/` (not `.`), and `find_referencing_symbols` requires BOTH `name_path` and `relative_path`:
 
 ```
-mcp__serena__find_symbol("ClassName.method_name")          # exact file + line
-mcp__serena__find_implementations("AbstractBase")           # all concrete impls
-mcp__serena__find_referencing_symbols("function_name")      # all call sites
-mcp__serena__get_symbols_overview("path/to/file")           # all symbols in file
-mcp__serena__get_diagnostics_for_file("path/to/file")       # catch errors immediately
+mcp__serena__get_symbols_overview(relative_path="path/to/file")                                   # symbols in a file (start here)
+mcp__serena__find_symbol(name_path_pattern="ClassName/method_name")                               # exact file + line
+mcp__serena__find_symbol(name_path_pattern="ClassName", depth=1)                                  # a class + its methods
+mcp__serena__find_referencing_symbols(name_path="function_name", relative_path="path/to/file")    # all call sites
 ```
 
-**After editing every file**, call `get_diagnostics_for_file` to catch errors before running tests.
+Editing — when you change code you discovered via Serena, edit with Serena (built-in Edit is refused after a Serena read):
+
+```
+mcp__serena__replace_symbol_body(...)     # rewrite a whole function/method/class
+mcp__serena__insert_after_symbol(...)     # add a new symbol after another
+mcp__serena__replace_content(...)         # regex/string edit for a few lines within a symbol
+```
+
+There is **no** `find_implementations` or `get_diagnostics_for_file` tool. For implementations, use `find_referencing_symbols` on the base symbol. To catch errors after editing, run the type-check gate: `{{BACKEND_TYPE_CHECK_CMD}}`.
 
 ---
 

@@ -123,6 +123,62 @@ export async function writeArchitectureDocs(
   } else {
     await fs.writeFile(frontendPath, frontendDoc, "utf-8");
   }
+
+  // MCP tools guide — a deterministic, binding reference for correct MCP usage
+  // (esp. Serena, whose exact tool names + name-path syntax are easy to get wrong).
+  const mcpPath = path.join(archDir, "mcp-tools.md");
+  if (dryRun) {
+    console.log(`  Would write: ${mcpPath}`);
+  } else {
+    await fs.writeFile(mcpPath, generateMcpToolsGuide(), "utf-8");
+  }
+}
+
+// A static, correctness-focused reference for the MCP tools agent-smith configures.
+// Serena gets the most detail because its API is the easiest to call incorrectly.
+function generateMcpToolsGuide(): string {
+  return `# MCP Tools — Usage Rules
+
+Binding reference for calling the MCP servers agent-smith configures. Skills and commands
+assume these exact tool names and signatures. **Only call tools that exist here.**
+
+## Serena (LSP-backed symbol navigation & editing)
+
+**Handshake (once per session):** call \`mcp__serena__check_onboarding_performed\` before any
+other Serena call. If Serena tools are deferred/unloaded, load them via tool-search first.
+**Serena line numbers are 0-based.**
+
+### Discovery
+- \`mcp__serena__get_symbols_overview(relative_path)\` — symbols in a file. Start here.
+- \`mcp__serena__find_symbol(name_path_pattern, [relative_path], [depth], [include_body])\` —
+  find a symbol. **Name paths use \`/\`, not \`.\`** → \`"ClassName/method"\`, not \`"ClassName.method"\`.
+  Use \`depth=1\` to list a class's methods; \`include_body=true\` to read a symbol's source.
+- \`mcp__serena__find_referencing_symbols(name_path, relative_path)\` — all call sites.
+  **Both arguments are required.**
+
+### Editing (use these, NOT the built-in Edit, for code discovered via Serena)
+- \`mcp__serena__replace_symbol_body(name_path, relative_path, body)\` — rewrite a whole symbol.
+- \`mcp__serena__insert_after_symbol\` / \`insert_before_symbol(name_path, relative_path, body)\`.
+- \`mcp__serena__replace_content(relative_path, ...)\` — regex/string edit for a few lines.
+- \`mcp__serena__rename_symbol(...)\` — rename across references.
+
+### Tools that DO NOT exist (never call these)
+- \`find_implementations\` → instead use \`find_referencing_symbols\` on the base symbol.
+- \`get_diagnostics_for_file\` → instead run the project's type-check / test gate to catch errors.
+
+## gitnexus (code graph)
+Impact analysis, callers, route maps, blast radius. Use before/after changing public symbols.
+If the index is stale, run \`npx gitnexus analyze\`.
+
+## git-memory (history)
+Why code changed: commit history, bug-fix history, file timelines.
+
+## sentrux (architectural quality gate)
+\`sentrux check .\` (rule violations) and \`sentrux gate .\` (regression vs baseline) before committing.
+
+## obsidian / playwright / chrome-devtools
+Documentation vault writes; live browser driving for screenshots; deep page inspection — used by docs skills.
+`;
 }
 
 function generateBackendArchitecture(vars: TemplateVariables): string {

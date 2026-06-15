@@ -13,10 +13,11 @@ These MCP servers are configured for this project — use the ones relevant to t
 
 - **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
 - **git-memory** — why code changed: commit history, bug-fix history, file timelines.
-- **serena** — LSP symbol navigation: find symbols/references, diagnostics.
+- **serena** — LSP symbol navigation & symbolic editing: overview, find symbols/references, replace/insert symbols (0-based lines).
 - **sentrux** — architectural quality gate: run `sentrux check .` and `sentrux gate .` to confirm the diff introduces no architectural violations or quality regression.
 
 Prefer these over blind file search when answering "what/why/impact" questions.
+See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especially Serena).
 
 ---
 
@@ -59,14 +60,15 @@ Do not proceed to Step 2 if either blocker is present. Report them under **Block
 
 ---
 
-## Step 2 — Serena diagnostics
+## Step 2 — Serena symbol checks
 
-For each changed file:
+Run `mcp__serena__check_onboarding_performed` once before using Serena; load its tools via tool-search if deferred. Name paths use `/` (not `.`); `find_referencing_symbols` requires BOTH `name_path` and `relative_path`. For each changed file:
 ```
-mcp__serena__get_symbols_overview("path/to/file")
-mcp__serena__get_diagnostics_for_file("path/to/file")
-mcp__serena__find_referencing_symbols("renamedFunction")
+mcp__serena__get_symbols_overview(relative_path="path/to/file")
+mcp__serena__find_referencing_symbols(name_path="renamedFunction", relative_path="path/to/file")
 ```
+
+There is no `get_diagnostics_for_file` tool — verify types by running the project's type-check (`{{FRONTEND_TYPE_CHECK_CMD}}`).
 
 ---
 

@@ -73,6 +73,20 @@ describe("writeArchitectureDocs — LLM vs template", () => {
     expect(doc).not.toBe("nope");
   });
 
+  it("writes an mcp-tools.md guide with correct Serena rules", async () => {
+    isClaudeAvailableMock.mockReturnValue(false);
+    await writeArchitectureDocs(tmp, DEFAULT_TEMPLATE_VARS, false, { useLlm: false, project: PROJECT });
+    const guide = fs.readFileSync(path.join(tmp, "docs", "architecture", "mcp-tools.md"), "utf-8");
+    // Correct tool names + name-path syntax.
+    expect(guide).toContain("mcp__serena__find_referencing_symbols");
+    expect(guide).toContain("check_onboarding_performed");
+    expect(guide).toMatch(/name paths use `?\/`?/i);
+    // Explicitly warns off the non-existent tools.
+    expect(guide).toContain("find_implementations");
+    expect(guide).toContain("get_diagnostics_for_file");
+    expect(guide).toMatch(/DO NOT exist|never call these/i);
+  });
+
   it("does not call the LLM when useLlm is false", async () => {
     isClaudeAvailableMock.mockReturnValue(true);
     await writeArchitectureDocs(tmp, DEFAULT_TEMPLATE_VARS, false, { useLlm: false, project: PROJECT });

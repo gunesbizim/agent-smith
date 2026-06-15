@@ -1,5 +1,5 @@
 // Map detected project patterns → template variables
-import { execSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import type { DetectedProject, TemplateVariables } from "../shared/types.js";
 import type { PackageUsage } from "./package-scanner.js";
@@ -247,23 +247,37 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-// Detect the repo's default branch from git; fall back to "main".
+// Detect the repo's default branch by reading .git ref files directly (no subprocess).
+// Falls back to "main".
 function detectDefaultBranch(rootPath: string): string {
-  try {
-    // Prefer the remote HEAD's target (e.g. "origin/main").
-    const ref = execSync("git symbolic-ref --quiet refs/remotes/origin/HEAD", { // NOSONAR — fixed git command, no shell, no user input
-      cwd: rootPath, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    const branch = ref.split("/").pop();
+  const gitDir = path.join(rootPath, ".git");
+
+  // Prefer the remote HEAD's symref target, e.g. "ref: refs/remotes/origin/main".
+  const remoteHead = readGitRef(path.join(gitDir, "refs", "remotes", "origin", "HEAD"));
+  if (remoteHead) {
+    const branch = remoteHead.split("/").pop();
     if (branch) return branch;
-  } catch { /* no remote HEAD configured */ }
-  try {
-    const current = execSync("git branch --show-current", { // NOSONAR — fixed git command, no shell, no user input
-      cwd: rootPath, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
+  }
+
+  // Else use the local checked-out branch if it's a conventional default.
+  const head = readGitRef(path.join(gitDir, "HEAD"));
+  if (head) {
+    const current = head.split("/").pop();
     if (current === "main" || current === "master") return current;
-  } catch { /* not a git repo */ }
+  }
+
   return "main";
+}
+
+// Read a git ref file and return its "ref: <target>" pointer, or null.
+function readGitRef(refPath: string): string | null {
+  try {
+    const content = fs.readFileSync(refPath, "utf-8").trim();
+    const match = /^ref:\s*(.+)$/.exec(content);
+    return match ? match[1].trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 function buildPrePushGates(project: DetectedProject): string {

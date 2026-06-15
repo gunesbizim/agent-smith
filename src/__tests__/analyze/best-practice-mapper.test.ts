@@ -16,10 +16,47 @@ const BASE_PROJECT: DetectedProject = {
 };
 
 describe("Best Practice Mapper", () => {
-  it("returns defaults when no project detected", () => {
+  it("emits honest 'none' instead of leaking default web stack when nothing detected", () => {
     const vars = mapBestPractices(BASE_PROJECT, [], DEFAULT_TEMPLATE_VARS);
-    expect(vars.BACKEND_FRAMEWORK).toBe(DEFAULT_TEMPLATE_VARS.BACKEND_FRAMEWORK);
-    expect(vars.FRONTEND_FRAMEWORK).toBe(DEFAULT_TEMPLATE_VARS.FRONTEND_FRAMEWORK);
+    // The opinionated DEFAULT_TEMPLATE_VARS (Django + Vue) must NOT pass through as analysis.
+    expect(vars.BACKEND_FRAMEWORK).toBe("none");
+    expect(vars.FRONTEND_FRAMEWORK).toBe("none");
+    expect(vars.ORM).toBe("none");
+    expect(vars.DB_ENGINE).toBe("none");
+    expect(vars.FRONTEND_UI_LIBRARY).toBe("none");
+  });
+
+  it("CLI tool keeps backend (TypeScript) but neutralizes the frontend stack", () => {
+    const vars = mapBestPractices(
+      { ...BASE_PROJECT, projectType: "cli-tool" },
+      [],
+      DEFAULT_TEMPLATE_VARS,
+    );
+    expect(vars.BACKEND_FRAMEWORK).toBe("CLI Tool");
+    expect(vars.BACKEND_LANG).toBe("TypeScript 5.x");
+    // No Vue/Vuetify leak for a CLI tool with no frontend.
+    expect(vars.FRONTEND_FRAMEWORK).toBe("none");
+    expect(vars.FRONTEND_UI_LIBRARY).toBe("none");
+  });
+
+  it("backend-only project neutralizes the frontend stack", () => {
+    const vars = mapBestPractices(
+      {
+        ...BASE_PROJECT,
+        projectType: "web-app",
+        backend: {
+          framework: "fastapi", language: "python", languageVersion: "3.12",
+          hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
+          importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
+          loggingPattern: "structured", orm: null,
+        },
+      },
+      [],
+      DEFAULT_TEMPLATE_VARS,
+    );
+    expect(vars.BACKEND_FRAMEWORK).toBe("Fastapi");
+    expect(vars.FRONTEND_FRAMEWORK).toBe("none");
+    expect(vars.FRONTEND_UI_LIBRARY).toBe("none");
   });
 
   describe("Django backend", () => {

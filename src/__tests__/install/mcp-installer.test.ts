@@ -4,8 +4,30 @@ import path from "node:path";
 import fs from "fs-extra";
 import { configureMCPs, hasRequiredEnv, registerLocalMCPs, ensureGitignore } from "../../install/mcp-installer.js";
 import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
+import type { DetectedProject, FrontendInfo } from "../../shared/types.js";
 
 const OUROBOROS_PERM = "mcp__ouroboros__ouroboros_pm_interview";
+
+const FRONTEND: FrontendInfo = {
+  framework: "vue3", componentPattern: "script-setup", uiLibrary: "Vuetify 3",
+  stateManagement: "Pinia", usesI18n: false, i18nLibrary: null,
+  usesTypeScript: true, roleAwareUI: false,
+};
+
+function makeProject(overrides: Partial<DetectedProject> = {}): DetectedProject {
+  return {
+    rootPath: "/test/project",
+    projectType: "unknown",
+    backend: null,
+    frontend: null,
+    testing: { backend: null, frontend: null },
+    linting: { backend: null, frontend: null },
+    cicd: null,
+    monorepo: null,
+    database: null,
+    ...overrides,
+  };
+}
 
 describe("configureMCPs — dryRun: false — settings.json writes", () => {
   let tmpDir: string;
@@ -77,6 +99,34 @@ describe("configureMCPs — dryRun: false — settings.json writes", () => {
     const mcp = fs.readJsonSync(mcpPath);
     expect(mcp.mcpServers["my-custom-server"]).toBeDefined();
     expect(mcp.mcpServers.playwright).toBeDefined();
+  });
+});
+
+describe("configureMCPs — stack-aware MCP selection", () => {
+  it("excludes browser MCPs for a no-frontend project (e.g. CLI tool)", async () => {
+    const project = makeProject({ projectType: "cli-tool" });
+    const bundle = await configureMCPs("/tmp/x", DEFAULT_TEMPLATE_VARS, "claude-code", true, project);
+    expect(bundle.projectSettings.playwright).toBeUndefined();
+    expect(bundle.projectSettings["chrome-devtools"]).toBeUndefined();
+    expect(bundle.projectMcp.playwright).toBeUndefined();
+    expect(bundle.projectMcp["chrome-devtools"]).toBeUndefined();
+    // Non-browser servers are still configured.
+    expect(bundle.projectSettings.gitnexus).toBeDefined();
+    expect(bundle.projectSettings.sentrux).toBeDefined();
+  });
+
+  it("includes browser MCPs when a frontend is detected", async () => {
+    const project = makeProject({ projectType: "web-app", frontend: FRONTEND });
+    const bundle = await configureMCPs("/tmp/x", DEFAULT_TEMPLATE_VARS, "claude-code", true, project);
+    expect(bundle.projectSettings.playwright).toBeDefined();
+    expect(bundle.projectMcp.playwright).toBeDefined();
+    expect(bundle.projectMcp["chrome-devtools"]).toBeDefined();
+  });
+
+  it("includes browser MCPs when project is null (backward-compatible default)", async () => {
+    const bundle = await configureMCPs("/tmp/x", DEFAULT_TEMPLATE_VARS, "claude-code", true);
+    expect(bundle.projectSettings.playwright).toBeDefined();
+    expect(bundle.projectMcp.playwright).toBeDefined();
   });
 });
 

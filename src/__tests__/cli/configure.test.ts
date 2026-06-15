@@ -62,7 +62,14 @@ describe("configureCommand", () => {
     mockedRegister.mockReturnValue({ registered: ["obsidian"], skipped: [] });
     await configureCommand({});
     expect(installMCPs).toHaveBeenCalled();
-    expect(configureMCPs).toHaveBeenCalledWith(expect.any(String), expect.anything(), "claude-code");
+    // configureMCPs now also receives dryRun + the detected project (for stack-aware MCP gating).
+    expect(configureMCPs).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.anything(),
+      "claude-code",
+      false,
+      expect.anything(),
+    );
     expect(ensureGitignore).toHaveBeenCalledWith(expect.any(String), [".playwright-mcp/"]);
     expect(registerLocalMCPs).toHaveBeenCalled();
   });

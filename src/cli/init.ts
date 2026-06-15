@@ -6,6 +6,8 @@ import fs from "fs-extra";
 import { detectProject } from "../analyze/project-detector.js";
 import { sniffArchitecture, probeSentrux } from "../analyze/architecture-sniffer.js";
 import { mapBestPractices } from "../analyze/best-practice-mapper.js";
+import { refineWithLlm } from "../analyze/llm-analyzer.js";
+import { resolveSourceDirs, writeSourceConfig } from "../analyze/source-dir.js";
 import { scanPackages } from "../analyze/package-scanner.js";
 import { runInterview, applyInterviewAnswers } from "../adapt/project-interview.js";
 import { checkDependencies } from "../install/dependency-checker.js";
@@ -42,6 +44,7 @@ interface InitOptions {
   dir?: string;
   caveman?: boolean;
   noInterview?: boolean;
+  llm?: boolean;
 }
 
 export async function initCommand(opts: InitOptions): Promise<void> {
@@ -65,9 +68,18 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   }
   depSpinner.succeed(`Node ${depResult.nodeVersion}, npm ${depResult.npmVersion}, git ${depResult.gitVersion}`);
 
-  // Step 2 — Detect project
+  // Step 2 — Detect project (optionally refined by an LLM pass with --llm)
   const detectSpinner = ora("Analyzing project structure...").start();
-  const project = await detectProject(cwd);
+  let project = await detectProject(cwd);
+  if (opts.llm) {
+    detectSpinner.text = "Refining analysis with Claude...";
+    const refined = refineWithLlm(cwd, project);
+    project = refined.project;
+    if (!refined.usedLlm) {
+      detectSpinner.warn(`LLM refinement skipped: ${refined.reason}`);
+      detectSpinner.start();
+    }
+  }
   detectSpinner.succeed(
     `Detected: ${project.backend?.framework ?? "no backend"} / ${project.frontend?.framework ?? "no frontend"}`,
   );
@@ -181,15 +193,23 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     cavemanSpinner.succeed("Caveman compression applied (~75% token savings)");
   }
 
-  // Step 9 — Install MCPs
+  // Step 9 — Install MCPs (stack-aware: browser MCPs only when a frontend exists)
   const mcpSpinner = ora("Configuring MCP servers...").start();
-  await configureMCPs(targetDir, templateVars, platform, opts.dryRun);
-  mcpSpinner.succeed("MCP configs written");
+  await configureMCPs(targetDir, templateVars, platform, opts.dryRun, project);
+  mcpSpinner.succeed("MCP servers configured");
 
   // Step 10 — Write MCP configs
   const configSpinner = ora("Writing MCP configuration files...").start();
   await scaffoldConfigs(targetDir, platform, opts.dryRun);
   configSpinner.succeed("MCP configurations written");
+
+  // Step 10c — Resolve source directories (for layout-agnostic change detection in hooks)
+  const srcSpinner = ora("Resolving source directories...").start();
+  const interactive = !opts.auto && !opts.noInterview && !opts.dryRun;
+  if (interactive) srcSpinner.stop(); // release the spinner so the prompt is readable
+  const sourceDirs = await resolveSourceDirs(targetDir, project, { interactive });
+  await writeSourceConfig(targetDir, sourceDirs, opts.dryRun);
+  srcSpinner.succeed(`Source directories: ${sourceDirs.join(", ")}`);
 
   // Step 11 — Scaffold hooks
   const hooksSpinner = ora("Setting up automation hooks...").start();

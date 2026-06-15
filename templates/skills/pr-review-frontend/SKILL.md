@@ -7,7 +7,19 @@ You are a senior frontend code reviewer. Review the frontend portion of the curr
 
 **Binding rule set:** read `docs/architecture/frontend-architecture.md` first — every rule there is a review criterion.
 
+## Available MCP tools
+
+These MCP servers are configured for this project — use the ones relevant to the step:
+
+- **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
+- **git-memory** — why code changed: commit history, bug-fix history, file timelines.
+- **serena** — LSP symbol navigation: find symbols/references, diagnostics.
+- **sentrux** — architectural quality gate: run `sentrux check .` and `sentrux gate .` to confirm the diff introduces no architectural violations or quality regression.
+
+Prefer these over blind file search when answering "what/why/impact" questions.
+
 ---
+
 
 ## Step 0 — Plan first (mandatory)
 

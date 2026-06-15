@@ -81,4 +81,14 @@ describe("buildMasterSkillPrompt", () => {
     expect(p).toMatch(/NEVER leave a rule that does not apply/i);
     expect(p).toMatch(/\{\{TEMPLATE_VARS\}\}|unresolved braces/i);
   });
+
+  it("enforces Serena tool correctness (no phantom tools, slash name paths)", () => {
+    const p = buildMasterSkillPrompt("/proj");
+    expect(p).toMatch(/Serena correctness/i);
+    expect(p).toContain("find_implementations");
+    expect(p).toContain("get_diagnostics_for_file");
+    expect(p).toMatch(/NO find_implementations|never emit those/i);
+    expect(p).toMatch(/'\/' not '\.'|name paths use/i);
+    expect(p).toMatch(/find_referencing_symbols requires BOTH/i);
+  });
 });

@@ -39,15 +39,22 @@ gitnexus_context("path/to/component")                # full component context
 
 ---
 
-## Step 2 — Serena symbol navigation
+## Step 2 — Serena symbol navigation + editing
+
+**Handshake first (once per session).** Before any Serena call, run `mcp__serena__check_onboarding_performed`. If Serena tools are deferred/unloaded, load them via tool-search first. Serena line numbers are **0-based**.
+
+Name paths use `/` (not `.`); `find_referencing_symbols` requires BOTH `name_path` and `relative_path`:
 
 ```
-mcp__serena__find_symbol("StoreName.actionName")          # Pinia actions
-mcp__serena__find_symbol("ViewName")                      # Vue components
-mcp__serena__get_diagnostics_for_file("path/to/file")     # catch TS errors
+mcp__serena__get_symbols_overview(relative_path="path/to/component")                                # surface of a file (start here)
+mcp__serena__find_symbol(name_path_pattern="StoreName/actionName")                                  # store action
+mcp__serena__find_symbol(name_path_pattern="ViewName")                                              # component definition
+mcp__serena__find_referencing_symbols(name_path="apiFunction", relative_path="src/api/foo.ts")      # all call sites
 ```
 
-**After editing every file**, call `get_diagnostics_for_file`.
+When editing code discovered via Serena, edit with Serena's tools (`replace_symbol_body`, `insert_after_symbol`, `replace_content`) — built-in Edit is refused after a Serena read.
+
+There is **no** `get_diagnostics_for_file` tool. To catch type errors after editing, run the type-check gate: `{{FRONTEND_TYPE_CHECK_CMD}}`.
 
 ---
 

@@ -13,10 +13,11 @@ These MCP servers are configured for this project — use the ones relevant to t
 
 - **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
 - **git-memory** — why code changed: commit history, bug-fix history, file timelines.
-- **serena** — LSP symbol navigation: find symbols/references, diagnostics.
+- **serena** — LSP symbol navigation & symbolic editing: overview, find symbols/references, replace/insert symbols (0-based lines).
 - **sentrux** — architectural quality gate: run `sentrux check .` and `sentrux gate .` to confirm the diff introduces no layer/cycle/coupling violations or quality regression.
 
 Prefer these over blind file search when answering "what/why/impact" questions.
+See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especially Serena).
 
 ---
 

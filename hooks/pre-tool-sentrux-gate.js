@@ -148,19 +148,23 @@ if (improved) {
     allow(`✓ Sentrux improved (${summary}) but \`--save\` failed; ratchet the baseline manually.`);
   }
 
-  // On `git push` the hook runs before the push, so a fresh baseline commit
-  // travels with it. On commit/PR-create, committing here would surprise the
-  // user or land local-only — stage it and let the model commit instead.
+  // On `git push` the hook runs before the push, so commit the new baseline
+  // here and it travels with the push. A path-scoped commit touches ONLY the
+  // baseline file — it never reads or mutates the staged index, so an unrelated
+  // staged change can't ride along.
   if (isPush) {
     const commit = run('git commit .sentrux/baseline.json -m "chore(sentrux): ratchet baseline"');
     if (commit.code === 0) {
       allow(`✓ Sentrux baseline ratcheted (${summary}) and committed automatically. Proceeding with push.`);
     }
   }
-  run("git add .sentrux/baseline.json");
+
+  // commit / PR-create (or a push whose auto-commit failed): leave the saved
+  // baseline UNSTAGED. Staging it would let it ride into the user's imminent,
+  // unrelated commit — so we never touch the index here; we just notify.
   allow(
-    `✓ Sentrux improved (${summary}); baseline saved and staged. ` +
-      `Commit it as \`chore(sentrux): ratchet baseline\` to lock in the gain.`,
+    `✓ Sentrux improved (${summary}); new baseline saved (left unstaged). ` +
+      `Commit it separately as \`chore(sentrux): ratchet baseline\` to lock in the gain.`,
   );
 }
 

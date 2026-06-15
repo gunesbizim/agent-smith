@@ -1,7 +1,9 @@
 // Architecture writer — generates architecture docs from detected patterns
 import path from "node:path";
 import fs from "fs-extra";
-import type { TemplateVariables } from "../shared/types.js";
+import type { TemplateVariables, DetectedProject } from "../shared/types.js";
+import { isClaudeAvailable } from "../analyze/claude-runner.js";
+import { generateArchitectureDoc } from "./llm-architecture.js";
 
 /**
  * Write .sentrux/rules.toml seeded from a live probe.
@@ -71,18 +73,36 @@ export async function writeSentruxRules(
   }
 }
 
+export interface WriteArchitectureOptions {
+  /** When true (default) and the `claude` CLI is present, author docs with the LLM
+   *  grounded in the real repo; otherwise use the deterministic templates. */
+  useLlm?: boolean;
+  /** Detected project — required for LLM grounding; templates work without it. */
+  project?: DetectedProject | null;
+  /** Callback for progress messages (e.g. spinner text). */
+  onProgress?: (message: string) => void;
+}
+
 export async function writeArchitectureDocs(
   targetDir: string,
   vars: TemplateVariables,
   dryRun: boolean = false,
+  opts: WriteArchitectureOptions = {},
 ): Promise<void> {
   const archDir = path.join(targetDir, "docs", "architecture");
   if (!dryRun) {
     fs.ensureDirSync(archDir);
   }
 
-  // Generate backend architecture doc
-  const backendDoc = generateBackendArchitecture(vars);
+  const llmEnabled = (opts.useLlm ?? true) && !dryRun && !!opts.project && isClaudeAvailable();
+
+  // Backend: prefer LLM-authored (grounded in real code), fall back to template.
+  let backendDoc = generateBackendArchitecture(vars);
+  if (llmEnabled) {
+    opts.onProgress?.("Generating backend architecture with Claude...");
+    const llmDoc = generateArchitectureDoc("backend", targetDir, opts.project!, backendDoc);
+    if (llmDoc) backendDoc = llmDoc;
+  }
   const backendPath = path.join(archDir, "backend-architecture.md");
   if (dryRun) {
     console.log(`  Would write: ${backendPath}`);
@@ -90,8 +110,13 @@ export async function writeArchitectureDocs(
     await fs.writeFile(backendPath, backendDoc, "utf-8");
   }
 
-  // Generate frontend architecture doc
-  const frontendDoc = generateFrontendArchitecture(vars);
+  // Frontend: same pattern.
+  let frontendDoc = generateFrontendArchitecture(vars);
+  if (llmEnabled) {
+    opts.onProgress?.("Generating frontend architecture with Claude...");
+    const llmDoc = generateArchitectureDoc("frontend", targetDir, opts.project!, frontendDoc);
+    if (llmDoc) frontendDoc = llmDoc;
+  }
   const frontendPath = path.join(archDir, "frontend-architecture.md");
   if (dryRun) {
     console.log(`  Would write: ${frontendPath}`);

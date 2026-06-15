@@ -68,10 +68,12 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   }
   depSpinner.succeed(`Node ${depResult.nodeVersion}, npm ${depResult.npmVersion}, git ${depResult.gitVersion}`);
 
-  // Step 2 — Detect project (optionally refined by an LLM pass with --llm)
+  // Step 2 — Detect project. LLM refinement runs on-by-default when the claude CLI is
+  // present; pass --no-llm to force the fast template/heuristic path.
   const detectSpinner = ora("Analyzing project structure...").start();
   let project = await detectProject(cwd);
-  if (opts.llm) {
+  const llmRequested = opts.llm !== false;
+  if (llmRequested && !opts.dryRun) {
     detectSpinner.text = "Refining analysis with Claude...";
     const refined = refineWithLlm(cwd, project);
     project = refined.project;
@@ -164,9 +166,13 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   await customizeSkills(targetDir, templateVars, opts.dryRun);
   customizeSpinner.succeed("Skills customized");
 
-  // Step 8 — Write architecture docs
+  // Step 8 — Write architecture docs (LLM-grounded when claude is present, unless --no-llm)
   const archDocSpinner = ora("Generating architecture documentation...").start();
-  await writeArchitectureDocs(targetDir, templateVars, opts.dryRun);
+  await writeArchitectureDocs(targetDir, templateVars, opts.dryRun, {
+    useLlm: opts.llm !== false,
+    project,
+    onProgress: (m) => { archDocSpinner.text = m; },
+  });
   archDocSpinner.succeed("Architecture docs written");
 
   // Step 8c — Write .sentrux/rules.toml

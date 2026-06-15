@@ -45,6 +45,7 @@ export interface HookConfig {
 export function buildHookConfig(projectRoot: string, hooksDir: string): HookConfig {
   const doctorHook = path.join(hooksDir, "session-start-doctor.js");
   const gitGuardHook = path.join(hooksDir, "pre-tool-git-guard.js");
+  const sentruxGateHook = path.join(hooksDir, "pre-tool-sentrux-gate.js");
   const changeDetectorHook = path.join(hooksDir, "stop-change-detector.js");
 
   return {
@@ -68,6 +69,12 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
             command: `node "${gitGuardHook}"`,
             timeout: 8000,
             statusMessage: "Agent Smith — enforcing git conventions...",
+          },
+          {
+            type: "command",
+            command: `node "${sentruxGateHook}"`,
+            timeout: 15000,
+            statusMessage: "Agent Smith — enforcing Sentrux architecture baseline...",
           },
         ],
       },

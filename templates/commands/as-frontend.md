@@ -16,6 +16,7 @@ You are a senior full-stack engineer. Implement the frontend task given in `$ARG
 
 > ## Binding architecture rules (MUST follow)
 > Read **`docs/architecture/frontend-architecture.md`** before writing any code. Every rule there is binding and enforced at PR review.
+> Also read **`docs/architecture/best-practices.md`**: uphold the **Followed** standards, and adopt relevant **Recommended** ones where they fit the task (they are suggestions, not blockers).
 
 > ## MUST-FOLLOW RULE — browser-driven visual loop
 > Whenever this skill creates or changes any rendered UI, you **MUST** drive the running app in a real browser through Playwright MCP and **visually verify** the result before declaring the task complete. **Never ship a UI change you have not seen rendered with a clean console.**

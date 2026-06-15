@@ -10,6 +10,13 @@ You are a senior API documentation engineer. Write or update API annotations and
 - `$ARGUMENTS` is a path, app name, or `latest` → **incremental mode**: scope to git diff or named files only.
 
 **Architecture reference:** `docs/architecture/backend-architecture.md`.
+**Engineering standards:** `docs/architecture/best-practices.md` — keep docs aligned with the Followed standards; flag Recommended doc practices the API could adopt.
+
+## How this runs (LLM + write path)
+
+- **LLM engine:** this skill runs inside the Claude Code session — the Claude Code CLI *is* the LLM. There is no `--llm` flag, no API key, and no external model to configure; generation is on by default whenever you run the skill. The optional `/advisor` step (below) only swaps the *planning* model when one is configured.
+- **Write path:** documentation is written to the project's Obsidian vault through the **`obsidian` MCP** by default. If that MCP is not connected, fall back to writing the same markdown into `docs/` in the repo — never skip the write.
+- **Stack-agnostic:** every command, path, and annotation style below comes from this project's detected stack via `{{...}}` variables. Nothing here is tied to a specific framework — follow the generic rules and apply the framework-specific block only if it matches this project.
 
 ## Available MCP tools
 
@@ -75,16 +82,28 @@ There is no `get_diagnostics_for_file` tool — after edits, verify with the typ
 
 ---
 
-## Annotation rules
+## Annotation rules (framework-agnostic)
 
-### View-level — `@extend_schema` / equivalent
+Document the API in whatever mechanism this project's API-docs library (`{{API_DOCS_LIBRARY}}`) uses — decorators, attributes, doc-comments, an OpenAPI/YAML spec, or generated schema. The *content* requirements are the same on every stack:
 
-Every endpoint must have schema annotations — summary, description, responses, tags.
+- **Every endpoint** carries a summary, a description, the success response shape, and the relevant error responses (at minimum: unauthenticated, insufficient-permission, not-found, validation error).
+- **Public endpoints** explicitly mark themselves as unauthenticated so the schema does not demand credentials.
+- **Role/permission restrictions** are stated in the endpoint description — list the roles allowed: `**Roles:** {{ROLE_VALID_VALUES}}` (or "public" when open).
+- **Field-level docs** — every request/response field gets a human description (help text, doc-comment, or schema `description`) so it surfaces in the generated API docs.
+- **Tags** — group endpoints under stable, canonical tags that match this project's module/app names.
+
+After annotating, regenerate/validate the schema with this project's tooling and fix every warning.
+
+## Django / DRF patterns
+
+*Applies only when this project uses Django REST Framework. The customizer removes this section for other stacks.*
+
+Use `@extend_schema` (drf-spectacular) on each view and `help_text` on each serializer field:
 
 ```python
 @extend_schema(
     summary="Retrieve an entity",
-    description="Returns full entity details.",
+    description="Returns full entity details. **Roles:** {{ROLE_VALID_VALUES}}",
     responses={
         200: EntitySerializer,
         401: OpenApiResponse(description="Missing or invalid credentials"),
@@ -96,35 +115,24 @@ Every endpoint must have schema annotations — summary, description, responses,
 def get(self, request, pk): ...
 ```
 
-### Public endpoints
-
-For unauthenticated endpoints, suppress auth requirements in the schema.
-
-### Role restrictions in descriptions
-
-```
-description="**Roles:** {{ROLE_VALID_VALUES}}"
-```
-
-### Serializer annotations
-
-Add `help_text` to every serializer field — it becomes the field description in API docs.
-
-### Tags — canonical, match app names
-
-Use consistent tag names matching app/module names.
-
 ---
 
 ## Step 4 — Obsidian vault note
 
-Write a technical summary note to the Obsidian vault:
+Write a technical summary note to the Obsidian vault via the **`obsidian` MCP**:
 
 - Path: `<project>/docs/backend/<branch-or-ticket>.md`
-- Content: endpoints added/changed, serializers touched, migration notes, breaking changes.
-- If Obsidian MCP is not connected, emit the note content inline instead.
+- Content: endpoints added/changed, serializers/DTOs touched, migration notes, breaking changes.
+- If the Obsidian MCP is not connected, write the same markdown to `docs/backend/<branch-or-ticket>.md` in the repo instead — and say so. Never skip the write.
 
 ---
+
+## Recommended best practices (suggestions — not blockers)
+
+From `docs/architecture/best-practices.md` (Documentation → Recommended), surface adoptable
+documentation standards for this API — e.g. generate the API reference from the schema, document
+every error response and auth requirement, keep an ADR log for non-obvious design choices. Offer
+these as suggestions in the output; never block the doc run on them.
 
 ## Verification
 

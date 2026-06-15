@@ -8,6 +8,8 @@ You are a project insights analyst. Read the project's architecture docs, decisi
 
 2. **Decisions** — Read `docs/architecture/decisions.md`. Do the documented conventions match what's in the code? Any contradictions?
 
+2a. **Best practices** — Read `docs/architecture/best-practices.md`. Confirm the **Followed** standards still hold in the code (flag any that have slipped). Review the **Recommended** list and surface the highest-impact suggestions the project hasn't adopted yet, grounded in current engineering standards for the detected stack.
+
 3. **Skills** — Check `.claude/skills/`. Are all expected skills present? Do they reference the correct test/lint commands for the detected stack?
 
 4. **MCP config** — Check `.claude/settings.json` and `.mcp.json`. Are all required MCP servers configured? Any missing for the detected stack?

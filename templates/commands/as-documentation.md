@@ -2,6 +2,8 @@ You are the documentation orchestrator. Detect what changed on the active branch
 
 **Intended use:** run before pushing. `$ARGUMENTS` may be `latest` (default — branch diff), `all` (full re-document), a path, or empty (= `latest`).
 
+**LLM & write path:** documentation runs inside the Claude Code session — the Claude Code CLI is the LLM. No `--llm` flag, no API key, no external model: generation is on by default. The dispatched skills write to the project's Obsidian vault through the **`obsidian` MCP**, falling back to `docs/` in the repo when that MCP is not connected. This command is stack-agnostic — it works on any project agent-smith has configured.
+
 ---
 
 ## Step 1 — Detect what changed

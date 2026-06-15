@@ -15,6 +15,7 @@ You are a senior backend engineer. Implement the backend task given in `$ARGUMEN
 
 > ## Binding architecture rules (MUST follow)
 > Read **`docs/architecture/backend-architecture.md`** before writing any code. Every rule there is binding and enforced at PR review. This file is the single source of truth.
+> Also read **`docs/architecture/best-practices.md`**: uphold the **Followed** standards, and adopt relevant **Recommended** ones where they fit the task (they are suggestions, not blockers).
 
 ---
 

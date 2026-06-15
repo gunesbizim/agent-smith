@@ -132,6 +132,124 @@ export async function writeArchitectureDocs(
   } else {
     await fs.writeFile(mcpPath, generateMcpToolsGuide(), "utf-8");
   }
+
+  // Engineering best practices — a curated baseline (Followed vs Recommended). The LLM skill
+  // generator (Phase 1.5) refreshes this with what THIS project actually follows; the template
+  // here is the deterministic fallback and the starting point.
+  const bpPath = path.join(archDir, "best-practices.md");
+  if (dryRun) {
+    console.log(`  Would write: ${bpPath}`);
+  } else {
+    await fs.writeFile(bpPath, generateBestPracticesDoc(vars), "utf-8");
+  }
+}
+
+// A curated engineering-standards baseline, framework-neutral with concrete examples. Two
+// buckets: "Followed" (confirm against the real code) and "Recommended" (suggestions to adopt).
+// The LLM regenerator rewrites the Followed bucket from the actual repo and tailors Recommended
+// to the detected stack; this template is the no-LLM fallback.
+function generateBestPracticesDoc(vars: TemplateVariables): string {
+  const hasBackend = vars.BACKEND_FRAMEWORK !== "none";
+  const hasFrontend = vars.FRONTEND_FRAMEWORK !== "none";
+  const sections: string[] = [
+    `# Engineering Best Practices — ${vars.PROJECT_NAME}`,
+    "",
+    "Two buckets: **Followed** — standards this codebase already upholds (confirm against real",
+    "code; reviewers enforce these). **Recommended** — good practices worth adopting (suggestions;",
+    "they never block a merge on their own). Grounded in recognized engineering standards; tailor",
+    "to the real stack when regenerating with the LLM.",
+    "",
+    "## Cross-cutting",
+    "",
+    "**Followed**",
+    "- Conventional Commits (`type(scope): description`, subject ≤72 chars); small, logical commits.",
+    "- Architectural quality gate green before commit/push (`sentrux gate .`).",
+    "- No secrets in code or logs; configuration via environment.",
+    "",
+    "**Recommended**",
+    "- Trunk-based or short-lived branches; rebase/squash before merge to keep history linear.",
+    "- Semantic Versioning for releases; a CHANGELOG generated from commits.",
+    "- A definition of done: tests + lint + type-check + docs updated, all green.",
+    "",
+  ];
+
+  if (hasBackend) {
+    sections.push(
+      "## Backend",
+      "",
+      "**Followed**",
+      `- Layered design (transport → service → data) on ${vars.BACKEND_FRAMEWORK}; no business logic in handlers.`,
+      "- Fail-closed authorization on every endpoint; least-privilege roles.",
+      vars.LOGGING_PATTERN === "structured"
+        ? `- Structured logging with canonical keys (${vars.LOGGING_CANONICAL_KEYS}).`
+        : "- Consistent, parseable logging at the right levels.",
+      "- Input validation at the boundary; typed errors with explicit status codes.",
+      "",
+      "**Recommended**",
+      "- Idempotent write endpoints where retries are possible; explicit timeouts on outbound calls.",
+      "- A repository/port abstraction over the ORM so business logic is testable without a DB.",
+      "- Migration-per-schema-change, reviewed; never edit an applied migration.",
+      "- Health/readiness endpoints and structured request tracing (correlation ids).",
+      "",
+    );
+  }
+
+  if (hasFrontend) {
+    sections.push(
+      "## Frontend",
+      "",
+      "**Followed**",
+      `- ${vars.FRONTEND_FRAMEWORK} components in the project's canonical pattern; typed props/emits.`,
+      "- State changes flow through the store; HTTP only through the shared API layer.",
+      "- All user-facing strings via i18n keys; role-aware UI is UX-only (backend stays authoritative).",
+      "",
+      "**Recommended**",
+      "- Handle every async state explicitly: loading, empty, error, success.",
+      "- Accessibility baseline: semantic roles, keyboard navigation, visible focus, labelled controls.",
+      "- A component library/design tokens instead of ad-hoc CSS; reuse primitives before adding new ones.",
+      "- Bundle-size budget and code-splitting for large routes.",
+      "",
+    );
+  }
+
+  sections.push(
+    "## Testing",
+    "",
+    "**Followed**",
+    "- New logic ships with tests covering happy path, failure paths, and edge cases.",
+    "- Tests are deterministic and isolated (mock external I/O; no real network).",
+    "",
+    "**Recommended**",
+    "- Test pyramid: many fast unit tests, fewer integration, fewest E2E; mark slow tests.",
+    "- Assert on stable contracts (i18n keys, status codes), not volatile strings.",
+    "- Track coverage on changed code; fail-closed permission tests for every protected path.",
+    "",
+    "## PR review",
+    "",
+    "**Followed**",
+    "- Architecture-gate (Step 0) before any review; regressions block and are remediated first.",
+    "- Findings cite `file_path:line_number`; verdict is mergeable / needs-changes / blocked.",
+    "",
+    "**Recommended**",
+    "- Reviews check the blast radius (impact analysis), not just the diff lines.",
+    "- Separate blockers from non-blocking suggestions; keep PRs small and single-purpose.",
+    "",
+    "## Documentation",
+    "",
+    "**Followed**",
+    "- Public APIs/endpoints are annotated; user-facing flows documented with real screenshots.",
+    "- Docs updated in the same change as the code (no drift).",
+    "",
+    "**Recommended**",
+    "- Keep a living architecture doc and an ADR log for non-obvious decisions.",
+    "- Generate API reference from the schema; document error responses and auth requirements.",
+    "",
+    "---",
+    "*Generated by agent-smith — the LLM regenerator refreshes the Followed bucket from this repo.*",
+    "",
+  );
+
+  return sections.join("\n");
 }
 
 // A static, correctness-focused reference for the MCP tools agent-smith configures.

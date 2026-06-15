@@ -62,6 +62,8 @@ sentrux gate .
 
 Any failure → **stop**, report the failing gate and output. Do not commit.
 
+**Ratchet on improvement**: if `sentrux gate .` reports the branch is *better* than baseline (quality up, coupling down, fewer cycles/god-files/complex-fns), save the gain before pushing — `sentrux gate . --save` — and include the updated `.sentrux/baseline.json` in a `chore(sentrux): ratchet baseline <old>-><new>` commit. The baseline is monotonic: it only ever moves up.
+
 ### 4. Commit (conventional commits — mandatory)
 
 Group unrelated concerns into separate commits, staging explicitly by path.

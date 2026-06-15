@@ -208,6 +208,8 @@ describe("Type exports — compile-time verification", () => {
       PROJECT_NAME: "test",
       REPO_NAME: "test",
       GIT_HOST: "github.com",
+      DEFAULT_BRANCH: "main",
+      SHIP_MAX_FIX_ATTEMPTS: "3",
       LOGGING_PATTERN: "structured",
       LOGGING_CANONICAL_KEYS: "trace_id, span_id",
       ORM_PACKAGE: "Prisma",

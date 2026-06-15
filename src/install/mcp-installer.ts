@@ -4,7 +4,18 @@ import path from "node:path";
 import fs from "fs-extra";
 import ora from "ora";
 import { MCP_REGISTRY, getMCPServer } from "./registry.js";
-import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall, MCPServerDefinition } from "../shared/types.js";
+import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall, MCPServerDefinition, DetectedProject } from "../shared/types.js";
+
+// Decide whether an MCP server is relevant to the detected stack.
+// Browser-automation servers require a frontend; everything else is stack-agnostic.
+function isServerApplicable(
+  server: MCPServerDefinition,
+  project: DetectedProject | null,
+  hasFrontend: boolean,
+): boolean {
+  if (project && server.category === "browser" && !hasFrontend) return false;
+  return true;
+}
 
 function resolveInstall(cmd: PlatformInstall): string {
   if (typeof cmd === "string") return cmd;
@@ -57,6 +68,7 @@ export async function configureMCPs(
   vars: TemplateVariables,
   platform: string = "claude-code",
   dryRun: boolean = false,
+  project: DetectedProject | null = null,
 ): Promise<MCPConfigBundle> {
   const bundle: MCPConfigBundle = {
     projectSettings: {},
@@ -64,13 +76,24 @@ export async function configureMCPs(
     userMcp: {},
   };
 
+  // Stack-aware selection: only configure MCPs that make sense for the detected stack.
+  // Browser-automation servers are useless without a frontend (e.g. a CLI tool / library),
+  // so they are skipped unless a frontend was detected. When project is null (caller did
+  // not run detection) we fall back to including everything for backward compatibility.
+  const hasFrontend = project ? project.frontend !== null : true;
+
   for (const server of MCP_REGISTRY) {
+    if (!isServerApplicable(server, project, hasFrontend)) continue;
     addServerToBundle(bundle, server, vars, dryRun);
   }
 
-  // Also put browser tools in .mcp.json scope
-  bundle.projectMcp.playwright = bundle.projectSettings.playwright;
-  bundle.projectMcp["chrome-devtools"] = bundle.projectSettings["chrome-devtools"];
+  // Also put browser tools in .mcp.json scope — only when a frontend exists.
+  if (bundle.projectSettings.playwright) {
+    bundle.projectMcp.playwright = bundle.projectSettings.playwright;
+  }
+  if (bundle.projectSettings["chrome-devtools"]) {
+    bundle.projectMcp["chrome-devtools"] = bundle.projectSettings["chrome-devtools"];
+  }
 
   if (!dryRun) {
     writeClaudeSettings(projectRoot, bundle);

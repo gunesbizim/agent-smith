@@ -20,6 +20,7 @@ const COMMAND_TEMPLATES: Record<string, string> = {
   "pr-review.md": "templates/commands/pr-review.md",
   "documentation.md": "templates/commands/documentation.md",
   "git.md": "templates/commands/git.md",
+  "ship.md": "templates/commands/ship.md",
   "caveman.md": "templates/commands/caveman.md",
   "insights.md": "templates/commands/insights.md",
 };

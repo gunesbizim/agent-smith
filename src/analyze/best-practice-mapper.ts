@@ -1,4 +1,5 @@
 // Map detected project patterns → template variables
+import fs from "node:fs";
 import path from "node:path";
 import type { DetectedProject, TemplateVariables } from "../shared/types.js";
 import type { PackageUsage } from "./package-scanner.js";
@@ -37,6 +38,8 @@ export function mapBestPractices(
         ? `npx ${packageUsage.testFramework.toLowerCase()} run`
         : vars.BACKEND_TEST_CMD;
     }
+    // CLI tools / libraries have no frontend — never leak the default web stack.
+    neutralizeFrontendVars(vars);
     return vars;
   }
 
@@ -158,6 +161,7 @@ export function mapBestPractices(
   } else if (project.cicd?.provider === "gitlab-ci") {
     vars.GIT_HOST = "gitlab.com";
   }
+  vars.DEFAULT_BRANCH = detectDefaultBranch(project.rootPath);
 
   // ---- Package-specific variables ----
   if (packageUsage) {
@@ -197,11 +201,85 @@ export function mapBestPractices(
     if (packageUsage.stateManagement) vars.STATE_PACKAGE = packageUsage.stateManagement;
   }
 
+  // Honest output: when a side wasn't detected, emit "none" rather than letting the
+  // opinionated DEFAULT_TEMPLATE_VARS (a Django + Vue stack) leak through as if analyzed.
+  if (!project.backend) neutralizeBackendVars(vars, project);
+  if (!project.frontend) neutralizeFrontendVars(vars);
+
   return vars;
+}
+
+// Replace any leaked backend defaults with honest "none" values. Preserves a detected
+// test/lint command if one exists (e.g. a CLI tool with a test runner but no web backend).
+function neutralizeBackendVars(vars: TemplateVariables, project: DetectedProject): void {
+  vars.BACKEND_LANG = "none";
+  vars.BACKEND_FRAMEWORK = "none";
+  vars.BACKEND_FRAMEWORK_DETAIL = "none";
+  vars.BACKEND_DIR = ".";
+  vars.BACKEND_SETTINGS_MODULE = "none";
+  vars.BACKEND_MIGRATE_CMD = "none";
+  vars.BACKEND_TEST_CMD = project.testing.backend?.command ?? "none";
+  vars.BACKEND_LINT_CMD = project.linting.backend?.command ?? "none";
+  vars.BACKEND_TYPE_CHECK_CMD = "none";
+  vars.BACKEND_FORMAT_CMD = "none";
+  vars.ORM = "none";
+  vars.AUTH_METHOD = "none";
+  vars.ROLE_SYSTEM = "none";
+  vars.ROLE_VALID_VALUES = "none";
+  vars.DB_ENGINE = "none";
+  vars.API_DOCS_LIBRARY = "none";
+  vars.LOGGING_PATTERN = "none";
+  vars.LOGGING_CANONICAL_KEYS = "none";
+}
+
+// Replace any leaked frontend defaults with honest "none" values.
+function neutralizeFrontendVars(vars: TemplateVariables): void {
+  vars.FRONTEND_FRAMEWORK = "none";
+  vars.FRONTEND_UI_LIBRARY = "none";
+  vars.FRONTEND_TEST_CMD = "none";
+  vars.FRONTEND_LINT_CMD = "none";
+  vars.FRONTEND_TYPE_CHECK_CMD = "none";
+  vars.FRONTEND_DIR = ".";
+  vars.FRONTEND_DEV_SERVER_CMD = "none";
 }
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// Detect the repo's default branch by reading .git ref files directly (no subprocess).
+// Falls back to "main".
+function detectDefaultBranch(rootPath: string): string {
+  const gitDir = path.join(rootPath, ".git");
+
+  // Prefer the remote HEAD's symref target, e.g. "ref: refs/remotes/origin/main".
+  const remoteHead = readGitRef(path.join(gitDir, "refs", "remotes", "origin", "HEAD"));
+  if (remoteHead) {
+    const branch = remoteHead.split("/").pop();
+    if (branch) return branch;
+  }
+
+  // Else use the local checked-out branch if it's a conventional default.
+  const head = readGitRef(path.join(gitDir, "HEAD"));
+  if (head) {
+    const current = head.split("/").pop();
+    if (current === "main" || current === "master") return current;
+  }
+
+  return "main";
+}
+
+// Read a git ref file and return its "ref: <target>" pointer, or null.
+// Uses plain string parsing (no regex) — the content is a single short line.
+function readGitRef(refPath: string): string | null {
+  try {
+    const content = fs.readFileSync(refPath, "utf-8").trim();
+    if (!content.startsWith("ref:")) return null;
+    const target = content.slice(4).trim();
+    return target || null;
+  } catch {
+    return null;
+  }
 }
 
 function buildPrePushGates(project: DetectedProject): string {

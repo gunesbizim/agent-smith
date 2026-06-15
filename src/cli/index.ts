@@ -19,6 +19,7 @@ program
   .option("--dir <dir>", "Target project directory")
   .option("--caveman", "Compress generated skills with caveman (~75% token savings)")
   .option("--no-interview", "Skip the interactive project conventions interview")
+  .option("--llm", "Refine stack detection with a headless Claude pass (requires `claude` on PATH)")
   .action(async (opts) => {
     const { initCommand } = await import("./init.js");
     await initCommand(opts);
@@ -40,6 +41,7 @@ program
   .command("analyze")
   .description("Detect tech stack and print report")
   .option("--json", "Output as JSON")
+  .option("--llm", "Refine stack detection with a headless Claude pass (requires `claude` on PATH)")
   .action(async (opts) => {
     const { analyzeCommand } = await import("./analyze.js");
     await analyzeCommand(opts);

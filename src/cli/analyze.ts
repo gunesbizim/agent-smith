@@ -4,21 +4,30 @@ import ora from "ora";
 import { detectProject } from "../analyze/project-detector.js";
 import { sniffArchitecture } from "../analyze/architecture-sniffer.js";
 import { mapBestPractices } from "../analyze/best-practice-mapper.js";
+import { refineWithLlm } from "../analyze/llm-analyzer.js";
 import { DEFAULT_TEMPLATE_VARS } from "../shared/templates.js";
 
 interface AnalyzeOptions {
   json?: boolean;
+  llm?: boolean;
 }
 
 export async function analyzeCommand(opts: AnalyzeOptions): Promise<void> {
   const cwd = process.cwd();
   const spinner = ora("Analyzing project...").start();
 
-  const project = await detectProject(cwd);
+  let project = await detectProject(cwd);
+  let llmNote: string | undefined;
+  if (opts.llm) {
+    spinner.text = "Refining analysis with Claude...";
+    const refined = refineWithLlm(cwd, project);
+    project = refined.project;
+    llmNote = refined.usedLlm ? "refined by Claude" : `programmatic (${refined.reason})`;
+  }
   const patterns = await sniffArchitecture(cwd, project);
   const vars = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS);
 
-  spinner.succeed("Analysis complete");
+  spinner.succeed(llmNote ? `Analysis complete — ${llmNote}` : "Analysis complete");
 
   if (opts.json) {
     console.log(JSON.stringify({ project, patterns, templateVariables: vars }, null, 2));

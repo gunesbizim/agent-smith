@@ -5,6 +5,7 @@ import ora from "ora";
 import { checkDependencies } from "../install/dependency-checker.js";
 import { installMCPs, configureMCPs, registerLocalMCPs, ensureGitignore, PLAYWRIGHT_OUTPUT_DIR } from "../install/mcp-installer.js";
 import { scaffoldConfigs } from "../scaffold/configs.js";
+import { detectProject } from "../analyze/project-detector.js";
 import { DEFAULT_TEMPLATE_VARS } from "../shared/templates.js";
 
 /** Prompt once for a value on a TTY; returns "" when non-interactive or left blank. */
@@ -53,7 +54,8 @@ export async function configureCommand(opts: ConfigureOptions): Promise<void> {
   }
 
   const configSpinner = ora("Writing MCP configurations...").start();
-  await configureMCPs(cwd, DEFAULT_TEMPLATE_VARS, "claude-code");
+  const project = await detectProject(cwd);
+  await configureMCPs(cwd, DEFAULT_TEMPLATE_VARS, "claude-code", false, project);
   await scaffoldConfigs(cwd, "claude-code");
   // Keep Playwright screenshot artifacts out of version control.
   ensureGitignore(cwd, [`${PLAYWRIGHT_OUTPUT_DIR}/`]);

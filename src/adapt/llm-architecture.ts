@@ -44,10 +44,17 @@ function buildArchPrompt(side: Side, project: DetectedProject, templateReference
 }
 
 // Strip a leading/trailing ```markdown fence if the model wrapped the whole doc.
+// Plain line parsing (no regex) to avoid super-linear backtracking on large docs.
 function unwrapFence(text: string): string {
   const trimmed = text.trim();
-  const fence = /^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/.exec(trimmed);
-  return fence ? fence[1].trim() : trimmed;
+  const lines = trimmed.split("\n");
+  const first = lines[0]?.trim() ?? "";
+  const last = lines[lines.length - 1]?.trim() ?? "";
+  const opensFence = first === "```" || first === "```markdown" || first === "```md";
+  if (opensFence && last === "```" && lines.length >= 2) {
+    return lines.slice(1, -1).join("\n").trim();
+  }
+  return trimmed;
 }
 
 // Generate one architecture doc via the LLM, grounded in the real repo. Returns the

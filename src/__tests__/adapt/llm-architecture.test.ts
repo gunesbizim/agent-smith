@@ -47,6 +47,15 @@ describe("writeArchitectureDocs — LLM vs template", () => {
     expect(runClaudeMock).toHaveBeenCalled();
   });
 
+  it("unwraps a ```markdown fence the model wrapped the doc in", async () => {
+    isClaudeAvailableMock.mockReturnValue(true);
+    runClaudeMock.mockReturnValue("```markdown\n# Backend (fenced)\n\n" + "y".repeat(300) + "\n```");
+    await writeArchitectureDocs(tmp, DEFAULT_TEMPLATE_VARS, false, { useLlm: true, project: PROJECT });
+    const doc = fs.readFileSync(path.join(tmp, "docs", "architecture", "backend-architecture.md"), "utf-8");
+    expect(doc.startsWith("# Backend (fenced)")).toBe(true);
+    expect(doc).not.toContain("```");
+  });
+
   it("falls back to the template when claude is unavailable", async () => {
     isClaudeAvailableMock.mockReturnValue(false);
     await writeArchitectureDocs(tmp, DEFAULT_TEMPLATE_VARS, false, { useLlm: true, project: PROJECT });

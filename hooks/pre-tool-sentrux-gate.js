@@ -19,11 +19,15 @@
  *
  *   - No change → allow silently.
  *
+ * The gate verdict is cached in .sentrux/.gate-cache.json keyed on a working-
+ * tree fingerprint, so a commit-then-push on an unchanged tree scans only once.
+ *
  * Configure in .claude/settings.json (handled by src/scaffold/hooks.ts):
  *   "PreToolUse": [{ "matcher": "Bash", "hooks": [
  *     { "type": "command", "command": "node hooks/pre-tool-sentrux-gate.js" } ]}]
  */
 import { execSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -80,8 +84,43 @@ if (probe.code !== 0) {
   allow("⚠ Sentrux not found on PATH — architecture gate skipped. Install sentrux to enforce the baseline.");
 }
 
-// ---- Run the gate ----
-const gate = run("sentrux gate .");
+// ---- Run the gate (cached by working-tree fingerprint) ----
+// `sentrux gate .` scans the working tree. A commit immediately followed by a
+// push (e.g. /ship) would scan the identical tree twice. Cache the verdict
+// keyed on a fingerprint of the tree so the redundant scan is skipped, while
+// any real content change busts the cache and forces a fresh scan.
+//
+// Fingerprint = HEAD + `git stash create` (a snapshot object covering staged
+// AND unstaged tracked content — exactly what the scan sees) + the untracked
+// file list. `git write-tree` is deliberately NOT used: it only reflects the
+// index, so unstaged edits would go undetected and serve a stale verdict.
+function treeFingerprint() {
+  const head = run("git rev-parse HEAD").out.trim();
+  const snapshot = run("git stash create").out.trim(); // empty when tree is clean
+  const untracked = run("git ls-files --others --exclude-standard").out.trim();
+  return crypto.createHash("sha256").update(`${head}\n${snapshot}\n${untracked}`).digest("hex");
+}
+
+const cachePath = path.join(cwd, ".sentrux", ".gate-cache.json");
+const fingerprint = treeFingerprint();
+
+let gate = null;
+try {
+  const cached = JSON.parse(fs.readFileSync(cachePath, "utf-8"));
+  if (cached.fingerprint === fingerprint && typeof cached.out === "string") {
+    gate = { code: cached.code, out: cached.out };
+  }
+} catch {
+  /* no/invalid cache — scan fresh */
+}
+if (!gate) {
+  gate = run("sentrux gate .");
+  try {
+    fs.writeFileSync(cachePath, JSON.stringify({ fingerprint, code: gate.code, out: gate.out }));
+  } catch {
+    /* cache is best-effort */
+  }
+}
 
 // `sentrux gate` signals the verdict in stdout, NOT the exit code — it exits 0
 // even when it reports "✗ DEGRADED". So key off the text, falling back to the

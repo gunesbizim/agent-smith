@@ -19,7 +19,7 @@ program
   .option("--dir <dir>", "Target project directory")
   .option("--caveman", "Compress generated skills with caveman (~75% token savings)")
   .option("--no-interview", "Skip the interactive project conventions interview")
-  .option("--llm", "Refine stack detection with a headless Claude pass (requires `claude` on PATH)")
+  .option("--no-llm", "Disable LLM generation; use fast template/heuristic path only (LLM is on by default when the `claude` CLI is present)")
   .action(async (opts) => {
     const { initCommand } = await import("./init.js");
     await initCommand(opts);

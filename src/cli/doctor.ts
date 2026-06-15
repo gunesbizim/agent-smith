@@ -33,7 +33,7 @@ export async function doctorCommand(): Promise<void> {
   checks.push({
     name: "python",
     status: deps.checks.python ? "pass" : "warn",
-    message: deps.checks.python ? "Python found" : "Python not found (needed for serena, mempalace, ouroboros)",
+    message: deps.checks.python ? "Python found" : "Python not found (needed for serena, mempalace)",
   });
   checks.push({
     name: "gh-cli",
@@ -61,8 +61,8 @@ export async function doctorCommand(): Promise<void> {
   const configFiles = [
     [".claude/settings.json", "Claude Code project settings"],
     [".mcp.json", "Project MCP config"],
-    [".claude/commands/backend.md", "Backend command"],
-    [".claude/commands/frontend.md", "Frontend command"],
+    [".claude/commands/as-backend.md", "Backend command"],
+    [".claude/commands/as-frontend.md", "Frontend command"],
     [".claude/skills/pr-review-backend/SKILL.md", "PR review backend skill"],
     [".claude/skills/docs-frontend/SKILL.md", "Docs frontend skill"],
     [".sentrux/rules.toml", "Sentrux architectural rules"],

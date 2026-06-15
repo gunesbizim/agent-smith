@@ -7,11 +7,25 @@ You are a senior technical writer. Produce **human-readable, styled user documen
 
 **This skill documents by SHOWING:** every documented flow is driven live in the browser via Playwright MCP and illustrated with real screenshots per role.
 
+## Available MCP tools
+
+These MCP servers are configured for this project — use the ones relevant to the step:
+
+- **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
+- **git-memory** — why code changed: commit history, bug-fix history, file timelines.
+- **serena** — LSP symbol navigation: find symbols/references, diagnostics.
+- **playwright** — drive the running app to capture real per-role screenshots.
+- **chrome-devtools** — deep inspection (console, network) when a flow misbehaves.
+- **obsidian** — write the styled user guide into the configured Obsidian vault.
+
+Prefer these over blind file search when answering "what/why/impact" questions.
+
 ---
+
 
 ## Step 0 — Plan first (mandatory)
 
-**Before navigating anywhere**, call `advisor` to produce a scoped documentation plan. Pass:
+**Before navigating anywhere**, use Claude Code's built-in `/advisor` (a stronger planning model; falls back to the current session model if no advisor is configured) to produce a scoped documentation plan. Pass:
 - The target (`$ARGUMENTS` or changed views from `git diff origin/main...HEAD --stat -- {{FRONTEND_DIR}}/`)
 - Which roles see the flow differently
 - Existing guide sections in Obsidian that need updating vs creating

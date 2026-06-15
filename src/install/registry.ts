@@ -182,24 +182,6 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     },
   },
 
-  // ---- PM ----
-  {
-    name: "ouroboros",
-    description: "PM agent framework — seed-based product interviews, AC generation, evolve/rewind",
-    category: "pm",
-    scope: "user",
-    installType: "pipx",
-    installCommand: "pipx install ouroboros",
-    checkCommand: "ouroboros --version",
-    requiredEnvVars: [],
-    configTemplate: {
-      type: "stdio",
-      command: "ouroboros",
-      args: ["mcp", "serve", "--transport", "stdio", "--runtime", "claude"],
-      env: { CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli" },
-    },
-  },
-
   // ---- Jira ----
   {
     name: "jira",

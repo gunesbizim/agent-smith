@@ -6,8 +6,6 @@ import { configureMCPs, hasRequiredEnv, registerLocalMCPs, ensureGitignore } fro
 import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
 import type { DetectedProject, FrontendInfo } from "../../shared/types.js";
 
-const OUROBOROS_PERM = "mcp__ouroboros__ouroboros_pm_interview";
-
 const FRONTEND: FrontendInfo = {
   framework: "vue3", componentPattern: "script-setup", uiLibrary: "Vuetify 3",
   stateManagement: "Pinia", usesI18n: false, i18nLibrary: null,
@@ -48,21 +46,7 @@ describe("configureMCPs — dryRun: false — settings.json writes", () => {
     expect(typeof settings.mcpServers).toBe("object");
   });
 
-  it("adds ouroboros permission when settings.json has no permissions", async () => {
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false);
-    const settings = fs.readJsonSync(path.join(tmpDir, ".claude", "settings.json"));
-    expect(settings.permissions.allow).toContain(OUROBOROS_PERM);
-  });
-
-  it("does not duplicate ouroboros permission on second run", async () => {
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false);
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false);
-    const settings = fs.readJsonSync(path.join(tmpDir, ".claude", "settings.json"));
-    const count = settings.permissions.allow.filter((p: string) => p === OUROBOROS_PERM).length;
-    expect(count).toBe(1);
-  });
-
-  it("preserves existing allow entries when adding ouroboros permission", async () => {
+  it("preserves existing permission allow entries when writing settings", async () => {
     const settingsPath = path.join(tmpDir, ".claude", "settings.json");
     fs.writeJsonSync(settingsPath, {
       permissions: { allow: ["mcp__some__other_tool"] },
@@ -70,18 +54,7 @@ describe("configureMCPs — dryRun: false — settings.json writes", () => {
     await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false);
     const settings = fs.readJsonSync(settingsPath);
     expect(settings.permissions.allow).toContain("mcp__some__other_tool");
-    expect(settings.permissions.allow).toContain(OUROBOROS_PERM);
-  });
-
-  it("does not add ouroboros permission if already present", async () => {
-    const settingsPath = path.join(tmpDir, ".claude", "settings.json");
-    fs.writeJsonSync(settingsPath, {
-      permissions: { allow: [OUROBOROS_PERM, "mcp__some__other_tool"] },
-    });
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false);
-    const settings = fs.readJsonSync(settingsPath);
-    const count = settings.permissions.allow.filter((p: string) => p === OUROBOROS_PERM).length;
-    expect(count).toBe(1);
+    expect(settings.mcpServers).toBeDefined();
   });
 
   it("creates .mcp.json with playwright and chrome-devtools entries", async () => {

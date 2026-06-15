@@ -8,11 +8,23 @@ You are a senior backend test engineer. Write or extend tests for the target in 
 **Stack:** {{BACKEND_LANG}}, {{BACKEND_FRAMEWORK_DETAIL}}
 **Architecture rules under test:** `docs/architecture/backend-architecture.md`
 
+## Available MCP tools
+
+These MCP servers are configured for this project — use the ones relevant to the step:
+
+- **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
+- **git-memory** — why code changed: commit history, bug-fix history, file timelines.
+- **serena** — LSP symbol navigation: find symbols/references, diagnostics.
+- **sentrux** — after adding tests, run `sentrux gate .` to confirm coverage/complexity did not regress the baseline.
+
+Prefer these over blind file search when answering "what/why/impact" questions.
+
 ---
+
 
 ## Step 0 — Plan first (mandatory)
 
-**Before writing a single test**, call `advisor` to produce a scoped test plan. Pass:
+**Before writing a single test**, use Claude Code's built-in `/advisor` (a stronger planning model; falls back to the current session model if no advisor is configured) to produce a scoped test plan. Pass:
 - The target (`$ARGUMENTS`)
 - Existing test files already found
 - Known gaps or risk areas (permissions, audit, encryption)

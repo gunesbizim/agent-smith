@@ -20,7 +20,7 @@ You are a senior backend engineer. Implement the backend task given in `$ARGUMEN
 
 ## Step 0 — Plan first (mandatory)
 
-**Before writing any code**, call `advisor` with model `opus` to produce a scoped implementation plan. Pass:
+**Before writing any code**, use Claude Code's built-in `/advisor` (a stronger planning model; falls back to the current session model if no advisor is configured) to produce a scoped implementation plan. Pass:
 - The task from `$ARGUMENTS`
 - The files and symbols identified as relevant (from Step 1)
 - Any known constraints (role restrictions, field-level permissions, audit requirements)

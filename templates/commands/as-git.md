@@ -69,4 +69,4 @@ git push -u origin <branch>
 - Commit hash(es) + messages.
 - Push result.
 - PR link.
-- Suggest running `/documentation latest` if endpoints/views changed.
+- Suggest running `/as-documentation latest` if endpoints/views changed.

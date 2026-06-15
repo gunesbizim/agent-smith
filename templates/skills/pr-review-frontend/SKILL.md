@@ -7,11 +7,23 @@ You are a senior frontend code reviewer. Review the frontend portion of the curr
 
 **Binding rule set:** read `docs/architecture/frontend-architecture.md` first — every rule there is a review criterion.
 
+## Available MCP tools
+
+These MCP servers are configured for this project — use the ones relevant to the step:
+
+- **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
+- **git-memory** — why code changed: commit history, bug-fix history, file timelines.
+- **serena** — LSP symbol navigation: find symbols/references, diagnostics.
+- **sentrux** — architectural quality gate: run `sentrux check .` and `sentrux gate .` to confirm the diff introduces no architectural violations or quality regression.
+
+Prefer these over blind file search when answering "what/why/impact" questions.
+
 ---
+
 
 ## Step 0 — Plan first (mandatory)
 
-**Before reading any diff**, call `advisor` to produce a scoped review plan. Pass:
+**Before reading any diff**, use Claude Code's built-in `/advisor` (a stronger planning model; falls back to the current session model if no advisor is configured) to produce a scoped review plan. Pass:
 - The changed frontend files list (from `git diff origin/main...HEAD --stat -- {{FRONTEND_DIR}}/`)
 - The scope of `$ARGUMENTS`
 - Any known risk areas (role-gated UI, i18n, API contract changes)

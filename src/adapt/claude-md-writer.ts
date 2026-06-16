@@ -34,7 +34,7 @@ function oneLine(text: string, max = 140): string {
 function scanCommands(commandsDir: string): Entry[] {
   if (!fs.existsSync(commandsDir)) return [];
   const entries: Entry[] = [];
-  for (const file of fs.readdirSync(commandsDir).sort()) {
+  for (const file of fs.readdirSync(commandsDir).sort((a, b) => a.localeCompare(b))) {
     if (!file.endsWith(".md")) continue;
     const name = `/${file.replace(/\.md$/, "")}`;
     const raw = safeRead(path.join(commandsDir, file));
@@ -72,7 +72,8 @@ function findSkillFiles(dir: string, depth = 0): string[] {
   return out;
 }
 
-// Minimal YAML frontmatter parse — just name + description (description may be a folded `>` block).
+// Minimal YAML frontmatter parse — just name + description (description may be a folded `>`
+// block). Uses plain string operations (no regex) to avoid backtracking/ReDoS concerns.
 function parseFrontmatter(content: string): { name: string; description: string } {
   const lines = content.split("\n");
   if (lines[0]?.trim() !== "---") return { name: "", description: "" };
@@ -81,17 +82,18 @@ function parseFrontmatter(content: string): { name: string; description: string 
   let inDesc = false;
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
-    if (line.trim() === "---") break;
-    const nameMatch = line.match(/^name:\s*(.+)$/);
-    if (nameMatch) { name = nameMatch[1].trim(); inDesc = false; continue; }
-    const descMatch = line.match(/^description:\s*(.*)$/);
-    if (descMatch) {
+    const trimmed = line.trim();
+    if (trimmed === "---") break;
+    if (line.startsWith("name:")) { name = line.slice("name:".length).trim(); inDesc = false; continue; }
+    if (line.startsWith("description:")) {
       inDesc = true;
-      const rest = descMatch[1].replace(/^[>|]\s*$/, "").trim();
+      const rest = line.slice("description:".length).trim();
       if (rest && rest !== ">" && rest !== "|") descParts.push(rest);
       continue;
     }
-    if (inDesc && /^\s+\S/.test(line)) { descParts.push(line.trim()); continue; }
+    // Folded continuation: an indented, non-empty line beneath `description:`.
+    const indented = (line.startsWith(" ") || line.startsWith("\t")) && trimmed.length > 0;
+    if (inDesc && indented) { descParts.push(trimmed); continue; }
     if (inDesc) inDesc = false;
   }
   return { name, description: descParts.join(" ") };
@@ -147,7 +149,7 @@ function splice(existing: string, block: string): string {
     return `${before}${block}${after}`;
   }
   // No markers yet — append the block, keeping the user's content above it.
-  const sep = existing.trim().length > 0 ? `${existing.replace(/\s*$/, "")}\n\n` : "";
+  const sep = existing.trim().length > 0 ? `${existing.trimEnd()}\n\n` : "";
   return `${sep}${block}\n`;
 }
 

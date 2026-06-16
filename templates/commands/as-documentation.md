@@ -15,7 +15,7 @@ git diff origin/main...HEAD --name-only
 
 | Changed paths | Skill to trigger |
 |---|---|
-| Backend views, serializers, urls, services, migrations | **docs-backend** (API annotations + Obsidian technical note) |
+| Backend request handlers, request/response schemas, routes, services, migrations | **docs-backend** (API annotations + Obsidian technical note) |
 | Frontend views, components, router, user-visible flows | **docs-frontend** (Playwright screenshots per role + Obsidian guide) |
 | Both | both skills |
 | Neither | report "no documentation impact" and stop |
@@ -42,3 +42,9 @@ git diff origin/main...HEAD --name-only
 ### Follow-ups
 <schema warnings, undocumentable flows, console errors found>
 ```
+
+---
+
+## Execution discipline (fable-mode)
+
+For work that spans multiple files, sources, or sessions, follow the **fable-mode** skill (`.claude/skills/fable-mode/SKILL.md`): write a numbered stage map before acting, delegate independent stages to subagents where the runtime supports it, verify each stage with a check that can actually fail — a test that runs, a source actually fetched, an output diffed against spec — not "it looks right", and do a skeptical self-review naming at least one weakness before delivery. Skip it only for trivial single-pass tasks where staging would just add ceremony.

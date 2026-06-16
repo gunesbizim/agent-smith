@@ -61,3 +61,9 @@ acyclicity: <score> | depth: <score> | equality: <score> | redundancy: <score> |
 - Prioritize by impact: critical (broken) > warning (suboptimal) > suggestion (nice-to-have)
 - Every recommendation must be a concrete action the user can take
 - If everything is perfect, say so — don't invent issues
+
+---
+
+## Execution discipline (fable-mode)
+
+For work that spans multiple files, sources, or sessions, follow the **fable-mode** skill (`.claude/skills/fable-mode/SKILL.md`): write a numbered stage map before acting, delegate independent stages to subagents where the runtime supports it, verify each stage with a check that can actually fail — a test that runs, a source actually fetched, an output diffed against spec — not "it looks right", and do a skeptical self-review naming at least one weakness before delivery. Skip it only for trivial single-pass tasks where staging would just add ceremony.

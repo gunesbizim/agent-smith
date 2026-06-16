@@ -106,7 +106,8 @@ function preferDefined<T>(v: T | undefined, base: T): T {
 
 // Merge an LLM descriptor over the deterministic base. The LLM overrides a field only when
 // it provides a usable value, so we never lose a deterministic finding to an LLM omission.
-function mergeProfile(base: StackProfile, llm: Partial<StackProfile>): StackProfile {
+// Exported for testing.
+export function mergeProfile(base: StackProfile, llm: Partial<StackProfile>): StackProfile {
   return {
     ...base,
     source: "llm",
@@ -126,7 +127,8 @@ function mergeProfile(base: StackProfile, llm: Partial<StackProfile>): StackProf
   };
 }
 
-function mergeCommands(base: StackCommands, llm: Partial<StackCommands>): StackCommands {
+// Exported for testing.
+export function mergeCommands(base: StackCommands, llm: Partial<StackCommands>): StackCommands {
   return {
     test: llm.test ?? base.test,
     lint: llm.lint ?? base.lint,

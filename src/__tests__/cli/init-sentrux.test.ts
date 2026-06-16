@@ -93,6 +93,9 @@ vi.mock("../../adapt/project-interview.js", () => ({
   applyInterviewAnswers: vi.fn().mockImplementation((vars) => vars),
 }));
 
+import fs from "fs-extra";
+import os from "node:os";
+import path from "node:path";
 import { initCommand } from "../../cli/init.js";
 import { probeSentrux } from "../../analyze/architecture-sniffer.js";
 
@@ -127,5 +130,23 @@ describe("initCommand — sentrux probe integration", () => {
       available: false, cycles: null, maxCC: null, couplingGrade: null, qualitySignal: null, bottleneck: null,
     });
     await expect(initCommand({ auto: true, dryRun: true })).resolves.not.toThrow();
+  });
+
+  it("non-dry run actually installs sentrux config and writes CLAUDE.md", async () => {
+    mockProbeSentrux.mockResolvedValue({
+      available: true, cycles: 0, maxCC: 12, couplingGrade: "A", qualitySignal: 90, bottleneck: null,
+    });
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agent-smith-init-"));
+    fs.ensureDirSync(path.join(tmp, ".claude"));
+    try {
+      // llm:false skips the headless-claude refine + skill-generation paths.
+      await expect(initCommand({ auto: true, dryRun: false, llm: false, dir: tmp })).resolves.not.toThrow();
+      expect(fs.existsSync(path.join(tmp, ".sentrux", "rules.toml"))).toBe(true);
+      expect(fs.existsSync(path.join(tmp, ".sentrux", "baseline.json"))).toBe(true);
+      expect(fs.existsSync(path.join(tmp, "CLAUDE.md"))).toBe(true);
+      expect(fs.readFileSync(path.join(tmp, "CLAUDE.md"), "utf-8")).toContain("<!-- agent-smith:start -->");
+    } finally {
+      fs.removeSync(tmp);
+    }
   });
 });

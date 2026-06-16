@@ -112,6 +112,88 @@ describe("deterministicProfile — ecosystems", () => {
     expect(p.dbEngine).toBe("postgresql");
     expect(p.confidence).toBe(0.95);
   });
+
+  it("with llm: includes gitnexus signal in the evidence blob", () => {
+    const evidence: StackEvidence = {
+      rootPath: "/x",
+      manifests: [{ path: "pom.xml", content: "spring-boot" }],
+      ciFiles: [{ path: ".github/workflows/ci.yml", content: "mvn test" }],
+      gitnexus: { topImports: ["org.springframework.boot", "jakarta.persistence"], supertypes: ["JpaRepository"], clusters: [{ name: "web", cohesion: 0.8 }] },
+    };
+    const p = synthesizeStackProfile(evidence, { useLlm: true });
+    expect(p.source).toBe("llm");
+    expect(p.framework).toBe("spring-boot");
+  });
+});
+
+describe("deterministicProfile — branch coverage", () => {
+  const j = (c: string, f = "pom.xml") => deterministicProfile(ev([{ path: f, content: c }]));
+
+  it("Maven minimal: no spotless/flyway/security → null format/migrate, no auth", () => {
+    const p = j("<java.version>11</java.version> spring-boot");
+    expect(p.commands.format).toBeNull();
+    expect(p.commands.migrate).toBeNull();
+    expect(p.authMethod).toBeNull();
+    expect(p.roleModel).toBe("none");
+    expect(p.commands.lint).toBeNull();
+  });
+  it("Maven checkstyle lint path", () => {
+    expect(j("spring-boot checkstyle").commands.lint).toBe("mvn checkstyle:check");
+  });
+  it("Quarkus + hibernate", () => {
+    const p = j("quarkus hibernate");
+    expect(p.framework).toBe("quarkus");
+    expect(p.orm).toBe("JPA/Hibernate");
+  });
+  it("Micronaut", () => { expect(j("micronaut jooq").framework).toBe("micronaut"); });
+  it("generic JVM service (pom without known framework)", () => {
+    const p = j("some-lib");
+    expect(p.framework).toBe("generic-server");
+    expect(p.loggingPattern).toBe("unstructured");
+  });
+  it("Gradle Groovy: sourceCompatibility + checkstyle + flyway + h2", () => {
+    const p = deterministicProfile(ev([{ path: "build.gradle", content: "sourceCompatibility = '17'\nspring-boot\nspring-data-jpa\ncheckstyle\nflyway\ncom.h2database" }]));
+    expect(p.language).toBe("java");
+    expect(p.languageVersion).toBe("17");
+    expect(p.dbEngine).toBe("sqlite");
+    expect(p.commands.lint).toBe("./gradlew checkstyleMain");
+    expect(p.commands.migrate).toBe("./gradlew flywayMigrate");
+  });
+  it("Node fastify/koa/hono + no scripts fallback (vitest)", () => {
+    const mk = (deps: Record<string, string>) => deterministicProfile(ev([{ path: "package.json", content: JSON.stringify({ dependencies: deps, devDependencies: { vitest: "1" } }) }]));
+    expect(mk({ fastify: "4" }).framework).toBe("fastify");
+    expect(mk({ koa: "2" }).framework).toBe("koa");
+    expect(mk({ hono: "4" }).framework).toBe("hono");
+    expect(mk({ fastify: "4" }).commands.test).toBe("npx vitest run");
+  });
+  it("Node prisma/typeorm/drizzle/mongoose + pino logging", () => {
+    const mk = (deps: Record<string, string>) => deterministicProfile(ev([{ path: "package.json", content: JSON.stringify({ dependencies: { express: "4", ...deps } }) }]));
+    expect(mk({ typeorm: "0" }).orm).toBe("TypeORM");
+    expect(mk({ "drizzle-orm": "0" }).orm).toBe("Drizzle");
+    expect(mk({ mongoose: "8" }).dbEngine).toBe("mongodb");
+    expect(mk({ pino: "9" }).loggingPattern).toBe("structured");
+  });
+  it("Go chi/fiber/generic + sqlx/ent", () => {
+    const mk = (c: string) => deterministicProfile(ev([{ path: "go.mod", content: "go 1.22\n" + c }]));
+    expect(mk("go-chi/chi jmoiron/sqlx").framework).toBe("chi");
+    expect(mk("gofiber/fiber entgo.io/ent").framework).toBe("fiber");
+    expect(mk("module x\ngithub.com/foo").framework).toBe("generic-server");
+  });
+  it("Rust rocket/actix/generic-tokio + sqlx migrate", () => {
+    const mk = (c: string) => deterministicProfile(ev([{ path: "Cargo.toml", content: c }]));
+    expect(mk("rocket sqlx").framework).toBe("rocket");
+    expect(mk("actix-web").framework).toBe("actix-web");
+    expect(mk("tokio sea-orm").orm).toBe("SeaORM");
+    expect(mk("rocket sqlx").commands.migrate).toBe("sqlx migrate run");
+    expect(mk("nothing").language).toBeNull(); // no framework + no tokio → not rust
+  });
+  it("Python Django via requirements.txt + black formatter", () => {
+    const p = deterministicProfile(ev([{ path: "requirements.txt", content: "Django==5\ndjangorestframework\nblack\npsycopg" }]));
+    expect(p.framework).toBe("django");
+    expect(p.orm).toBe("Django ORM");
+    expect(p.commands.format).toBe("black --check .");
+    expect(p.commands.migrate).toContain("manage.py");
+  });
 });
 
 describe("mergeProfile / mergeCommands", () => {

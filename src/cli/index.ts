@@ -1,13 +1,22 @@
 // CLI entry point — registered via Commander
 import { Command } from "commander";
 import chalk from "chalk";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+// Read the real version from package.json at runtime (ESM-safe).
+// Compiled output lives at dist/cli/index.js, so package.json is two levels up.
+const pkg = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../package.json"), "utf-8"),
+);
 
 const program = new Command();
 
 program
   .name("agent-smith")
   .description("Autonomous development pipeline — MCP auto-config, project-aware skills, Jira-to-PR automation")
-  .version("0.1.0");
+  .version(pkg.version);
 
 // ------ init ------
 program

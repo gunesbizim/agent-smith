@@ -5,6 +5,7 @@ import { detectProject } from "../analyze/project-detector.js";
 import { sniffArchitecture } from "../analyze/architecture-sniffer.js";
 import { mapBestPractices } from "../analyze/best-practice-mapper.js";
 import { refineWithLlm } from "../analyze/llm-analyzer.js";
+import { gatherAndSynthesizeStack } from "../analyze/stack-synthesizer.js";
 import { DEFAULT_TEMPLATE_VARS } from "../shared/templates.js";
 
 interface AnalyzeOptions {
@@ -25,12 +26,16 @@ export async function analyzeCommand(opts: AnalyzeOptions): Promise<void> {
     llmNote = refined.usedLlm ? "refined by Claude" : `programmatic (${refined.reason})`;
   }
   const patterns = await sniffArchitecture(cwd, project);
-  const vars = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS);
+
+  // Evidence-driven stack synthesis — the authority for backend stack + toolchain commands.
+  spinner.text = "Synthesizing stack from project evidence...";
+  const stackProfile = await gatherAndSynthesizeStack(cwd, { useLlm: opts.llm });
+  const vars = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, undefined, stackProfile);
 
   spinner.succeed(llmNote ? `Analysis complete — ${llmNote}` : "Analysis complete");
 
   if (opts.json) {
-    console.log(JSON.stringify({ project, patterns, templateVariables: vars }, null, 2));
+    console.log(JSON.stringify({ project, patterns, stackProfile, templateVariables: vars }, null, 2));
     return;
   }
 
@@ -97,6 +102,20 @@ export async function analyzeCommand(opts: AnalyzeOptions): Promise<void> {
     console.log(chalk.bold("\nCI/CD:"));
     console.log(`  Provider: ${project.cicd.provider}`);
     console.log(`  Config:   ${project.cicd.configPath}`);
+  }
+
+  // Synthesized stack — the evidence-driven authority that drives the generated skills.
+  if (stackProfile.language) {
+    console.log(chalk.bold(`\nStack (synthesized — ${stackProfile.source}, confidence ${stackProfile.confidence}):`));
+    console.log(`  Language:   ${stackProfile.language} ${stackProfile.languageVersion}`.trimEnd());
+    console.log(`  Framework:  ${stackProfile.frameworkDetail}`);
+    console.log(`  ORM:        ${stackProfile.orm ?? "none"}`);
+    console.log(`  Database:   ${stackProfile.dbEngine ?? "none"}`);
+    console.log(`  Auth:       ${stackProfile.authMethod ?? "none"}`);
+    console.log(`  Test:       ${stackProfile.commands.test ?? "none"}`);
+    console.log(`  Lint:       ${stackProfile.commands.lint ?? "none"}`);
+    console.log(`  Format:     ${stackProfile.commands.format ?? "none"}`);
+    console.log(`  Migrate:    ${stackProfile.commands.migrate ?? "none"}`);
   }
 
   // Template variables

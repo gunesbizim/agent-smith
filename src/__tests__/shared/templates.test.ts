@@ -37,9 +37,11 @@ describe("Template Engine", () => {
       expect(result).toBe("Backend: FastAPI");
     });
 
-    it("falls back to DEFAULT_TEMPLATE_VARS for unresolved", () => {
+    it("falls back to DEFAULT_TEMPLATE_VARS (stack-agnostic 'none') for unresolved", () => {
+      // Defaults must NOT describe any specific stack — an undetected field renders as
+      // honest "none", never a borrowed Django/Vue value that would leak onto a foreign stack.
       const result = resolveTemplate("Framework: {{BACKEND_FRAMEWORK}}", {});
-      expect(result).toContain("Django"); // default
+      expect(result).toBe("Framework: none");
     });
 
     it("leaves truly unknown placeholders intact", () => {

@@ -71,6 +71,24 @@ export async function scaffoldSkills(
     }
   }
 
+  // fable-mode execution-discipline skill — copied verbatim (no template vars). Shipped to
+  // every project so staged execution discipline is available and the SessionStart hook can
+  // surface it each session.
+  if (!dryRun) {
+    const fableSrc = path.join(getPackageRoot(), "templates", "skills", "fable-mode");
+    const fableDest = path.join(skillsDir, "fable-mode");
+    try {
+      if (fs.existsSync(fableSrc)) {
+        fs.ensureDirSync(fableDest);
+        fs.copySync(fableSrc, fableDest, { overwrite: true });
+      }
+    } catch {
+      // best-effort — a missing template dir should not abort the whole init
+    }
+  } else {
+    console.log(`  Would copy fable-mode skill to: ${path.join(skillsDir, "fable-mode")}`);
+  }
+
   // gitnexus helper skills
   for (const [relPath, _] of Object.entries(GITNEXUS_SKILLS)) {
     const destPath = path.join(skillsDir, relPath);

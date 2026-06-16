@@ -4,12 +4,14 @@ import path from "node:path";
 import type { DetectedProject, TemplateVariables } from "../shared/types.js";
 import type { PackageUsage } from "./package-scanner.js";
 import type { ArchitecturePattern } from "./architecture-sniffer.js";
+import type { StackProfile } from "./stack-types.js";
 
 export function mapBestPractices(
   project: DetectedProject,
   patterns: ArchitecturePattern[],
   defaults: TemplateVariables,
   packageUsage?: PackageUsage,
+  stackProfile?: StackProfile,
 ): TemplateVariables {
   const vars: TemplateVariables = { ...defaults };
 
@@ -202,11 +204,59 @@ export function mapBestPractices(
   }
 
   // Honest output: when a side wasn't detected, emit "none" rather than letting the
-  // opinionated DEFAULT_TEMPLATE_VARS (a Django + Vue stack) leak through as if analyzed.
+  // stack-agnostic DEFAULT_TEMPLATE_VARS leak through as if analyzed.
   if (!project.backend) neutralizeBackendVars(vars, project);
   if (!project.frontend) neutralizeFrontendVars(vars);
 
+  // The StackProfile (evidence → synthesizer) is the AUTHORITY for the backend stack and,
+  // critically, for every toolchain command. Applied last so it overrides both the heuristic
+  // detector and any leaked default — this is what stops Python tooling appearing on a Java
+  // (or Go, Rust, …) project. It only acts when a backend language was actually determined.
+  if (stackProfile) applyStackProfile(vars, stackProfile);
+
   return vars;
+}
+
+// Overwrite backend stack + command template variables from a synthesized StackProfile.
+// Every command is set explicitly (test/lint/format/typecheck/migrate) so none can fall
+// back to a borrowed default. Unknown fields become honest "none".
+function applyStackProfile(vars: TemplateVariables, profile: StackProfile): void {
+  if (!profile.language) return; // nothing determined — keep honest defaults
+
+  vars.BACKEND_LANG = profile.languageVersion
+    ? `${capitalize(profile.language)} ${profile.languageVersion}`
+    : capitalize(profile.language);
+  if (profile.framework) vars.BACKEND_FRAMEWORK = capitalize(profile.framework);
+  if (profile.frameworkDetail && profile.frameworkDetail !== "none") {
+    vars.BACKEND_FRAMEWORK_DETAIL = profile.frameworkDetail;
+  }
+  vars.ORM = profile.orm ?? "none";
+  if (profile.dbEngine) vars.DB_ENGINE = profile.dbEngine;
+  if (profile.authMethod) vars.AUTH_METHOD = profile.authMethod;
+  vars.ROLE_SYSTEM = profile.roleModel || "none";
+  vars.ROLE_VALID_VALUES = profile.roleValues || "none";
+  vars.IMPORT_STYLE = profile.importStyle;
+  vars.LOGGING_PATTERN = profile.loggingPattern;
+  vars.LOGGING_CANONICAL_KEYS = profile.loggingPattern === "structured"
+    ? "trace_id, span_id, user_id, entity_id, action"
+    : "none";
+  vars.API_DOCS_LIBRARY = profile.framework === "django"
+    ? "drf-spectacular"
+    : profile.framework === "fastapi"
+      ? "FastAPI built-in OpenAPI (Swagger UI + ReDoc)"
+      : "none";
+
+  const c = profile.commands;
+  vars.BACKEND_TEST_CMD = c.test ?? "none";
+  vars.BACKEND_LINT_CMD = c.lint ?? "none";
+  vars.BACKEND_FORMAT_CMD = c.format ?? "none";
+  vars.BACKEND_TYPE_CHECK_CMD = c.typecheck ?? "none";
+  vars.BACKEND_MIGRATE_CMD = c.migrate ?? "none";
+  // BACKEND_SETTINGS_MODULE is a Django-only concept — keep it language-neutral.
+  vars.BACKEND_SETTINGS_MODULE = "none";
+
+  const gates = [c.lint, c.test, c.typecheck].filter((g): g is string => Boolean(g));
+  vars.PRE_PUSH_GATES = gates.length > 0 ? gates.join(" + ") : "none";
 }
 
 // Replace any leaked backend defaults with honest "none" values. Preserves a detected

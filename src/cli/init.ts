@@ -7,6 +7,9 @@ import { detectProject } from "../analyze/project-detector.js";
 import { sniffArchitecture, probeSentrux } from "../analyze/architecture-sniffer.js";
 import { mapBestPractices } from "../analyze/best-practice-mapper.js";
 import { refineWithLlm } from "../analyze/llm-analyzer.js";
+import { gatherAndSynthesizeStack } from "../analyze/stack-synthesizer.js";
+import { installSentrux } from "../install/sentrux-installer.js";
+import { writeClaudeMd } from "../adapt/claude-md-writer.js";
 import { resolveSourceDirs, writeSourceConfig } from "../analyze/source-dir.js";
 import { scanPackages } from "../analyze/package-scanner.js";
 import { runInterview, applyInterviewAnswers } from "../adapt/project-interview.js";
@@ -17,7 +20,7 @@ import { scaffoldSkills } from "../scaffold/skills.js";
 import { scaffoldConfigs } from "../scaffold/configs.js";
 import { scaffoldHooks } from "../scaffold/hooks.js";
 import { customizeSkills } from "../adapt/skill-customizer.js";
-import { writeArchitectureDocs, writeSentruxRules } from "../adapt/architecture-writer.js";
+import { writeArchitectureDocs } from "../adapt/architecture-writer.js";
 import { generateSkills } from "../adapt/llm-skills.js";
 import { cavemanCompress } from "../adapt/caveman-compress.js";
 import type { TemplateVariables } from "../shared/types.js";
@@ -92,11 +95,15 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   const patterns = await sniffArchitecture(cwd, project);
   archSpinner.succeed(`Found ${patterns.length} architectural patterns`);
 
-  // Step 4 — Map best practices
+  // Step 4 — Map best practices. The evidence-driven StackProfile (gathered from the
+  // project's own manifests/CI, optionally refined by Claude) is the authority for the
+  // backend stack and every toolchain command — so e.g. a Java/Spring project never gets
+  // Python tooling. LLM refinement follows the same on-by-default policy as detection.
   const bpSpinner = ora("Mapping best practices...").start();
   const packageUsage = await scanPackages(cwd);
-  let templateVars: TemplateVariables = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, packageUsage);
-  bpSpinner.succeed("Best practices mapped");
+  const stackProfile = await gatherAndSynthesizeStack(cwd, { useLlm: llmRequested && !opts.dryRun });
+  let templateVars: TemplateVariables = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, packageUsage, stackProfile);
+  bpSpinner.succeed(`Best practices mapped (stack: ${stackProfile.language ?? "none"}${stackProfile.framework ? "/" + stackProfile.framework : ""})`);
 
   // Step 4c — Sentrux probe (live scan to seed rules.toml thresholds)
   const sentruxSpinner = ora("Probing architecture quality (sentrux scan)...").start();
@@ -189,10 +196,20 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     }
   }
 
-  // Step 8c — Write .sentrux/rules.toml
-  const sentruxRulesSpinner = ora("Writing .sentrux/rules.toml...").start();
-  await writeSentruxRules(targetDir, templateVars, opts.dryRun);
-  sentruxRulesSpinner.succeed(".sentrux/rules.toml written");
+  // Step 8c — Install sentrux: write BOTH .sentrux/rules.toml and a starter baseline.json
+  // (the gate's regression reference, previously never scaffolded). Idempotent — preserves
+  // an existing .sentrux/ config.
+  const sentruxRulesSpinner = ora("Installing sentrux quality gate (.sentrux/)...").start();
+  if (opts.dryRun) {
+    sentruxRulesSpinner.info("sentrux install skipped (--dry-run)");
+  } else {
+    const sentruxInstall = await installSentrux(targetDir, templateVars);
+    if (sentruxInstall.installed) {
+      sentruxRulesSpinner.succeed(".sentrux/ installed (rules.toml + baseline.json)");
+    } else {
+      sentruxRulesSpinner.info(`sentrux: ${sentruxInstall.reason ?? "left existing config untouched"}`);
+    }
+  }
 
   // Step 8b — Caveman compression (if enabled)
   if (opts.caveman && !opts.dryRun) {
@@ -235,6 +252,14 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   const hooksSpinner = ora("Setting up automation hooks...").start();
   await scaffoldHooks(targetDir, opts.dryRun);
   hooksSpinner.succeed("Automation hooks configured");
+
+  // Step 12 — Write/refresh the agent-smith managed block in CLAUDE.md. Runs LAST so it can
+  // enumerate every command and skill just scaffolded. Non-destructive: only the content
+  // between the <!-- agent-smith:start --> / <!-- agent-smith:end --> markers is owned by
+  // agent-smith; the user's own CLAUDE.md content is preserved.
+  const claudeMdSpinner = ora("Writing CLAUDE.md (agent-smith managed block)...").start();
+  const claudeMd = writeClaudeMd(targetDir, opts.dryRun);
+  claudeMdSpinner.succeed(`CLAUDE.md ${claudeMd.created ? "created" : "updated"} (commands + skills documented)`);
 
   console.log(chalk.bold.green("\n✓ Agent Smith initialized successfully!\n"));
   console.log(chalk.white("Next steps:"));

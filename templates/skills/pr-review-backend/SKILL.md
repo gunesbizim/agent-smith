@@ -88,12 +88,12 @@ Score > 0.7 = highly relevant — the diff may be reverting a deliberate fix.
 > The criteria below are framework-agnostic; the wording assumes a layered web backend. Apply
 > only what fits this project's real architecture (per `backend-architecture.md`) — e.g. for a
 > CLI/library with no HTTP tier, skip the endpoint/role items and review the public API surface
-> instead. Django/DRF-specific specifics (audit tables, ORM in views, migrations) apply only on
-> that stack.
+> instead. {{BACKEND_FRAMEWORK}}-specific concerns (audit tables, {{ORM}} access in request
+> handlers, migrations) apply only on this stack.
 
 ### 1. Architecture (layering)
-- Views: only parse request, call service, return response. Flag business logic, ORM, adapter calls.
-- Services: business logic only — no HTTP objects, no Response, no raw ORM.
+- Request handlers/controllers: only parse request, call service, return response. Flag business logic, {{ORM}} access, adapter calls.
+- Services: business logic only — no HTTP objects, no response objects, no raw {{ORM}} access.
 - Repositories: all data access lives here.
 - Services raise typed exceptions with integer status codes.
 

@@ -349,7 +349,9 @@ function pythonBackend(e: StackEvidence): StackProfile | null {
     language: "python", languageVersion: "",
     framework, frameworkDetail: isDjango ? "Django + Django REST Framework" : framework === "fastapi" ? "FastAPI + Pydantic" : "Flask",
     orm: isDjango ? "Django ORM" : c.includes("sqlalchemy") ? "SQLAlchemy" : null,
-    dbEngine: c.includes("psycopg") ? "postgresql" : c.includes("mysqlclient") ? "mysql" : "postgresql",
+    // Honest detection: only report a DB engine when a driver is actually declared — do not
+    // fabricate one (consistent with every other detector and this module's "unknown → null").
+    dbEngine: c.includes("psycopg") ? "postgresql" : c.includes("mysqlclient") || c.includes("pymysql") ? "mysql" : c.includes("sqlite") ? "sqlite" : null,
     authMethod: c.includes("djangorestframework-simplejwt") || c.includes("jwt") ? "JWT" : "session",
     roleModel: isDjango ? "DRF permission classes / role checks" : "none", roleValues: "none",
     loggingPattern: "unstructured",

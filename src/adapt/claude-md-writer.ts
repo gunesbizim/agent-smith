@@ -102,10 +102,16 @@ function safeRead(p: string): string {
   try { return fs.readFileSync(p, "utf-8").replace(/\r\n/g, "\n"); } catch { return ""; }
 }
 
+// Escape a value for a markdown table cell — backslashes FIRST, then pipes, so an input
+// backslash can't defeat the pipe escaping.
+function cell(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+}
+
 function table(rows: Entry[]): string {
   if (rows.length === 0) return "_none_\n";
   const head = "| Name | Purpose |\n|------|---------|\n";
-  return head + rows.map((r) => `| \`${r.name}\` | ${r.description.replace(/\|/g, "\\|")} |`).join("\n") + "\n";
+  return head + rows.map((r) => `| \`${cell(r.name)}\` | ${cell(r.description)} |`).join("\n") + "\n";
 }
 
 // Build the managed block (markers included).
@@ -161,8 +167,15 @@ export function writeClaudeMd(targetDir: string, dryRun = false): ClaudeMdResult
   const skills = scanSkills(path.join(targetDir, ".claude", "skills"));
   const block = buildManagedBlock(commands, skills);
 
-  const existed = fs.existsSync(claudePath);
-  const existing = existed ? safeRead(claudePath) : "";
+  // Read once (no existsSync-then-read) to avoid a time-of-check/time-of-use race.
+  let existing = "";
+  let existed = false;
+  try {
+    existing = fs.readFileSync(claudePath, "utf-8").replace(/\r\n/g, "\n");
+    existed = true;
+  } catch {
+    // No CLAUDE.md yet — we'll create one.
+  }
   const next = splice(existing, block);
 
   if (!dryRun) {

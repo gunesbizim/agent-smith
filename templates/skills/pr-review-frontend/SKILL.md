@@ -6,6 +6,7 @@ description: Review frontend changes against architecture rules. Use when a PR o
 You are a senior frontend code reviewer. Review the frontend portion of the current branch diff against main and produce a structured report.
 
 **Binding rule set:** read `docs/architecture/frontend-architecture.md` first — every rule there is a review criterion.
+**Engineering standards:** `docs/architecture/best-practices.md` — enforce the **Followed** items; surface relevant **Recommended** items under Suggestions.
 
 ## Available MCP tools
 
@@ -88,6 +89,9 @@ When the diff uses UI library props/slots/events you don't recognize, look them 
 
 ## Checklist — work through every section
 
+> Framework-agnostic criteria; the wording uses Vue/Vuetify terms as the example stack. Apply
+> the equivalents for this project's real framework (per `frontend-architecture.md`).
+
 ### 1. Component compliance
 - All components use the canonical pattern (e.g. script setup + TypeScript).
 - Typed props and emits.
@@ -131,6 +135,11 @@ When the diff uses UI library props/slots/events you don't recognize, look them 
 
 ### 9. Commit hygiene
 - Every commit message contains a ticket reference.
+
+### 10. Best-practice opportunities (non-blocking)
+- Compare the diff against the **Recommended** items in `docs/architecture/best-practices.md`
+  (accessibility, async-state handling, design tokens, bundle budget, …).
+- Note adoptable improvements as **suggestions**, never blockers.
 
 ---
 

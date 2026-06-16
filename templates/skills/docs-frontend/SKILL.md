@@ -7,6 +7,12 @@ You are a senior technical writer. Produce **human-readable, styled user documen
 
 **This skill documents by SHOWING:** every documented flow is driven live in the browser via Playwright MCP and illustrated with real screenshots per role.
 
+## How this runs (LLM + write path)
+
+- **LLM engine:** this skill runs inside the Claude Code session — the Claude Code CLI *is* the LLM. There is no `--llm` flag, no API key, and no external model to configure; generation is on by default whenever you run the skill. The optional `/advisor` step only swaps the *planning* model when one is configured.
+- **Write path:** the guide is written to the project's Obsidian vault through the **`obsidian` MCP** by default, falling back to `docs/user-guide/` in the repo if that MCP is not connected (see Step 4). Screenshots always land in the gitignored `.playwright-mcp/` directory.
+- **Stack-agnostic:** routes, dev-server command, and directories come from this project's detected stack via `{{...}}` variables — nothing here is tied to a specific framework.
+
 ## Available MCP tools
 
 These MCP servers are configured for this project — use the ones relevant to the step:
@@ -118,6 +124,12 @@ Write the guide to the Obsidian vault:
 - Async behavior explained in human terms.
 
 ---
+
+## Recommended best practices (suggestions — not blockers)
+
+From `docs/architecture/best-practices.md` (Documentation → Recommended), surface adoptable
+guide standards — e.g. document accessibility affordances, keep one note per flow updated in
+place, link related flows. Offer these as suggestions; never block the guide on them.
 
 ## Step 5 — Verify
 

@@ -5,7 +5,6 @@ import {
   ClaudeCodeAdapter,
   CursorAdapter,
   ContinueAdapter,
-  SmitheryAdapter,
 } from "../../shared/platform-adapter.js";
 
 describe("Platform Adapters", () => {
@@ -15,7 +14,6 @@ describe("Platform Adapters", () => {
       expect(PLATFORM_ADAPTERS["claude-cli"]).toBeInstanceOf(ClaudeCodeAdapter);
       expect(PLATFORM_ADAPTERS.cursor).toBeInstanceOf(CursorAdapter);
       expect(PLATFORM_ADAPTERS.continue).toBeInstanceOf(ContinueAdapter);
-      expect(PLATFORM_ADAPTERS.smithery).toBeInstanceOf(SmitheryAdapter);
     });
 
     it("getPlatformAdapter returns correct adapter", () => {
@@ -81,23 +79,8 @@ describe("Platform Adapters", () => {
     });
   });
 
-  describe("SmitheryAdapter", () => {
-    const adapter = new SmitheryAdapter();
-
-    it("has smithery-specific config", () => {
-      expect(adapter.mcpConfigPath).toBe("smithery.yaml");
-      expect(adapter.mcpConfigFormat).toBe("smithery");
-    });
-
-    it("installMCPs is a no-op (smithery reads from yaml)", async () => {
-      await expect(
-        adapter.installMCPs({ projectSettings: {}, projectMcp: {}, userMcp: {} }),
-      ).resolves.not.toThrow();
-    });
-  });
-
   describe("Adapter Interface Compliance", () => {
-    const adapters = [new ClaudeCodeAdapter(), new CursorAdapter(), new ContinueAdapter(), new SmitheryAdapter()];
+    const adapters = [new ClaudeCodeAdapter(), new CursorAdapter(), new ContinueAdapter()];
 
     for (const adapter of adapters) {
       it(`${adapter.name} implements required interface`, () => {

@@ -134,39 +134,12 @@ export class ContinueAdapter implements PlatformAdapter {
   }
 }
 
-// ---- Smithery Adapter ----
-export class SmitheryAdapter implements PlatformAdapter {
-  name = "smithery";
-  displayName = "Smithery.ai (universal)";
-  mcpConfigPath = "smithery.yaml";
-  mcpConfigFormat = "smithery" as const;
-  skillsBasePath = ".claude/skills";
-  commandsBasePath = ".claude/commands";
-  architectureBasePath = "docs/architecture";
-
-  async installMCPs(_configs: MCPConfigBundle): Promise<void> {
-    // Smithery reads everything from smithery.yaml — no-op
-  }
-
-  async scaffoldSkills(skills: SkillFile[]): Promise<void> {
-    // Skills are bundled in the smithery deployment descriptor
-    // Write to local filesystem as a convenience
-    const projectRoot = process.cwd();
-    for (const skill of skills) {
-      const destPath = path.join(projectRoot, skill.relativePath);
-      fs.ensureDirSync(path.dirname(destPath));
-      await fs.writeFile(destPath, skill.content, "utf-8");
-    }
-  }
-}
-
 // ---- Adapter Registry ----
 export const PLATFORM_ADAPTERS: Record<string, PlatformAdapter> = {
   "claude-code": new ClaudeCodeAdapter(),
   "claude-cli": new ClaudeCodeAdapter(), // same config format
   cursor: new CursorAdapter(),
   continue: new ContinueAdapter(),
-  smithery: new SmitheryAdapter(),
 };
 
 export function getPlatformAdapter(name: string): PlatformAdapter | undefined {

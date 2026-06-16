@@ -297,7 +297,7 @@ export interface PlatformAdapter {
   name: string;
   displayName: string;
   mcpConfigPath: string;
-  mcpConfigFormat: "claude-settings" | "cursor-mcp" | "continue-config" | "smithery";
+  mcpConfigFormat: "claude-settings" | "cursor-mcp" | "continue-config";
   skillsBasePath: string;
   commandsBasePath: string;
   architectureBasePath: string;

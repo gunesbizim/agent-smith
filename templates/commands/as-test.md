@@ -6,10 +6,13 @@ You are the test orchestrator. Classify the target, dispatch test skills each in
 
 ## Step 1 — Classify the target
 
+Map the target to a side using THIS project's real layout (`{{BACKEND_DIR}}/`, `{{FRONTEND_DIR}}/`);
+the file-type examples below are illustrative, not exhaustive.
+
 | Target looks like | Side |
 |---|---|
-| Backend files, Python symbols, service/view/repository name | **Backend** |
-| Frontend files, `.vue`/`.tsx`/`.ts`, component/store name | **Frontend** |
+| Backend files/symbols — service/view/handler/repository under `{{BACKEND_DIR}}/` | **Backend** |
+| Frontend files/symbols — component/view/store under `{{FRONTEND_DIR}}/` | **Frontend** |
 | Feature spanning both | **Both** |
 | Ambiguous | Check `git diff origin/main...HEAD --stat` — test the sides that changed |
 

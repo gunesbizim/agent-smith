@@ -13,8 +13,7 @@
     "obsidian",
     "pr-automation",
     "code-review",
-    "documentation",
-    "smithery"
+    "documentation"
   ],
   "license": "MIT",
   "author": "Agent Smith Contributors",
@@ -33,7 +32,6 @@
     "templates/",
     "hooks/",
     "bin/",
-    "smithery.yaml",
     "README.md",
     "LICENSE"
   ],

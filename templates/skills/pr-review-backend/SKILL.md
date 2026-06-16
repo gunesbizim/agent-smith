@@ -6,6 +6,7 @@ description: Review backend changes against architecture rules. Use when a PR or
 You are a senior backend code reviewer. Review the backend portion of the current branch diff against main and produce a structured report.
 
 **Binding rule set:** read `docs/architecture/backend-architecture.md` first — every rule there is a review criterion.
+**Engineering standards:** `docs/architecture/best-practices.md` — enforce the **Followed** items; surface relevant **Recommended** items under Suggestions.
 
 ## Available MCP tools
 
@@ -84,6 +85,12 @@ Score > 0.7 = highly relevant — the diff may be reverting a deliberate fix.
 
 ## Checklist — work through every section
 
+> The criteria below are framework-agnostic; the wording assumes a layered web backend. Apply
+> only what fits this project's real architecture (per `backend-architecture.md`) — e.g. for a
+> CLI/library with no HTTP tier, skip the endpoint/role items and review the public API surface
+> instead. Django/DRF-specific specifics (audit tables, ORM in views, migrations) apply only on
+> that stack.
+
 ### 1. Architecture (layering)
 - Views: only parse request, call service, return response. Flag business logic, ORM, adapter calls.
 - Services: business logic only — no HTTP objects, no Response, no raw ORM.
@@ -125,6 +132,11 @@ Score > 0.7 = highly relevant — the diff may be reverting a deliberate fix.
 ### 9. Commit hygiene
 - Every commit message contains a ticket reference.
 - Format `type(scope): TICKET-XX description` (≤ 72 chars).
+
+### 10. Best-practice opportunities (non-blocking)
+- Compare the diff against the **Recommended** items in `docs/architecture/best-practices.md`.
+- Where the change could adopt a recommended standard (idempotency, tracing, repository
+  abstraction, migration discipline, …) note it — as a **suggestion**, never a blocker.
 
 ---
 

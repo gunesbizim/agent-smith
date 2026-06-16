@@ -1,8 +1,14 @@
-# Agent Smith — Autonomous Development Pipeline
+# Agent Smith — Semi-Autonomous Development Pipeline
 
-Single npm package that auto-configures MCP servers, scaffolds project-aware Claude Code skills, and drives autonomous ticket-to-PR workflows.
+A single npm package that bootstraps a Claude Code project end to end: it **detects** your tech
+stack, **interviews** you about your conventions, **scaffolds** project-aware skills and commands,
+**installs and configures** MCP servers, **generates** architecture + best-practice docs, and
+stands up a **deterministic architectural quality gate** — then drives a **human-gated
+(semi-autonomous) ticket → PR pipeline**.
 
-One command to bootstrap any project:
+> **Semi-autonomous, by design.** Agent Smith automates the mechanical work and enforces quality,
+> but it keeps a human in the loop: the pipeline has approval gates, and the architecture gate
+> hands any regression back to you for an explicit decision. It does not merge unattended.
 
 ```bash
 npx @gunesbizim/agent-smith init
@@ -10,29 +16,52 @@ npx @gunesbizim/agent-smith init
 
 ---
 
-## How Agent Smith Works (60-second overview)
+## What it does (60-second tour)
 
-### The Problem
+Setting up Claude Code for a new repo is tedious: a dozen MCP servers across several JSON files,
+skills that must reference your real commands, and conventions Claude has to be taught — every
+time. Agent Smith automates that in four steps.
 
-Claude Code is powerful with MCP servers (gitnexus, git-memory, serena, etc.), but setting them up for a new project is painful: you need to manually configure 12+ MCP servers across 3 JSON files, write skills that reference project-specific commands, and teach Claude your team's conventions — every time you start a new project.
+**1 — Analyze.** Scans the repo to detect framework, language, ORM, auth, validation, logging, DB
+driver, cache, UI library, state manager, forms, router, rendering, test framework, E2E tool, and
+mocking library — reading lock/manifest files (`package.json`, `go.mod`, `Cargo.toml`,
+`composer.json`, `requirements.txt`, …) and mapping 100+ known packages to their categories. It
+recognizes **38 backend/frontend frameworks across 12 languages**.
 
-### The Solution
+**2 — Interview.** Asks ~11 questions about your conventions (branch naming, commit format, PR
+checklist, testing, architecture rules, security, code style, dependency-cycle policy, max
+complexity). Each has a smart default; `?` gets Claude's elaboration. Answers are saved to
+`docs/architecture/decisions.md` and folded into every generated artifact.
 
-Agent Smith automates this in 4 steps:
+**3 — Scaffold.** Generates `/as-*` slash commands and worker skills **customized to your stack** —
+not Django defaults. With the `claude` CLI present, it goes further and **LLM-authors** the skills
+grounded in your real code: it codifies the best practices your project already follows as enforced
+rules, and surfaces recommended improvements as clearly-labelled suggestions.
 
-**Step 1 — Analyze.**  
-Scans your repository to detect exactly what you're using: framework (38 supported), language, ORM, auth library, validation library, logging, database driver, cache, test framework, linter, CI/CD provider, monorepo tool. It reads lock files (package.json, go.mod, Cargo.toml, composer.json, requirements.txt) to map 100+ known packages to their categories. On a Go/Echo + React/Zustand monorepo, it detects: Echo, golang-jwt, pgx, go-redis, React, Zustand, react-hook-form, React Router, PixiJS, Vitest, Playwright, MSW — all with exact versions.
+**4 — Configure.** Writes `.claude/settings.json` (MCP servers + hooks), `.mcp.json`,
+`docs/architecture/` (architecture + `best-practices.md`), and `.sentrux/rules.toml` (the quality
+gate). Hooks then run automatically every session: health check on start, git-convention + sentrux
+gate before commits, and an uncommitted-change/doc check on stop.
 
-**Step 2 — Interview (interactive).**  
-Before generating skills, asks you 9 questions about your team's conventions — branch naming, commit format, PR checklist, testing requirements, architecture rules, security requirements, code style. Each question has a smart default based on detection. Type `?` to get Claude's elaboration on any question. Answers are saved to `docs/architecture/decisions.md` and injected into every skill.
+End result: restart Claude Code and run `/as-backend`, `/as-frontend`, `/as-test`,
+`/as-pr-review`, `/as-documentation`, `/as-git`, `/as-ship`, `/as-insights`, `/as-caveman` — all
+referencing your actual stack, conventions, and standards.
 
-**Step 3 — Scaffold.**  
-Generates 12+ skill files customized to YOUR stack — not Django defaults. Pre-push gates become `golangci-lint run + go test ./... + npx biome check . + npx vitest run + npx tsc --noEmit` instead of `ruff + mypy + pytest`. Commands reference YOUR packages: "Use golang-jwt@v5.2.1 for JWT" not "Use JWT".
+---
 
-**Step 4 — Configure.**  
-Writes `.claude/settings.json` (MCP servers + hooks), `.mcp.json` (browser automation), and `docs/architecture/` (generated architecture rules). Hooks auto-check health on session start, enforce git conventions, and auto-suspend caveman during memory writes.
+## What's new in 0.6.0
 
-End result: you restart Claude Code and can immediately run `/as-backend`, `/as-frontend`, `/as-test`, `/as-pr-review`, `/as-documentation`, `/as-git`, `/as-insights` — all referencing your actual stack and conventions.
+- **Deterministic Sentrux architecture gate** — a zero-LLM `PreToolUse` hook gates every
+  `git commit` / `git push` / `gh pr create` against a saved baseline. Degradation → it asks you
+  to approve; improvement → it ratchets the baseline up automatically. The baseline only ever
+  moves up. (See *Architecture quality gate* below.)
+- **LLM-generated architecture & skills (default-on when `claude` is present)** — architecture
+  docs and the six worker skills are authored from your real code, not template-substituted.
+  Disable with `--no-llm`. No separate `--llm` flag and no API key — the Claude Code CLI is the LLM.
+- **Engineering best practices** — init generates `docs/architecture/best-practices.md` (Followed
+  vs Recommended), and every generated skill enforces the *Followed* standards while surfacing
+  *Recommended* ones as suggestions.
+- **Namespaced commands** — all slash commands are under the `/as-*` namespace to avoid collisions.
 
 ---
 
@@ -40,129 +69,93 @@ End result: you restart Claude Code and can immediately run `/as-backend`, `/as-
 
 | Requirement | Why | Install |
 |-------------|-----|---------|
-| **Node.js ≥ 20** | Runtime for all JS/TS MCPs (gitnexus, git-memory, playwright, sonarqube, vuetify) | [nodejs.org](https://nodejs.org) |
+| **Node.js ≥ 20** | Runtime for the CLI and JS MCPs (gitnexus, git-memory, playwright, …) | [nodejs.org](https://nodejs.org) |
 | **git ≥ 2.30** | Required by git-memory, gitnexus, and all git operations | [git-scm.com](https://git-scm.com) |
-| **Python ≥ 3.12** | Required for serena, mempalace, ouroboros (LSP symbol navigation, memory graph, PM agent) | [python.org](https://python.org) or `brew install python` |
-| **pipx** | Isolated Python package installer for serena/mempalace/ouroboros | `brew install pipx` or `pip install pipx` |
-| **GitHub CLI (`gh`)** | PR creation in autonomous pipeline (optional but recommended) | `brew install gh` or [cli.github.com](https://cli.github.com) |
+| **Python ≥ 3.12** | serena, mempalace (LSP symbol navigation, memory graph) | [python.org](https://python.org) or `brew install python` |
+| **pipx** | Isolated Python installer for serena/mempalace | `brew install pipx` |
+| **GitHub CLI (`gh`)** | PR creation in the pipeline (optional) | `brew install gh` |
+| **sentrux** | Architectural quality gate (optional but recommended) | `brew install sentrux/tap/sentrux` |
 
-**Platform support:** macOS, Linux, Windows (PowerShell or WSL2 recommended for Windows).
+**Platforms:** macOS, Linux, Windows (PowerShell or WSL2 recommended).
 
 ---
 
-## How It Works
+## How it works
 
-### 1. Project Analysis
+### 1. Project analysis
 
-Agent Smith scans your repository and identifies:
+Detects framework (38 across 12 languages), package manager (npm/pnpm/yarn, Go modules, pip,
+Composer, Cargo), the active libraries actually in use (100+ packages across 14 categories),
+testing & linting, CI/CD, and monorepo tooling. Optional `analyze --llm` refines the stack
+classification with a headless Claude pass.
 
-- **Framework** — 38 backends and 16 frontends across 12 languages
-- **Package manager** — npm, pnpm, yarn, Go modules, pip, composer, Cargo
-- **Active libraries** — scans lock files and package manifests to find exactly which ORM, auth library, validation library, logger, database driver, cache driver, UI framework, state manager, form library, router, rendering engine, test framework, E2E tool, and mocking library your project actually uses
-- **Testing & linting** — pytest, vitest, jest, golangci-lint, ruff, biome, eslint, and more
-- **CI/CD** — GitHub Actions, GitLab CI, CircleCI
-- **Monorepo** — Turborepo, Nx, Lerna, pnpm workspaces
+### 2. MCP server auto-configuration
 
-### 2. MCP Server Auto-Configuration
+Each server has a job in the pipeline; browser servers are installed only when a frontend is
+detected:
 
-Agent Smith installs and configures the MCP servers your project needs. Each server has a specific job in the pipeline:
+| MCP server | Role |
+|------------|------|
+| **gitnexus** | Code-intelligence graph — impact/blast-radius, execution flows. Used every phase. |
+| **git-memory** | Semantic search over git history — "why was this built this way?" |
+| **serena** | LSP symbol navigation + symbolic edits. Implementation phase. |
+| **sentrux** | Architectural sensor + quality gate. Review phase + commit/push gate. |
+| **playwright** | Headless browser automation — screenshots per role. Frontend verify & docs. |
+| **chrome-devtools** | Deep debugging — console, network, performance, lighthouse. |
+| **sonarqube** | Static analysis — issues, quality gate, hotspots, coverage. |
+| **vuetify** | Vuetify 3 component API lookup. |
+| **obsidian** | Read/write the knowledge vault (documentation). |
+| **mempalace** | Persistent knowledge-graph memory. |
+| **ouroboros** | PM agent — seed interviews, acceptance-criteria generation. |
+| **jira** | Issue tracking — entry point for the ticket pipeline. |
 
-| MCP Server | Role in Pipeline | When It's Used |
-|------------|-----------------|----------------|
-| **gitnexus** | Code intelligence graph — execution flows, blast radius, impact analysis | **Every phase.** Before any code is read or written, gitnexus maps what depends on what, so changes are surgically precise |
-| **git-memory** | Semantic search over git history — past decisions, bug fixes, file timelines | **Planning & Review.** Answers "why was this built this way?" and "is this reverting a deliberate fix?" |
-| **serena** | LSP-backed symbol navigation — find, rename, insert, delete symbols safely | **Implementation.** Replaces grep/read/find with precise symbol-level edits and instant diagnostics |
-| **playwright** | Deterministic browser automation — navigate, screenshot, fill forms | **Frontend verification & Documentation.** Drives the app in a real browser, captures screenshots per role |
-| **chrome-devtools** | Deep debugging — console, network, performance, lighthouse | **Frontend debugging.** Inspects console errors, network failures, computed styles, a11y scores |
-| **sonarqube** | Static analysis — issues, quality gates, hotspots, coverage | **Quality gate.** Runs before PR to catch bugs, security holes, and duplication |
-| **obsidian** | Knowledge vault — read/write structured documentation | **Documentation.** Writes technical notes and user guides to the team's knowledge base |
-| **mempalace** | Persistent memory graph — cross-session knowledge | **Context.** Remembers past decisions, patterns, and preferences across sessions |
-| **ouroboros** | PM agent — seed-based interviews, AC generation | **Planning.** Takes business requirements and generates acceptance criteria |
-| **jira** | Issue tracking — create, update, search tickets | **Pipeline entry.** A Jira ticket triggers the full autonomous pipeline |
-| **vuetify** | Vuetify 3 component API lookup | **Frontend.** Never guesses Vuetify prop/slot/event names |
-| **sentrux** | Real-time architectural sensor — quality signal, cycle detection, coupling grades, test gaps | **REVIEW-phase gate.** Saves a baseline at implementation start; enforces zero architectural regression at review via session gate + check_rules |
+### 3. Skills, commands & best practices
 
-### 3. Skill Scaffolding & Customization
+Generates nine `/as-*` commands and six worker skills (`pr-review-backend/frontend`,
+`test-backend/frontend`, `docs-backend/frontend`), plus gitnexus/git-memory helper skills. Each
+worker skill is customized to your stack via `{{PLACEHOLDER}}` substitution and framework-specific
+section stripping; with the `claude` CLI present they are LLM-authored from your real code.
 
-Agent Smith generates 12 skill files customized to your project:
+Every skill is grounded in two generated docs: `docs/architecture/{backend,frontend}-architecture.md`
+(binding rules) and `docs/architecture/best-practices.md` — a Followed/Recommended split. Skills
+**enforce** the Followed standards and **suggest** the Recommended ones (never blocking on them).
+
+### 4. Hooks — the per-session safety loop
+
+Configured into `.claude/settings.json` and shipped to `hooks/`:
+
+- **SessionStart** — health check (git state, MCP presence, index freshness) and saves the sentrux
+  baseline for the session.
+- **PreToolUse (Bash)** — a git-convention guard (advisory) and the **deterministic sentrux gate**
+  (below) before `git commit` / `git push` / `gh pr create`.
+- **PreToolUse/PostToolUse (memory writes)** — suspends/resumes caveman mode so stored memories are
+  full prose.
+- **Stop** — classifies the diff (layout-agnostic), nudges toward `/as-git` or `/as-ship` and
+  `/as-documentation`, and re-checks the gate.
+
+### 5. Architecture quality gate (Sentrux)
+
+A baseline (`.sentrux/baseline.json`) and rules (`.sentrux/rules.toml`) are written at init. The
+`PreToolUse` hook compares the working tree against the baseline on every commit/push/PR — **no
+LLM, no tokens**. Degradation → it asks you to approve (never auto-approves a regression);
+improvement → it saves and ratchets the baseline up automatically. Cached by a working-tree
+fingerprint so commit-then-push scans once.
+
+### 6. Semi-autonomous pipeline (ticket → PR)
+
+The orchestrator drives six phases — **PLAN → IMPLEMENT → TEST → REVIEW → DOCUMENT → PR** — with
+**human approval gates** (`--approve-plan` default, `--approve-all`, or `--auto`). The REVIEW phase
+runs the sentrux rule check + regression gate as hard blockers. This is a **human-in-the-loop**
+flow; the Jira fetch and full autonomous engine are in active development.
 
 ```
-.claude/
-├── commands/              ← User-facing slash commands
-│   ├── as-backend.md      ← /as-backend — implements backend tasks
-│   ├── as-frontend.md     ← /as-frontend — implements frontend tasks
-│   ├── as-test.md         ← /as-test — orchestrates test writing
-│   ├── as-pr-review.md    ← /as-pr-review — orchestrates PR review
-│   ├── as-documentation.md ← /as-documentation — generates docs
-│   └── as-git.md          ← /as-git — conventional commits
-├── skills/                ← Worker skills (run in subagents)
-│   ├── pr-review-backend/SKILL.md
-│   ├── pr-review-frontend/SKILL.md
-│   ├── test-backend/SKILL.md
-│   ├── test-frontend/SKILL.md
-│   ├── docs-backend/SKILL.md
-│   └── docs-frontend/SKILL.md
-└── settings.json          ← MCP server configs + permissions
-```
-
-Each skill is templated with `{{PLACEHOLDER}}` variables that get replaced with your actual stack. For example, in a Go/Echo + React/Zustand project:
-
-- `{{BACKEND_LINT_CMD}}` → `golangci-lint run` (not ruff)
-- `{{BACKEND_TEST_CMD}}` → `go test ./...` (not pytest)
-- `{{ORM_PACKAGE}}` → `sqlc@v0.3.0` (not Django ORM)
-- `{{STATE_PACKAGE}}` → `Zustand@4.5` (not Pinia)
-
-### 4. Autonomous Pipeline
-
-```
-Jira Ticket
-    │
-    ▼
-┌─ PLAN ──────────────────────────────────────────┐
-│ gitnexus_query → impact → context → route_map   │
-│ ouroboros_pm_interview → AC generation          │
-│ Produces: scoped implementation plan            │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─ IMPLEMENT ─────────────────────────────────────┐
-│ sentrux session_start baseline                  │
-│ serena find_symbol → insert → replace → diagnose│
-│ vuetify component API lookup (frontend)         │
-│ gitnexus_detect_changes (mid-impl check)        │
-│ Produces: working code, diagnostics clean       │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─ TEST ──────────────────────────────────────────┐
-│ Dispatch test-backend + test-frontend skills    │
-│ Run pytest/vitest/go test/cargo test            │
-│ Produces: all tests passing                     │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─ REVIEW ────────────────────────────────────────┐
-│ Self-review via pr-review skills                │
-│ gitnexus_shape_check + api_impact               │
-│ sonarqube quality gate                          │
-│ sentrux check_rules + session_end gate          │
-│ Produces: review report, blockers fixed         │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─ DOCUMENT ──────────────────────────────────────┐
-│ playwright → drive app per role → screenshots   │
-│ serena insert_before_symbol → API annotations   │
-│ obsidian → write technical notes + user guide   │
-│ Produces: docs updated, screenshots captured    │
-└─────────────────────────────────────────────────┘
-    │
-    ▼
-┌─ PR ────────────────────────────────────────────┐
-│ git add + conventional commit                   │
-│ git push + gh pr create                         │
-│ Produces: PR linked to Jira ticket              │
-└─────────────────────────────────────────────────┘
+Jira ticket / branch diff
+   ▼ PLAN       gitnexus query/impact/context → scoped plan        (approval gate)
+   ▼ IMPLEMENT  sentrux session_start → serena edits → rescan
+   ▼ TEST       run the project's test suites
+   ▼ REVIEW     sentrux check_rules + session_end (hard blockers) + pr-review skills
+   ▼ DOCUMENT   playwright screenshots + API annotations + Obsidian notes
+   ▼ PR         conventional commit + push + gh pr create
 ```
 
 ---
@@ -170,20 +163,23 @@ Jira Ticket
 ## CLI
 
 ```
-npx @gunesbizim/agent-smith init              # Full project bootstrap
-npx @gunesbizim/agent-smith analyze           # Detect tech stack and print report
-npx @gunesbizim/agent-smith configure         # Re-run MCP configuration only
-npx @gunesbizim/agent-smith doctor            # Health check: MCPs + skills + git
-npx @gunesbizim/agent-smith insights          # Read project & suggest improvements
-npx @gunesbizim/agent-smith ticket PROJ-123  # Jira ticket → autonomous pipeline
-npx @gunesbizim/agent-smith pipeline          # Run pipeline on current branch
+npx @gunesbizim/agent-smith init              # full bootstrap (LLM on if `claude` present; --no-llm to disable)
+npx @gunesbizim/agent-smith analyze [--llm]   # detect tech stack and print report
+npx @gunesbizim/agent-smith configure         # (re)install + configure MCP servers only
+npx @gunesbizim/agent-smith doctor            # health check: deps, MCPs, config files, git
+npx @gunesbizim/agent-smith insights          # read project + suggest improvements (also /as-insights)
+npx @gunesbizim/agent-smith ticket PROJ-123   # Jira ticket → semi-autonomous pipeline
+npx @gunesbizim/agent-smith pipeline          # run the pipeline on the current branch
 ```
+
+Common `init` flags: `--auto` / `--no-interview` (skip the interview), `--dry-run`, `--dir <dir>`,
+`--caveman` (~75% token-compress generated docs), `--no-llm`.
 
 ---
 
-## Supported Stacks
+## Supported stacks
 
-All stacks that gitnexus can index — 38 frameworks across 12 languages.
+38 frameworks across 12 languages, plus active-library detection across 14 categories.
 
 | Language | Backends | Frontends |
 |----------|----------|-----------|
@@ -200,24 +196,23 @@ All stacks that gitnexus can index — 38 frameworks across 12 languages.
 | Dart | — | Flutter |
 | Scala | Play Framework | — |
 
-**Active library detection** covers 100+ packages across 14 categories (ORM, auth, validation, logging, DB driver, cache, UI, state management, forms, routing, rendering, testing, E2E, mocking).
+For CLI tools and libraries with no web tier, detection neutralizes the backend/frontend defaults
+so skills scope themselves to what actually exists.
 
 ---
 
 ## Verification
 
 ```bash
-npm test        # 212 tests, 14 test files, zero failures
-npx tsc --noEmit # zero type errors
+npm run typecheck   # tsc --noEmit — zero type errors
+npm test            # vitest — 431 tests across 31 files
+sentrux gate .      # architectural regression gate
 ```
 
-## Import / Integrate
+## Import / integrate
 
 ```typescript
 import { detectProject, installMCPs, scaffoldSkills, customizeSkills } from "@gunesbizim/agent-smith";
 ```
 
-Or via Smithery: `smithery install agent-smith`
-
-**Repo:** https://github.com/gunesbizim/agent-smith
-**License:** MIT
+**Repo:** https://github.com/gunesbizim/agent-smith · **License:** MIT

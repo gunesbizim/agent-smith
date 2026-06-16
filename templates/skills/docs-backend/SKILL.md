@@ -1,9 +1,9 @@
 ---
 name: docs-backend
-description: Generate or update backend technical documentation — API annotations, endpoint/serializer docs, and a technical summary note in Obsidian. Use when backend endpoints, serializers, or services changed.
+description: Generate or update backend technical documentation — API annotations, endpoint and request/response schema docs, and a technical summary note in Obsidian. Use when backend endpoints, request/response schemas, or services changed.
 ---
 
-You are a senior API documentation engineer. Write or update API annotations and technical documentation for the target given in `$ARGUMENTS`.
+You are a senior API documentation engineer. Write or update API annotations and technical documentation for the target given in `$ARGUMENTS`. This project's backend stack is **{{BACKEND_FRAMEWORK_DETAIL}}**.
 
 **Two modes:**
 - `$ARGUMENTS` is empty or `all` → **from-scratch mode**: audit every endpoint and annotate the full API surface.
@@ -42,12 +42,12 @@ See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especi
 ## Step 1 — GitNexus code analysis
 
 ```
-gitnexus_route_map()          # full HTTP verb + path + view class index
-gitnexus_query("ViewName")    # find the symbol, its file, its methods
-gitnexus_impact("Serializer") # what else references this serializer?
-gitnexus_context("path/to/views.py")   # full module-level context
-gitnexus_detect_changes()     # files changed since last index snapshot
-gitnexus_api_impact()         # which endpoints are affected?
+gitnexus_route_map()                   # full HTTP verb + path + handler index
+gitnexus_query("HandlerName")          # find the symbol, its file, its methods
+gitnexus_impact("RequestResponseType") # what else references this schema/DTO?
+gitnexus_context("path/to/handler")    # full module-level context
+gitnexus_detect_changes()              # files changed since last index snapshot
+gitnexus_api_impact()                  # which endpoints are affected?
 ```
 
 **Rule:** never open a file to "explore" — use GitNexus first.
@@ -58,13 +58,13 @@ gitnexus_api_impact()         # which endpoints are affected?
 
 ### Incremental mode
 1. `git diff origin/main...HEAD --name-only` to list changed files.
-2. Filter to files containing API endpoints, serializers, routes.
+2. Filter to files containing API endpoints, request/response schemas, routes.
 3. Cross-reference with `gitnexus_api_impact()` — annotate the union.
 
 ### From-scratch mode
 1. `gitnexus_route_map()` to enumerate all endpoints.
-2. Find all view and serializer files.
-3. Read every file. Map view → serializer → URL pattern.
+2. Find all request-handler and request/response-schema files.
+3. Read every file. Map handler → request/response schema → route/URL pattern.
 
 ---
 
@@ -73,9 +73,9 @@ gitnexus_api_impact()         # which endpoints are affected?
 Run `mcp__serena__check_onboarding_performed` once before using Serena; load its tools via tool-search if deferred. Name paths use `/` (not `.`). Locate the symbol, then edit with Serena's symbolic tools (built-in Edit is refused after a Serena read):
 
 ```
-mcp__serena__get_symbols_overview(relative_path="path/to/views.py")
-mcp__serena__find_symbol(name_path_pattern="ViewName/method", relative_path="path/to/views.py")
-mcp__serena__insert_before_symbol(name_path="ViewName/method", relative_path="path/to/views.py", body="<annotation>")
+mcp__serena__get_symbols_overview(relative_path="path/to/handler")
+mcp__serena__find_symbol(name_path_pattern="HandlerName/method", relative_path="path/to/handler")
+mcp__serena__insert_before_symbol(name_path="HandlerName/method", relative_path="path/to/handler", body="<annotation>")
 ```
 
 There is no `get_diagnostics_for_file` tool — after edits, verify with the type-check (`{{BACKEND_TYPE_CHECK_CMD}}`).
@@ -94,25 +94,22 @@ Document the API in whatever mechanism this project's API-docs library (`{{API_D
 
 After annotating, regenerate/validate the schema with this project's tooling and fix every warning.
 
-## Django / DRF patterns
+## Framework-specific annotation ({{BACKEND_FRAMEWORK}})
 
-*Applies only when this project uses Django REST Framework. The customizer removes this section for other stacks.*
+*Apply this project's API-docs mechanism — **{{API_DOCS_LIBRARY}}** on **{{BACKEND_FRAMEWORK}}**. The exact decorator/attribute/annotation syntax depends on the stack; follow the idiom {{API_DOCS_LIBRARY}} uses on {{BACKEND_FRAMEWORK}}.*
 
-Use `@extend_schema` (drf-spectacular) on each view and `help_text` on each serializer field:
+On every request handler, attach the API-docs annotation with the four content requirements above, and give every request/response field a human description. The concrete shape — for example a schema-annotation decorator on the handler plus per-field descriptions on the request/response (DTO/serializer) type — looks like this:
 
-```python
-@extend_schema(
-    summary="Retrieve an entity",
-    description="Returns full entity details. **Roles:** {{ROLE_VALID_VALUES}}",
-    responses={
-        200: EntitySerializer,
-        401: OpenApiResponse(description="Missing or invalid credentials"),
-        403: OpenApiResponse(description="Insufficient role"),
-        404: OpenApiResponse(description="Entity not found"),
-    },
-    tags=["app-name"],
-)
-def get(self, request, pk): ...
+```
+ANNOTATE handler "Retrieve an entity":
+    summary     = "Retrieve an entity"
+    description = "Returns full entity details. **Roles:** {{ROLE_VALID_VALUES}}"
+    responses   =
+        200 -> EntityResponseSchema
+        401 -> "Missing or invalid credentials"
+        403 -> "Insufficient role"
+        404 -> "Entity not found"
+    tags        = ["<module-name>"]
 ```
 
 ---
@@ -122,7 +119,7 @@ def get(self, request, pk): ...
 Write a technical summary note to the Obsidian vault via the **`obsidian` MCP**:
 
 - Path: `<project>/docs/backend/<branch-or-ticket>.md`
-- Content: endpoints added/changed, serializers/DTOs touched, migration notes, breaking changes.
+- Content: endpoints added/changed, request/response schemas (DTOs/serializers) touched, migration notes, breaking changes.
 - If the Obsidian MCP is not connected, write the same markdown to `docs/backend/<branch-or-ticket>.md` in the repo instead — and say so. Never skip the write.
 
 ---
@@ -143,7 +140,7 @@ Validate the API schema before finishing. Fix all warnings.
 ## Output format
 
 1. Show the **full annotated file(s)** — not diff snippets.
-2. List: **endpoints documented**, **endpoints skipped** (with reason), **serializers annotated**.
+2. List: **endpoints documented**, **endpoints skipped** (with reason), **request/response schemas (DTOs/serializers) annotated**.
 3. Show the Obsidian note path written (or inline content if MCP unavailable).
 4. End with the validation command output.
 5. If you find an endpoint missing authorization, flag it as a blocker before proceeding.

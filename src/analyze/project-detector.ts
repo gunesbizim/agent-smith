@@ -356,7 +356,9 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
         languageVersion: isKotlin ? "2.x" : "21",
         hasHexagonalArch: false, hasServiceRepo: true, usesAPIView: false, usesFunctionViews: false,
         importStyle: "absolute", rolePattern: "decorators", authMethod: "Spring Security",
-        loggingPattern: "structured", orm: buildContent.includes("spring-data-jpa") ? "JPA/Hibernate" : buildContent.includes("mybatis") ? "MyBatis" : null,
+        // Match real JPA artifacts: "spring-boot-starter-data-jpa" does NOT contain the substring
+        // "spring-data-jpa", so check the broader "data-jpa" plus direct Hibernate/JPA markers.
+        loggingPattern: "structured", orm: buildContent.includes("data-jpa") || buildContent.includes("hibernate") || buildContent.includes("jakarta.persistence") || buildContent.includes("javax.persistence") ? "JPA/Hibernate" : buildContent.includes("mybatis") ? "MyBatis" : null,
       };
     }
 
@@ -420,7 +422,7 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
 
     if (goMod.includes("gin-gonic/gin")) {
       return {
-        framework: "gin", language: "go", languageVersion: "1.22",
+        framework: "gin", language: "go", languageVersion: goModVersion(goMod),
         hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
         importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
         loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : goMod.includes("ent") ? "Ent" : null,
@@ -429,7 +431,7 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
 
     if (goMod.includes("labstack/echo")) {
       return {
-        framework: "echo", language: "go", languageVersion: "1.22",
+        framework: "echo", language: "go", languageVersion: goModVersion(goMod),
         hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
         importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
         loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : null,
@@ -438,7 +440,7 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
 
     if (goMod.includes("gofiber/fiber")) {
       return {
-        framework: "fiber", language: "go", languageVersion: "1.22",
+        framework: "fiber", language: "go", languageVersion: goModVersion(goMod),
         hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
         importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
         loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("ent") ? "Ent" : null,
@@ -447,7 +449,7 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
 
     if (goMod.includes("go-chi/chi")) {
       return {
-        framework: "chi", language: "go", languageVersion: "1.22",
+        framework: "chi", language: "go", languageVersion: goModVersion(goMod),
         hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
         importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
         loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : null,
@@ -456,7 +458,7 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
 
     // Generic Go
     return {
-      framework: "generic-server", language: "go", languageVersion: "1.22",
+      framework: "generic-server", language: "go", languageVersion: goModVersion(goMod),
       hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
       importStyle: "absolute", rolePattern: "middleware", authMethod: "none",
       loggingPattern: "unstructured", orm: null,
@@ -587,13 +589,23 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
   return null;
 }
 
+// Parse the real version from a go.mod's `go X.Y` directive (e.g. "go 1.22" → "1.22").
+// Falls back to "" so we never report a fabricated version.
+function goModVersion(goMod: string): string {
+  for (const line of goMod.split("\n")) {
+    const t = line.trim();
+    if (t.startsWith("go ")) return t.slice(3).trim();
+  }
+  return "";
+}
+
 function detectGoBackend(subDir: string, goMod: string): BackendInfo | null {
-  if (goMod.includes("gin-gonic/gin")) return { framework: "gin", language: "go", languageVersion: "1.25", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : goMod.includes("ent") ? "Ent" : null };
-  if (goMod.includes("labstack/echo")) return { framework: "echo", language: "go", languageVersion: "1.25", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
-  if (goMod.includes("gofiber/fiber")) return { framework: "fiber", language: "go", languageVersion: "1.25", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
-  if (goMod.includes("go-chi/chi")) return { framework: "chi", language: "go", languageVersion: "1.25", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
+  if (goMod.includes("gin-gonic/gin")) return { framework: "gin", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : goMod.includes("ent") ? "Ent" : null };
+  if (goMod.includes("labstack/echo")) return { framework: "echo", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
+  if (goMod.includes("gofiber/fiber")) return { framework: "fiber", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
+  if (goMod.includes("go-chi/chi")) return { framework: "chi", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
   if (goMod.includes("github.com/") || goMod.includes("module ")) {
-    return { framework: "generic-server", language: "go", languageVersion: "1.25", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: goMod.includes("jwt") ? "JWT" : "none", loggingPattern: goMod.includes("pino") || goMod.includes("logrus") || goMod.includes("zap") ? "structured" : "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : goMod.includes("ent") ? "Ent" : null };
+    return { framework: "generic-server", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: goMod.includes("jwt") ? "JWT" : "none", loggingPattern: goMod.includes("pino") || goMod.includes("logrus") || goMod.includes("zap") ? "structured" : "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : goMod.includes("ent") ? "Ent" : null };
   }
   return null;
 }

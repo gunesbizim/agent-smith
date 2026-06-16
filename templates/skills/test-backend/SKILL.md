@@ -94,25 +94,26 @@ There is no `find_implementations` tool — find implementations via `find_refer
 - **Mock at the consumption site** — patch where a dependency is used, not where it is defined;
   never hit a real external service.
 
-## Django / DRF patterns
+## Framework-specific patterns ({{BACKEND_FRAMEWORK}})
 
-*Applies only when this project uses Django/DRF. The customizer removes this section for other
-stacks; on other stacks follow the equivalent idioms (the generic rules above still hold).*
+*Apply this with the idioms of **{{BACKEND_FRAMEWORK_DETAIL}}** and the project's test runner
+(`{{BACKEND_TEST_CMD}}`). The generic rules above always hold; translate the shapes below into the
+stack's real test API (test client, request helper, log-capture fixture, shared-setup mechanism).*
 
-```python
-# Fail-closed role tests (pytest + Django test client); shared fixtures in conftest.py
-def test_unauthenticated_returns_401(client):
-    assert client.get(reverse("endpoint-name")).status_code == 401
+```
+# Fail-closed role tests — shared setup in the project's conventional location
+test "unauthenticated request -> 401":
+    GET <endpoint> without credentials  =>  status == 401
 
-def test_wrong_role_returns_403(client, unauthorized_user):
-    client.force_login(unauthorized_user)
-    assert client.get(reverse("endpoint-name")).status_code == 403
+test "wrong-role request -> 403":
+    authenticate as a user lacking the required role
+    GET <endpoint>                      =>  status == 403
 
-# Logging assertion with caplog
-def test_log_event_emits(caplog):
-    with caplog.at_level(logging.INFO, logger="app.logger"):
-        function_under_test()
-    assert any(r.name == "app.logger" for r in caplog.records)
+# Logging assertion — capture logs and assert the canonical event/keys were emitted
+test "log event emits":
+    capture logs at INFO for logger "app.logger"
+    call function under test
+    assert a record was emitted on logger "app.logger" with the canonical keys
 ```
 
 ---

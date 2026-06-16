@@ -167,7 +167,6 @@ npx @gunesbizim/agent-smith init              # full bootstrap (LLM on if `claud
 npx @gunesbizim/agent-smith analyze [--llm]   # detect tech stack and print report
 npx @gunesbizim/agent-smith configure         # (re)install + configure MCP servers only
 npx @gunesbizim/agent-smith doctor            # health check: deps, MCPs, config files, git
-npx @gunesbizim/agent-smith insights          # read project + suggest improvements (also /as-insights)
 npx @gunesbizim/agent-smith ticket PROJ-123   # Jira ticket → semi-autonomous pipeline
 npx @gunesbizim/agent-smith pipeline          # run the pipeline on the current branch
 ```

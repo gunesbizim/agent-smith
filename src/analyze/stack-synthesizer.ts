@@ -92,24 +92,38 @@ function runLlmSynthesis(evidence: StackEvidence): Partial<StackProfile> | null 
   return parsed as Partial<StackProfile>;
 }
 
+// Field-level "prefer the LLM value when it is usable, else keep the base" helpers. Keeping
+// the decision in these tiny functions keeps mergeProfile itself branch-free (low complexity).
+function preferStr(v: unknown, base: string | null): string | null {
+  return typeof v === "string" ? v : base;
+}
+function preferNonEmpty(v: unknown, base: string): string {
+  return typeof v === "string" && v ? v : base;
+}
+function preferDefined<T>(v: T | undefined, base: T): T {
+  return v !== undefined ? v : base;
+}
+
 // Merge an LLM descriptor over the deterministic base. The LLM overrides a field only when
-// it provides a non-empty value, so we never lose a deterministic finding to an LLM omission.
+// it provides a usable value, so we never lose a deterministic finding to an LLM omission.
 function mergeProfile(base: StackProfile, llm: Partial<StackProfile>): StackProfile {
-  const merged: StackProfile = { ...base, source: "llm", evidenceRefs: base.evidenceRefs };
-  if (typeof llm.language === "string") merged.language = llm.language;
-  if (typeof llm.languageVersion === "string" && llm.languageVersion) merged.languageVersion = llm.languageVersion;
-  if (typeof llm.framework === "string") merged.framework = llm.framework;
-  if (typeof llm.frameworkDetail === "string" && llm.frameworkDetail) merged.frameworkDetail = llm.frameworkDetail;
-  if (llm.orm !== undefined) merged.orm = llm.orm;
-  if (llm.dbEngine !== undefined) merged.dbEngine = llm.dbEngine;
-  if (llm.authMethod !== undefined) merged.authMethod = llm.authMethod;
-  if (typeof llm.roleModel === "string" && llm.roleModel) merged.roleModel = llm.roleModel;
-  if (typeof llm.roleValues === "string" && llm.roleValues) merged.roleValues = llm.roleValues;
-  if (llm.importStyle) merged.importStyle = llm.importStyle;
-  if (llm.loggingPattern) merged.loggingPattern = llm.loggingPattern;
-  if (llm.commands) merged.commands = mergeCommands(base.commands, llm.commands);
-  if (typeof llm.confidence === "number") merged.confidence = llm.confidence;
-  return merged;
+  return {
+    ...base,
+    source: "llm",
+    language: preferStr(llm.language, base.language),
+    languageVersion: preferNonEmpty(llm.languageVersion, base.languageVersion),
+    framework: preferStr(llm.framework, base.framework),
+    frameworkDetail: preferNonEmpty(llm.frameworkDetail, base.frameworkDetail),
+    orm: preferDefined(llm.orm, base.orm),
+    dbEngine: preferDefined(llm.dbEngine, base.dbEngine),
+    authMethod: preferDefined(llm.authMethod, base.authMethod),
+    roleModel: preferNonEmpty(llm.roleModel, base.roleModel),
+    roleValues: preferNonEmpty(llm.roleValues, base.roleValues),
+    importStyle: llm.importStyle ?? base.importStyle,
+    loggingPattern: llm.loggingPattern ?? base.loggingPattern,
+    commands: llm.commands ? mergeCommands(base.commands, llm.commands) : base.commands,
+    confidence: typeof llm.confidence === "number" ? llm.confidence : base.confidence,
+  };
 }
 
 function mergeCommands(base: StackCommands, llm: Partial<StackCommands>): StackCommands {

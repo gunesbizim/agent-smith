@@ -19,6 +19,7 @@ import { scaffoldCommands } from "../scaffold/commands.js";
 import { scaffoldSkills } from "../scaffold/skills.js";
 import { scaffoldConfigs } from "../scaffold/configs.js";
 import { scaffoldHooks } from "../scaffold/hooks.js";
+import { scaffoldPermissions } from "../scaffold/permissions.js";
 import { customizeSkills } from "../adapt/skill-customizer.js";
 import { writeArchitectureDocs } from "../adapt/architecture-writer.js";
 import { generateSkills, GENERATED_SKILLS } from "../adapt/llm-skills.js";
@@ -289,7 +290,10 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   // Step 11 — Scaffold hooks
   const hooksSpinner = ora("Setting up automation hooks...").start();
   await scaffoldHooks(targetDir, opts.dryRun);
-  hooksSpinner.succeed("Automation hooks configured");
+  // A9 — generate the per-stack permission policy + settings.permissions block; the
+  // pre-tool-permission-guard hook (registered above) enforces the deny rules at runtime.
+  await scaffoldPermissions(targetDir, project, opts.dryRun);
+  hooksSpinner.succeed("Automation hooks + permission policy configured");
 
   // Step 12 — Write/refresh the agent-smith managed block in CLAUDE.md. Runs LAST so it can
   // enumerate every command and skill just scaffolded. Non-destructive: only the content

@@ -424,8 +424,8 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
       return {
         framework: "gin", language: "go", languageVersion: goModVersion(goMod),
         hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : goMod.includes("ent") ? "Ent" : null,
+        importStyle: "absolute", rolePattern: "middleware", authMethod: goAuth(goMod),
+        loggingPattern: "unstructured", orm: goORM(goMod),
       };
     }
 
@@ -433,8 +433,8 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
       return {
         framework: "echo", language: "go", languageVersion: goModVersion(goMod),
         hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : null,
+        importStyle: "absolute", rolePattern: "middleware", authMethod: goAuth(goMod),
+        loggingPattern: "unstructured", orm: goORM(goMod),
       };
     }
 
@@ -442,8 +442,8 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
       return {
         framework: "fiber", language: "go", languageVersion: goModVersion(goMod),
         hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("ent") ? "Ent" : null,
+        importStyle: "absolute", rolePattern: "middleware", authMethod: goAuth(goMod),
+        loggingPattern: "unstructured", orm: goORM(goMod),
       };
     }
 
@@ -451,8 +451,8 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
       return {
         framework: "chi", language: "go", languageVersion: goModVersion(goMod),
         hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : null,
+        importStyle: "absolute", rolePattern: "middleware", authMethod: goAuth(goMod),
+        loggingPattern: "unstructured", orm: goORM(goMod),
       };
     }
 
@@ -1069,19 +1069,23 @@ async function detectDatabase(rootPath: string, backend: BackendInfo | null): Pr
     if (dbYml.includes("sqlite")) return { engine: "sqlite", orm: "ActiveRecord" };
   }
 
-  // Go — check go.mod for database drivers
+  // Go — check go.mod for database drivers. Drivers prove the engine; the ORM is
+  // taken from the framework's facts-only scan, never fabricated from a driver (B3).
   if (backend.language === "go") {
     const goMods = await findSubPackageGoMods(rootPath);
-    for (const goMod of goMods) {
-      if (goMod.includes("pgx") || goMod.includes("lib/pq")) return { engine: "postgresql", orm: "sqlc" };
-      if (goMod.includes("go-sqlite3") || goMod.includes("sqlite")) return { engine: "sqlite", orm: null };
-      if (goMod.includes("clickhouse-go")) return { engine: "clickhouse", orm: null };
-      if (goMod.includes("go-mysql") || goMod.includes("mysql-driver")) return { engine: "mysql", orm: null };
-      if (goMod.includes("mongo-driver") || goMod.includes("mongo")) return { engine: "mongodb", orm: null };
-    }
-    if (backend.orm === "GORM" || backend.orm === "Ent" || backend.orm === "sqlx") {
-      return { engine: "postgresql", orm: backend.orm };
-    }
+    const joined = goMods.join("\n");
+    // sqlc is configured by a file (sqlc.yaml/json), not a go.mod require.
+    const hasSqlc = await fileExists(rootPath, "sqlc.yaml") || await fileExists(rootPath, "sqlc.yml") || await fileExists(rootPath, "sqlc.json");
+    // Single source of truth for the ORM: prefer the framework finding, then a
+    // go.mod scan, then sqlc-by-config. Drivers alone yield null.
+    const orm = backend.orm ?? goORM(joined) ?? (hasSqlc ? "sqlc" : null);
+    if (joined.includes("pgx") || joined.includes("lib/pq")) return { engine: "postgresql", orm };
+    if (joined.includes("go-sqlite3") || joined.includes("sqlite")) return { engine: "sqlite", orm };
+    if (joined.includes("clickhouse-go")) return { engine: "clickhouse", orm };
+    if (joined.includes("go-mysql") || joined.includes("mysql-driver")) return { engine: "mysql", orm };
+    if (joined.includes("mongo-driver") || joined.includes("mongo")) return { engine: "mongodb", orm };
+    // ORM present but no driver evidence: report the ORM honestly, engine unknown.
+    if (orm) return { engine: "unknown", orm };
   }
 
   // TypeScript — check package.json for database drivers
@@ -1109,6 +1113,30 @@ async function detectDatabase(rootPath: string, backend: BackendInfo | null): Pr
 // ============================================================
 // Helpers
 // ============================================================
+
+/**
+ * Facts-only Go ORM detection. Returns an ORM name ONLY when go.mod proves it.
+ * Drivers (pgx, lib/pq) are deliberately NOT ORMs — they yield null here so we
+ * never fabricate an ORM the project does not use (B3).
+ */
+function goORM(goMod: string): string | null {
+  if (goMod.includes("gorm")) return "GORM";
+  if (goMod.includes("entgo.io/ent")) return "Ent";
+  if (goMod.includes("sqlx")) return "sqlx";
+  if (goMod.includes("sqlc")) return "sqlc";
+  return null;
+}
+
+/**
+ * Facts-only Go auth detection. Only assert "JWT" when a jwt dependency is
+ * actually present; otherwise "unknown" (the codebase's honest sentinel for
+ * "could not determine") rather than a fabricated "JWT" (B3).
+ */
+function goAuth(goMod: string): string {
+  if (goMod.includes("jwt")) return "JWT";
+  if (goMod.includes("gorilla/sessions")) return "session";
+  return "unknown";
+}
 
 function buildBackendInfo(
   framework: BackendFramework, language: BackendInfo["language"], langVersion: string,

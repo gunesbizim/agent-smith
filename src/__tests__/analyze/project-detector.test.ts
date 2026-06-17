@@ -270,6 +270,56 @@ describe("Project Detector — Backend", () => {
   });
 });
 
+describe("Project Detector — facts-only detection (B3)", () => {
+  it("Go + pgx without an ORM → orm is null, no fabricated sqlc, engine postgresql", async () => {
+    const dir = await makeProject("go-pgx-no-orm", {
+      "go.mod": "module example.com/app\n\ngo 1.22\n\nrequire (\n\tgithub.com/gin-gonic/gin v1.9\n\tgithub.com/jackc/pgx/v5 v5.5\n)",
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.orm).toBeNull();
+    expect(result.database).toBeDefined();
+    expect(result.database!.engine).toBe("postgresql");
+    expect(result.database!.orm).toBeNull();          // NOT "sqlc"
+    expect(result.database!.orm).not.toBe("sqlc");
+  });
+
+  it("Go + gorm → orm is GORM from both backend and database (no contradiction)", async () => {
+    const dir = await makeProject("go-gorm", {
+      "go.mod": "module example.com/app\n\ngo 1.22\n\nrequire (\n\tgithub.com/gin-gonic/gin v1.9\n\tgorm.io/gorm v1.25\n\tgithub.com/jackc/pgx/v5 v5.5\n)",
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.orm).toBe("GORM");
+    expect(result.database!.orm).toBe("GORM");
+  });
+
+  it("Go without a jwt dependency → authMethod is not asserted as JWT", async () => {
+    const dir = await makeProject("go-no-jwt", {
+      "go.mod": "module example.com/app\n\ngo 1.22\n\nrequire github.com/gin-gonic/gin v1.9",
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.authMethod).not.toBe("JWT");
+    expect(result.backend!.authMethod).toBe("unknown");
+  });
+
+  it("Go with a jwt dependency → authMethod is JWT (evidence present)", async () => {
+    const dir = await makeProject("go-jwt", {
+      "go.mod": "module example.com/app\n\ngo 1.22\n\nrequire (\n\tgithub.com/gin-gonic/gin v1.9\n\tgithub.com/golang-jwt/jwt/v5 v5.2\n)",
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.authMethod).toBe("JWT");
+  });
+
+  it("Go + pgx + sqlc.yaml → sqlc reported only when its config proves it", async () => {
+    const dir = await makeProject("go-sqlc", {
+      "go.mod": "module example.com/app\n\ngo 1.22\n\nrequire (\n\tgithub.com/gin-gonic/gin v1.9\n\tgithub.com/jackc/pgx/v5 v5.5\n)",
+      "sqlc.yaml": "version: 2\nsql: []\n",
+    });
+    const result = await detectProject(dir);
+    expect(result.database!.engine).toBe("postgresql");
+    expect(result.database!.orm).toBe("sqlc");
+  });
+});
+
 describe("Project Detector — Frontend", () => {
   it("detects Vue 3 project with Vuetify", async () => {
     const dir = await makeProject("vue3-app", {

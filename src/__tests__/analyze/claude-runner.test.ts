@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fileURLToPath } from "node:url";
 
 const execFileSyncMock = vi.fn();
 vi.mock("node:child_process", () => ({
@@ -53,6 +54,38 @@ describe("runClaude", () => {
     runClaude("p", { cwd: "/my/project" });
     const opts = execFileSyncMock.mock.calls[0][2];
     expect(opts.cwd).toBe("/my/project");
+  });
+
+  it("passes --mcp-config <path> when mcpConfigPath is set and the file exists — P2", () => {
+    execFileSyncMock.mockReturnValue("ok");
+    const realPath = fileURLToPath(import.meta.url); // this test file exists
+    runClaude("p", { mcpConfigPath: realPath });
+    const [, args] = execFileSyncMock.mock.calls[0];
+    expect(args).toEqual(expect.arrayContaining(["--mcp-config", realPath]));
+    expect(args).not.toContain('{"mcpServers":{}}');
+    expect(args).toContain("--strict-mcp-config");
+  });
+
+  it("falls back to the empty-object MCP config when mcpConfigPath is missing — P2", () => {
+    execFileSyncMock.mockReturnValue("ok");
+    runClaude("p", { mcpConfigPath: "/does/not/exist/.mcp.json" });
+    const [, args] = execFileSyncMock.mock.calls[0];
+    expect(args).toContain('{"mcpServers":{}}');
+    expect(args).not.toContain("/does/not/exist/.mcp.json");
+  });
+
+  it("appends --settings hooks override when suppressHooks is set — P2", () => {
+    execFileSyncMock.mockReturnValue("ok");
+    runClaude("p", { suppressHooks: true });
+    const [, args] = execFileSyncMock.mock.calls[0];
+    expect(args).toEqual(expect.arrayContaining(["--settings", '{"hooks":{}}']));
+  });
+
+  it("no MCP/hook options → argv identical to today (regression guard) — P2", () => {
+    execFileSyncMock.mockReturnValue("ok");
+    runClaude("p");
+    const [, args] = execFileSyncMock.mock.calls[0];
+    expect(args).toEqual(["-p", "p", "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}']);
   });
 
   it("returns null when the subprocess throws", () => {

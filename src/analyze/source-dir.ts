@@ -71,20 +71,8 @@ function promptForPath(): Promise<string> {
   });
 }
 
-// Write the resolved source dirs to .claude/agent-smith/config.json for the hooks to read.
-export async function writeSourceConfig(projectRoot: string, sourceDirs: string[], dryRun = false): Promise<void> {
-  if (dryRun) return;
-  const cfgDir = path.join(projectRoot, ".claude", "agent-smith");
-  await fs.ensureDir(cfgDir);
-  const cfgPath = path.join(cfgDir, "config.json");
-  let existing: Record<string, unknown> = {};
-  try {
-    existing = await fs.readJson(cfgPath);
-  } catch {
-    /* new file */
-  }
-  await fs.writeJson(cfgPath, { ...existing, sourceDirs }, { spaces: 2 });
-}
+// writeSourceConfig moved to src/scaffold/source-config.ts (A2 — the analyze layer is pure;
+// disk writes live in the execution layer).
 
 function dirExists(root: string, dir: string): boolean {
   try {

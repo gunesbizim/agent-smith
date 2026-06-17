@@ -27,6 +27,8 @@ import { writeArchitectureDocs } from "../adapt/architecture-writer.js";
 import { generateSkills, GENERATED_SKILLS } from "../adapt/llm-skills.js";
 import { writeMarker } from "../adapt/skill-gen-marker.js";
 import { renderSkillsReport } from "./skills-report.js";
+import { applyConfirmedOverrides } from "../analyze/ground-truth-overrides.js";
+import { readLedger } from "../artifacts/ground-truth.js";
 import { cavemanCompress } from "../adapt/caveman-compress.js";
 import type { TemplateVariables } from "../shared/types.js";
 import { DEFAULT_TEMPLATE_VARS } from "../shared/templates.js";
@@ -129,7 +131,12 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   const packageUsage = await scanPackages(cwd);
   const stackProfile = await gatherAndSynthesizeStack(cwd, { useLlm: llmRequested && !opts.dryRun });
   let templateVars: TemplateVariables = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, packageUsage, stackProfile);
-  bpSpinner.succeed(`Best practices mapped (stack: ${stackProfile.language ?? "none"}${stackProfile.framework ? "/" + stackProfile.framework : ""})`);
+  // C2/D1 — read-first authority: human-confirmed ground-truth values override detection and
+  // short-circuit re-inference, so accumulated corrections compound across runs.
+  const ledger = readLedger(cwd);
+  templateVars = applyConfirmedOverrides(templateVars, ledger);
+  const confirmedCount = Object.keys(ledger.values).filter((k) => ledger.values[k].source === "confirmed").length;
+  bpSpinner.succeed(`Best practices mapped (stack: ${stackProfile.language ?? "none"}${stackProfile.framework ? "/" + stackProfile.framework : ""}${confirmedCount ? `, ${confirmedCount} confirmed` : ""})`);
 
   // Step 4c — Sentrux probe (live scan to seed rules.toml thresholds)
   const sentruxSpinner = ora("Probing architecture quality (sentrux scan)...").start();

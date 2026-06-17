@@ -4,6 +4,8 @@ import ora from "ora";
 import { detectProject } from "../analyze/project-detector.js";
 import { sniffArchitecture } from "../analyze/architecture-sniffer.js";
 import { mapBestPractices } from "../analyze/best-practice-mapper.js";
+import { applyConfirmedOverrides } from "../analyze/ground-truth-overrides.js";
+import { readLedger } from "../artifacts/ground-truth.js";
 import { refineWithLlm } from "../analyze/llm-analyzer.js";
 import { gatherAndSynthesizeStack } from "../analyze/stack-synthesizer.js";
 import { DEFAULT_TEMPLATE_VARS } from "../shared/templates.js";
@@ -30,7 +32,9 @@ export async function analyzeCommand(opts: AnalyzeOptions): Promise<void> {
   // Evidence-driven stack synthesis — the authority for backend stack + toolchain commands.
   spinner.text = "Synthesizing stack from project evidence...";
   const stackProfile = await gatherAndSynthesizeStack(cwd, { useLlm: opts.llm });
-  const vars = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, undefined, stackProfile);
+  let vars = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, undefined, stackProfile);
+  // C2/D1 — read-first: a human-confirmed ground-truth value wins over detection.
+  vars = applyConfirmedOverrides(vars, readLedger(cwd));
 
   spinner.succeed(llmNote ? `Analysis complete — ${llmNote}` : "Analysis complete");
 

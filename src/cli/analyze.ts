@@ -1,14 +1,7 @@
 // analyze command — project detection and report
 import chalk from "chalk";
 import ora from "ora";
-import { detectProject } from "../analyze/project-detector.js";
-import { sniffArchitecture } from "../analyze/architecture-sniffer.js";
-import { mapBestPractices } from "../analyze/best-practice-mapper.js";
-import { applyConfirmedOverrides } from "../analyze/ground-truth-overrides.js";
-import { readLedger } from "../artifacts/ground-truth.js";
-import { refineWithLlm } from "../analyze/llm-analyzer.js";
-import { gatherAndSynthesizeStack } from "../analyze/stack-synthesizer.js";
-import { DEFAULT_TEMPLATE_VARS } from "../shared/templates.js";
+import { analyzeProject } from "../analyze/analyze-project.js";
 
 interface AnalyzeOptions {
   json?: boolean;
@@ -19,27 +12,16 @@ export async function analyzeCommand(opts: AnalyzeOptions): Promise<void> {
   const cwd = process.cwd();
   const spinner = ora("Analyzing project...").start();
 
-  let project = await detectProject(cwd);
-  let llmNote: string | undefined;
-  if (opts.llm) {
-    spinner.text = "Refining analysis with Claude...";
-    const refined = refineWithLlm(cwd, project);
-    project = refined.project;
-    llmNote = refined.usedLlm ? "refined by Claude" : `programmatic (${refined.reason})`;
-  }
-  const patterns = await sniffArchitecture(cwd, project);
-
-  // Evidence-driven stack synthesis — the authority for backend stack + toolchain commands.
-  spinner.text = "Synthesizing stack from project evidence...";
-  const stackProfile = await gatherAndSynthesizeStack(cwd, { useLlm: opts.llm });
-  let vars = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, undefined, stackProfile);
-  // C2/D1 — read-first: a human-confirmed ground-truth value wins over detection.
-  vars = applyConfirmedOverrides(vars, readLedger(cwd));
+  // B11 — one shared analysis builder (also runs scanPackages, which analyze used to skip),
+  // so `analyze --json` is a faithful preview of what `init` scaffolds.
+  const { project, patterns, packageUsage, stackProfile, templateVars: vars, llmRefined, llmReason } =
+    await analyzeProject(cwd, { useLlm: opts.llm });
+  const llmNote = opts.llm ? (llmRefined ? "refined by Claude" : `programmatic (${llmReason})`) : undefined;
 
   spinner.succeed(llmNote ? `Analysis complete — ${llmNote}` : "Analysis complete");
 
   if (opts.json) {
-    console.log(JSON.stringify({ project, patterns, stackProfile, templateVariables: vars }, null, 2));
+    console.log(JSON.stringify({ project, patterns, packageUsage, stackProfile, templateVariables: vars }, null, 2));
     return;
   }
 

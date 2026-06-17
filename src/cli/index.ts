@@ -70,6 +70,17 @@ program
     await doctorCommand();
   });
 
+// ------ confirm ------
+program
+  .command("confirm [pairs...]")
+  .description("Settle ground-truth values (key=value …) the next run reads first; --list to view")
+  .option("--dir <dir>", "Target project directory")
+  .option("--list", "List the currently-confirmed values instead of writing")
+  .action(async (pairs, opts) => {
+    const { confirmCommand } = await import("./confirm.js");
+    await confirmCommand(pairs ?? [], opts);
+  });
+
 // ------ ticket ------
 program
   .command("ticket <ticketId>")

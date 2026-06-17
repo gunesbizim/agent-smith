@@ -342,3 +342,31 @@ export interface HealthCheck {
   message: string;
   suggestion?: string;
 }
+
+// ----- Ground-truth ledger (D1, correction-artifact loop) -----
+
+/** Where a value came from, in ascending authority for the resolver. */
+export type ValueSource = "fallback" | "inferred" | "detected" | "confirmed";
+
+/** A value tagged with its provenance. A `confirmed` value is a human-validated artifact. */
+export interface ConfirmableValue<T = unknown> {
+  value: T;
+  source: ValueSource;
+  /** 0..1 — present for detected/inferred values (A3). */
+  confidence?: number;
+  /** Supporting file paths / notes. */
+  evidence?: string[];
+  /** Who confirmed it (e.g. "human"); set when source === "confirmed". */
+  by?: string;
+}
+
+/**
+ * The checked-in ground-truth ledger (`.agent-smith/ground-truth.json`). Keys are stable dotted
+ * paths (e.g. "backend.testCommand") so any consumer can ask "is this already settled?".
+ */
+export interface GroundTruthLedger {
+  version: number;
+  /** ISO timestamp, stamped by the caller. */
+  confirmedAt?: string;
+  values: Record<string, ConfirmableValue>;
+}

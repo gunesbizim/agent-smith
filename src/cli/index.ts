@@ -29,6 +29,8 @@ program
   .option("--caveman", "Compress generated skills with caveman (~75% token savings)")
   .option("--no-interview", "Skip the interactive project conventions interview")
   .option("--no-llm", "Disable LLM generation; use fast template/heuristic path only (LLM is on by default when the `claude` CLI is present)")
+  .option("--yes", "Approve MCP installation without prompting")
+  .option("--no-install", "Skip installing MCP server binaries (config files are still written)")
   .action(async (opts) => {
     const { initCommand } = await import("./init.js");
     await initCommand(opts);
@@ -40,6 +42,8 @@ program
   .description("Re-run MCP configuration only")
   .option("--mcp <servers>", "Comma-separated list of MCPs to configure")
   .option("--scope <scope>", "Config scope: project, user, or all", "all")
+  .option("--yes", "Approve MCP installation without prompting")
+  .option("--no-install", "Skip installing MCP server binaries (config files are still written)")
   .action(async (opts) => {
     const { configureCommand } = await import("./configure.js");
     await configureCommand(opts);

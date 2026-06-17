@@ -58,8 +58,18 @@ vi.mock("../../install/dependency-checker.js", () => ({
 }));
 
 vi.mock("../../install/mcp-installer.js", () => ({
-  installMCPs: vi.fn().mockResolvedValue(undefined),
+  installMCPs: vi.fn().mockResolvedValue({ installed: [], prewarmed: [], alreadyPresent: [], onDemand: [], manual: [], failed: [] }),
   configureMCPs: vi.fn().mockResolvedValue(undefined),
+  registerLocalMCPs: vi.fn().mockReturnValue({ registered: [], skipped: [] }),
+  selectServersToInstall: vi.fn().mockReturnValue([]),
+}));
+
+vi.mock("../../install/install-consent.js", () => ({
+  resolveConsent: vi.fn().mockResolvedValue({ approved: true }),
+}));
+
+vi.mock("../../install/gh-installer.js", () => ({
+  ensureGhCli: vi.fn().mockResolvedValue({ available: true, alreadyPresent: true, installed: false, skipped: false }),
 }));
 
 vi.mock("../../adapt/architecture-writer.js", () => ({

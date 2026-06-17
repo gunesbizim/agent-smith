@@ -27,3 +27,4 @@ vault/*
 # Playwright MCP screenshots/traces — generated artifacts, never commit
 .playwright-mcp/
 docs/screenshots/
+.gitnexus

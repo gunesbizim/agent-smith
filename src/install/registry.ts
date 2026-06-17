@@ -12,6 +12,7 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     installCommand: "npm install -g gitnexus",
     checkCommand: "gitnexus",
     requiredEnvVars: [],
+    requiresPackageManager: ["npm"],
     configTemplate: {
       type: "stdio",
       command: "gitnexus",
@@ -28,6 +29,7 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     installCommand: "npm install -g git-memory",
     checkCommand: "git-memory",
     requiredEnvVars: [],
+    requiresPackageManager: ["npm"],
     configTemplate: {
       type: "stdio",
       command: "git-memory",
@@ -44,6 +46,7 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     installCommand: "pipx install serena",
     checkCommand: "serena",
     requiredEnvVars: [],
+    requiresPackageManager: ["pipx", "python"],
     configTemplate: {
       type: "stdio",
       command: "serena",
@@ -58,10 +61,13 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     description: "Deterministic browser automation — navigate, snapshot, screenshot, fill",
     category: "browser",
     scope: "project",
-    installType: "npx",
-    installCommand: "npx @playwright/mcp@latest",
+    installType: "prewarm",
+    // Warm the npx cache with a fast, non-server command. A bare `npx @playwright/mcp@latest`
+    // launches the stdio server and hangs forever — the `--version` form exits cleanly.
+    installCommand: "npx -y @playwright/mcp@latest --version",
     checkCommand: "npx @playwright/mcp@latest --version",
     requiredEnvVars: [],
+    requiresPackageManager: ["npx"],
     configTemplate: {
       command: "npx",
       // --output-dir routes all screenshots/traces into a gitignored dir so captured
@@ -75,10 +81,11 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     description: "Deep debugging on logged-in Chrome — console, network, performance, lighthouse",
     category: "browser",
     scope: "project",
-    installType: "npx",
-    installCommand: "npx chrome-devtools-mcp@latest",
+    installType: "prewarm",
+    installCommand: "npx -y chrome-devtools-mcp@latest --version",
     checkCommand: "npx chrome-devtools-mcp@latest --version",
     requiredEnvVars: [],
+    requiresPackageManager: ["npx"],
     configTemplate: {
       command: "npx",
       args: ["-y", "chrome-devtools-mcp@latest", "--browserUrl=http://127.0.0.1:9222"],
@@ -92,11 +99,12 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     description: "Static analysis — issues, quality gates, hotspots, coverage metrics",
     category: "quality",
     scope: "user",
-    installType: "npx",
+    installType: "npm",
     installCommand: "npm install -g sonarqube-mcp-server",
     checkCommand: "npx sonarqube-mcp-server@latest --version",
     // Only vars without a template default are truly required; SONARQUBE_URL has a default.
     requiredEnvVars: ["SONARQUBE_TOKEN"],
+    requiresPackageManager: ["npm"],
     configTemplate: {
       command: "npx",
       args: ["-y", "sonarqube-mcp-server@latest"],
@@ -120,6 +128,7 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     },
     checkCommand: "sentrux --version",
     requiredEnvVars: [],
+    requiresPackageManager: ["brew"],
     configTemplate: {
       type: "stdio",
       command: "sentrux",
@@ -138,9 +147,35 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     installCommand: "",
     checkCommand: "npx @vuetify/mcp --version",
     requiredEnvVars: [],
+    requiresPackageManager: ["npx"],
     configTemplate: {
       command: "npx",
       args: ["-y", "@vuetify/mcp"],
+      env: {},
+    },
+  },
+
+  // ---- Framework-aware (stack-gated) ----
+  {
+    name: "laravel-boost",
+    description: "Laravel Boost — framework-aware MCP for the app: routes, models, DB schema, config, artisan, version-correct docs",
+    category: "code-intelligence",
+    // Project scope: the server is the app's own `php artisan boost:mcp`, so it is
+    // per-repo. Only configured/installed when a Laravel backend is detected
+    // (see isServerApplicable). Install is manual by design — agent-smith does not
+    // run composer/artisan for you; install laravel/boost in the app first:
+    //   composer require laravel/boost --dev && php artisan boost:install
+    scope: "project",
+    installType: "manual",
+    installCommand: "",
+    // Quick, non-starting presence check (boost:mcp itself is a long-running server).
+    checkCommand: "composer show laravel/boost",
+    requiredEnvVars: [],
+    requiresPackageManager: ["composer", "php"],
+    configTemplate: {
+      type: "stdio",
+      command: "php",
+      args: ["artisan", "boost:mcp"],
       env: {},
     },
   },
@@ -157,6 +192,7 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     installCommand: "",
     checkCommand: "npx mcp-obsidian --version",
     requiredEnvVars: ["OBSIDIAN_VAULT_PATH"],
+    requiresPackageManager: ["npx"],
     configTemplate: {
       command: "npx",
       args: ["-y", "mcp-obsidian", "${OBSIDIAN_VAULT_PATH}"],
@@ -174,6 +210,7 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     installCommand: "pipx install mempalace",
     checkCommand: "python -m mempalace.mcp_server --version",
     requiredEnvVars: [],
+    requiresPackageManager: ["pipx", "python"],
     configTemplate: {
       type: "stdio",
       command: "python",
@@ -193,6 +230,7 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     checkCommand: "npx @anthropic/jira-mcp --version",
     // Only vars without a template default are truly required; JIRA_BASE_URL has a default.
     requiredEnvVars: ["JIRA_API_TOKEN"],
+    requiresPackageManager: ["npx"],
     configTemplate: {
       command: "npx",
       args: ["-y", "@anthropic/jira-mcp"],

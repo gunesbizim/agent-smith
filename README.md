@@ -97,10 +97,15 @@ The detected profile fills in **template variables**, and (when `claude` is pres
 
 ### 3. Install — wire up memory, automation, and guardrails
 
-- **MCP servers** are configured so the assistant can query code structure, git history, and symbols.
+After the interview finishes, `init` **installs the MCP server binaries programmatically** — it does not rely on you, on generated skills, or on Claude Code to install anything later. It asks for your approval first (a single batch prompt listing every server and the exact command it will run), shows a **live progress bar** naming whatever is installing at that moment, and is **stack-gated** (browser tools only when a frontend exists, Vuetify only for Vuetify apps, Laravel Boost only for Laravel). See [MCP servers & dependencies](#mcp-servers--dependencies) below.
+
+- **MCP servers** are installed + configured so the assistant can query code structure, git history, and symbols.
+- **GitHub CLI (`gh`)** is auto-installed (best-effort, no-sudo) for the git/ship PR workflows.
 - **Hooks** are registered (e.g. a SessionStart health check that also surfaces the fable-mode discipline every session).
 - **Sentrux** is installed (`.sentrux/rules.toml` + a starter `baseline.json`) so architecture quality can be gated.
 - A **managed block** is written into `CLAUDE.md` listing every command and skill — between `<!-- agent-smith:start -->` and `<!-- agent-smith:end -->`, so **your own notes in that file are never overwritten**.
+
+> **Everything stays local unless you choose otherwise.** All MCP config lives in *your* repo (`.claude/`, `.mcp.json`) and in your machine's per-repo private config (`~/.claude.json`); nothing is uploaded anywhere. The privacy-sensitive servers are opt-in: **Obsidian** is registered at Claude Code *local scope* (per-repo, private, never committed) and only when you give it a vault path; **SonarQube** and **Jira** only activate when you set their tokens; remote integrations require credentials you supply. Skip MCP installation entirely with `agent-smith init --no-install`.
 
 > Code: `src/install/*`, `src/scaffold/hooks.ts`, `src/install/sentrux-installer.ts`, `src/adapt/claude-md-writer.ts`.
 
@@ -123,7 +128,32 @@ Now you (and the assistant) use the installed `/as-*` commands and skills. There
 | `agent-smith ticket <id> [--auto]` | Fetch a Jira ticket and run the gated pipeline |
 | `agent-smith pipeline` | Run the pipeline on the current branch's changes |
 
-Useful flags: `--llm` / `--no-llm` (force or skip the Claude pass), `--dry-run` (show what would happen), `--auto` / `--no-interview` (skip the setup interview).
+Useful flags: `--llm` / `--no-llm` (force or skip the Claude pass), `--dry-run` (show what would happen), `--auto` / `--no-interview` (skip the setup interview), `--yes` (approve MCP installs without prompting), `--no-install` (skip installing MCP binaries; still writes config).
+
+---
+
+## MCP servers & dependencies
+
+`init` installs MCP servers programmatically (after a single batch approval prompt; a live `cli-progress` bar shows what's installing). Selection is **stack-gated** — you only get servers relevant to your project. Installs run through whichever package manager each server needs; missing managers are reported with a manual hint rather than failing the run. **Nothing leaves your machine** — config is written into your repo and your local Claude config; credential-gated servers stay dormant until you set their secrets.
+
+| MCP server | What it gives the assistant | Install mechanism | When it activates | Source |
+|---|---|---|---|---|
+| **gitnexus** | Code-intelligence graph: impact/blast-radius, call chains | `npm i -g gitnexus` | always | [abhigyanpatwari/GitNexus](https://github.com/abhigyanpatwari/GitNexus) |
+| **git-memory** | Semantic search over git history | `npm i -g git-memory` | always | npm: `git-memory` *(no public repo listed)* |
+| **serena** | LSP symbol navigation + symbolic edits | `pipx install serena` (needs Python) | always | pip: `serena` |
+| **playwright** | Browser automation — drive app, screenshot | npx (cache pre-warmed at install) | frontend detected | [microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp) |
+| **chrome-devtools** | Console/network/perf/lighthouse debugging | npx (cache pre-warmed at install) | frontend detected | [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) |
+| **sonarqube** | Static analysis — issues, quality gate, coverage | `npm i -g sonarqube-mcp-server` | `SONARQUBE_TOKEN` set | [sapientpants/sonarqube-mcp-server](https://github.com/sapientpants/sonarqube-mcp-server) |
+| **sentrux** | Architectural sensor + quality gate | brew / curl / winget (shell) | always | [sentrux/sentrux](https://github.com/sentrux/sentrux) |
+| **vuetify** | Vuetify 3 component API lookup | npx on first use | Vuetify frontend | [vuetifyjs/mcp](https://github.com/vuetifyjs/mcp) |
+| **laravel-boost** | Laravel app intelligence — routes, models, schema | manual (`composer require laravel/boost --dev`) | Laravel backend | [laravel/boost](https://github.com/laravel/boost) |
+| **obsidian** | Read/write a knowledge vault (**local scope, private**) | npx on first use | you provide a vault path | npm: `mcp-obsidian` |
+| **mempalace** | Persistent knowledge-graph memory | `pipx install mempalace` (needs Python) | always | pip: `mempalace` *(no public repo listed)* |
+| **jira** | Jira/Confluence issue tracking | npx on first use | `JIRA_API_TOKEN` set | npm: `@anthropic/jira-mcp` *(not yet published)* |
+
+> Links marked *(no public repo listed)* / *(not yet published)* could not be verified against a public registry at the time of writing — they are ecosystem/internal or placeholder packages; the package name is shown so you can confirm before relying on it.
+
+**Package managers used across these servers** (detected, never installed with `sudo`): **npm/npx** (Node — required), **Python + pipx** (serena, mempalace — pipx is the only one auto-bootstrappable, via `pip --user`), **Homebrew** (sentrux on macOS/Linux), **winget/choco** (sentrux/gh on Windows), **Composer + PHP** (laravel-boost). The **GitHub CLI (`gh`)** is also auto-installed best-effort for the PR workflows and needs a one-time `gh auth login`. If a required manager is missing, agent-smith prints how to install it and skips that server — it never blocks or prompts for a password.
 
 ---
 

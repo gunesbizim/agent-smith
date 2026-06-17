@@ -4,6 +4,8 @@ Invoke this when you judge the user's task is **fully complete** (code written, 
 
 > **You** (the model) run this — not the Stop hook. The Stop hook only *nudges* you to consider shipping. Only ship when the task is genuinely done, never mid-task.
 
+> **Requires the GitHub CLI (`gh`).** Steps 5–8 (open PR, detect/poll CI) all shell out to `gh`. `agent-smith init` auto-installs `gh` when a no-sudo package manager is available (Homebrew on macOS/Linux, winget/choco on Windows); otherwise install it manually (https://github.com/cli/cli#installation). Either way, `gh` must be authenticated once with `gh auth login` before it can create PRs — if `gh auth status` fails, stop and ask the user to authenticate.
+
 ---
 
 ## Operating mode: gated-autonomous
@@ -29,7 +31,10 @@ Run the whole pipeline unattended, but **hard-stop and report** the moment a saf
 git branch --show-current      # must NOT be main/master
 git status --short
 git diff HEAD --stat
+gh --version && gh auth status # gh must be installed AND authenticated for the PR steps
 ```
+
+If `gh` is missing: `agent-smith init` auto-installs it (no-sudo package managers only) — otherwise install per https://github.com/cli/cli#installation. If `gh auth status` reports not-logged-in, stop and ask the user to run `gh auth login`.
 
 If on `main`/`master`: create a branch first — `<type>/TICKET-XX-short-description`. If no ticket is known, ask for one (commit convention requires it).
 

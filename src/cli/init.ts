@@ -14,7 +14,10 @@ import { resolveSourceDirs, writeSourceConfig } from "../analyze/source-dir.js";
 import { scanPackages } from "../analyze/package-scanner.js";
 import { runInterview, applyInterviewAnswers } from "../adapt/project-interview.js";
 import { checkDependencies } from "../install/dependency-checker.js";
-import { installMCPs, configureMCPs } from "../install/mcp-installer.js";
+import { ensureGhCli } from "../install/gh-installer.js";
+import { installMCPs, configureMCPs, registerLocalMCPs, selectServersToInstall } from "../install/mcp-installer.js";
+import { resolveConsent } from "../install/install-consent.js";
+import { setupObsidianVault } from "../install/obsidian-vault.js";
 import { scaffoldCommands } from "../scaffold/commands.js";
 import { scaffoldSkills } from "../scaffold/skills.js";
 import { scaffoldConfigs } from "../scaffold/configs.js";
@@ -49,6 +52,10 @@ interface InitOptions {
   caveman?: boolean;
   noInterview?: boolean;
   llm?: boolean;
+  /** Approve MCP installs without prompting. */
+  yes?: boolean;
+  /** Commander maps `--no-install` to `install: false`; undefined/true means install. */
+  install?: boolean;
 }
 
 export async function initCommand(opts: InitOptions): Promise<void> {
@@ -71,6 +78,21 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     return;
   }
   depSpinner.succeed(`Node ${depResult.nodeVersion}, npm ${depResult.npmVersion}, git ${depResult.gitVersion}`);
+
+  // Step 1b — Ensure the GitHub CLI (gh). Required by the git/ship workflows
+  // (PR creation, CI polling). Best-effort: auto-install when a no-sudo package
+  // manager is available, otherwise print a manual hint — never block init.
+  if (!opts.dryRun) {
+    const ghSpinner = ora("Ensuring GitHub CLI (gh)...").start();
+    const gh = await ensureGhCli();
+    if (gh.alreadyPresent) {
+      ghSpinner.succeed("GitHub CLI present");
+    } else if (gh.installed) {
+      ghSpinner.succeed("GitHub CLI installed — run `gh auth login` once to enable PR creation");
+    } else {
+      ghSpinner.warn(`GitHub CLI not installed — ${gh.reason}`);
+    }
+  }
 
   // Step 2 — Detect project. LLM refinement runs on-by-default when the claude CLI is
   // present; pass --no-llm to force the fast template/heuristic path.
@@ -230,7 +252,23 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     cavemanSpinner.succeed("Caveman compression applied (~75% token savings)");
   }
 
-  // Step 9 — Install MCPs (stack-aware: browser MCPs only when a frontend exists)
+  // Step 9 — Install MCP server binaries programmatically (consent-gated). This
+  // runs AFTER the interview so the developer has finished interacting, and is
+  // the single place agent-smith installs MCPs — nothing relies on the configure
+  // command, generated skills, or Claude Code to do it. Stack-gated by `project`.
+  if (!opts.dryRun) {
+    const toInstall = selectServersToInstall({ project });
+    const consent = await resolveConsent(toInstall, { yes: opts.yes, noInstall: opts.install === false, auto: opts.auto });
+    if (consent.approved) {
+      await installMCPs({ project });
+    } else {
+      console.log(chalk.yellow(`  ⊘ Skipping MCP install — ${consent.reason}.`));
+      console.log(chalk.gray("    Run `agent-smith configure` later to install them."));
+    }
+  }
+
+  // Step 9b — Write the MCP configuration bundle (stack-aware; browser MCPs only
+  // when a frontend exists). This is config-file generation, not installation.
   const mcpSpinner = ora("Configuring MCP servers...").start();
   await configureMCPs(targetDir, templateVars, platform, opts.dryRun, project);
   mcpSpinner.succeed("MCP servers configured");
@@ -247,6 +285,25 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   const sourceDirs = await resolveSourceDirs(targetDir, project, { interactive });
   await writeSourceConfig(targetDir, sourceDirs, opts.dryRun);
   srcSpinner.succeed(`Source directories: ${sourceDirs.join(", ")}`);
+
+  // Step 10d — Register local-scope MCP servers (obsidian). configureMCPs above
+  // only writes file-based scopes and deliberately skips "local" scope, so without
+  // this step `init` never set up obsidian at all. setupObsidianVault also CREATES
+  // the vault directory — mcp-obsidian points at an existing dir and won't make one.
+  if (!opts.dryRun && platform === "claude-code") {
+    const vault = await setupObsidianVault(targetDir, { interactive });
+    if (vault.vaultPath && vault.created) {
+      console.log(chalk.gray(`  Created Obsidian vault: ${vault.vaultPath}`));
+    }
+    const localSpinner = ora("Registering local-scope MCP servers...").start();
+    const { registered, skipped } = registerLocalMCPs(templateVars, platform);
+    if (registered.length > 0) {
+      localSpinner.succeed(`Registered local MCP servers: ${registered.join(", ")}`);
+    } else {
+      const skippedNote = skipped.length ? ` (skipped: ${skipped.join(", ")})` : "";
+      localSpinner.info(`No local MCP servers registered${skippedNote}`);
+    }
+  }
 
   // Step 11 — Scaffold hooks
   const hooksSpinner = ora("Setting up automation hooks...").start();

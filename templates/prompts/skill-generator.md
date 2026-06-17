@@ -28,6 +28,21 @@ Treat the example below as a SHAPE/INTENT reference: decorate it to fit this pro
 do NOT replace its structure wholesale. Preserve the frontmatter, the workflow shape, and
 the MCP-tool usage steps; swap every stack assumption for what this repo actually uses.
 
+### The decoration contract (non-negotiable — every output skill must satisfy ALL of these)
+
+1. **Match the shape, fill with THIS project's facts.** Keep the structure of the stub being
+   rewritten; do NOT copy the example's content verbatim and do NOT invent a different layout.
+2. **Keep the YAML frontmatter `name:` exactly**; refine only `description:` to the real stack.
+3. **Replace every stack assumption** with what the code actually uses. Leave NO rule that does
+   not apply to this repo (no Django/DRF/Vue/Vuetify rule on a project that isn't those).
+4. **Scope out absent sides** — if there is no frontend (or no backend), the matching skill says
+   so plainly and covers only what exists; it never invents a tier.
+5. **Resolve every `{{VAR}}`** to a concrete value — the output must contain zero `{{...}}`.
+6. **Real commands/paths only** (from the manifests/CI, per the rule below) — never a placeholder.
+
+A skill that still contains a `{{placeholder}}`, a wrong-stack rule, or is so short it clearly
+wasn't decorated FAILS the contract and is reported ✗.
+
 ```markdown
 {{STUB_EXAMPLE}}
 ```

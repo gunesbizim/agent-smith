@@ -131,17 +131,36 @@ export function parseSkillsReport(stdout: string): SkillsReport | null {
  * rewrote is downgraded to rewritten:false if its file is missing or still contains a {{
  * placeholder — catching a model that reported success but left a stub behind.
  */
+/**
+ * Verify one generated skill is a real, decorated fit (C3) — not a stub the model claimed to
+ * rewrite. Returns the list of concrete issues; empty means the file passes. Shared by the P4
+ * report cross-check so there is one "perfect fit" oracle.
+ *
+ *  - missing file → it was never written.
+ *  - residual `{{...}}` → the substitution-last invariant (B8) failed to fully resolve.
+ *  - implausibly short → the model did not actually decorate the stub.
+ *  - missing YAML frontmatter `name:` → the decoration contract was broken.
+ */
+export function verifySkillFile(absPath: string): string[] {
+  const issues: string[] = [];
+  let content: string;
+  try {
+    if (!fs.existsSync(absPath)) return ["file missing"];
+    content = fs.readFileSync(absPath, "utf-8");
+  } catch {
+    return ["file unreadable"];
+  }
+  if (/\{\{[A-Za-z_]+\}\}/.test(content)) issues.push("unresolved {{placeholder}}");
+  if (content.trim().length < 200) issues.push("implausibly short (likely not decorated)");
+  if (!/^---[\s\S]*?\bname:\s*\S/m.test(content)) issues.push("missing frontmatter name");
+  return issues;
+}
+
 export function crossCheckReport(report: SkillsReport, projectRoot: string): SkillsReport {
   const skills = report.skills.map((s) => {
     if (!s.rewritten) return s;
-    const abs = path.join(projectRoot, s.path);
-    let ok = false;
-    try {
-      ok = fs.existsSync(abs) && !fs.readFileSync(abs, "utf-8").includes("{{");
-    } catch {
-      ok = false;
-    }
-    return ok ? s : { ...s, rewritten: false };
+    const issues = verifySkillFile(path.join(projectRoot, s.path));
+    return issues.length === 0 ? s : { ...s, rewritten: false };
   });
   return { ...report, skills };
 }

@@ -1,5 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import fs from "fs-extra";
+import os from "node:os";
+import path from "node:path";
 import { resolveAll, extractPlaceholders } from "../../adapt/template-engine.js";
+import { customizeSkills, substituteToFixpoint } from "../../adapt/skill-customizer.js";
+import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
 
 // skill-customizer.ts requires filesystem access — test its logic via template functions
 describe("Skill Customizer (logic tests)", () => {
@@ -150,6 +155,56 @@ describe("Skill Customizer (logic tests)", () => {
       const keys = extractPlaceholders(javaSkillContent);
       expect(keys).toContain("AUTH_METHOD");
       expect(keys).toContain("BACKEND_FRAMEWORK");
+    });
+  });
+
+  describe("substitution ordering + fixpoint guard (B8)", () => {
+    let tmp: string;
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agent-smith-b8-"));
+      warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+    afterEach(() => {
+      warnSpy.mockRestore();
+      fs.removeSync(tmp);
+    });
+
+    it("a customization that re-injects {{BACKEND_MIGRATE_CMD}} resolves to the real command — no residual {{", async () => {
+      // For a non-Django project, applyFrameworkCustomizations rewrites `python manage.py`
+      // to `# {{BACKEND_MIGRATE_CMD}}`. Substitution must run AFTER that and resolve it.
+      const rel = ".claude/skills/test-backend/SKILL.md";
+      const file = path.join(tmp, rel);
+      await fs.ensureDir(path.dirname(file));
+      await fs.writeFile(file, "Migrate with: `python manage.py migrate`\nFramework: {{BACKEND_FRAMEWORK}}\n");
+
+      const vars = {
+        ...DEFAULT_TEMPLATE_VARS,
+        BACKEND_FRAMEWORK: "fastapi",
+        BACKEND_MIGRATE_CMD: "alembic upgrade head",
+      };
+      await customizeSkills(tmp, vars);
+
+      const out = await fs.readFile(file, "utf-8");
+      expect(out).not.toMatch(/\{\{/);                 // the ordering hazard cannot ship
+      expect(out).toContain("alembic upgrade head");   // re-injected placeholder resolved
+      expect(out).toContain("fastapi");
+      expect(out).not.toContain("python manage.py");
+    });
+
+    it("fixpoint guard FLAGS a genuinely unresolved variable rather than passing silently", () => {
+      const out = substituteToFixpoint("Tool: {{NOT_A_REAL_VAR}}", DEFAULT_TEMPLATE_VARS, "fake.md");
+      expect(out).toContain("{{NOT_A_REAL_VAR}}");     // left intact (not silently dropped)
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining("{{NOT_A_REAL_VAR}}"),
+      );
+    });
+
+    it("does not warn when every placeholder resolves", () => {
+      const out = substituteToFixpoint("F: {{BACKEND_FRAMEWORK}}", { BACKEND_FRAMEWORK: "gin" }, "ok.md");
+      expect(out).toBe("F: gin");
+      expect(console.warn).not.toHaveBeenCalled();
     });
   });
 

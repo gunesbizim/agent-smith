@@ -140,7 +140,14 @@ export function generateSkills(projectRoot: string): SkillGenResult {
   if (!haveStubs) {
     return { ran: false, reason: "skill stubs not scaffolded yet" };
   }
-  if (!fs.existsSync(path.join(archDir, "backend-architecture.md"))) {
+  // P5: generation proceeds if AT LEAST ONE architecture doc exists. A frontend-only or
+  // CLI/library project never produces backend-architecture.md, so a backend-only guard
+  // made those projects silently skip generation. The per-skill subagents already scope a
+  // side that does not exist.
+  const haveArchDoc =
+    fs.existsSync(path.join(archDir, "backend-architecture.md")) ||
+    fs.existsSync(path.join(archDir, "frontend-architecture.md"));
+  if (!haveArchDoc) {
     return { ran: false, reason: "architecture docs not generated yet" };
   }
 

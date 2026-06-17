@@ -3,15 +3,11 @@ import chalk from "chalk";
 import ora from "ora";
 import path from "node:path";
 import fs from "fs-extra";
-import { detectProject } from "../analyze/project-detector.js";
-import { sniffArchitecture, probeSentrux } from "../analyze/architecture-sniffer.js";
-import { mapBestPractices } from "../analyze/best-practice-mapper.js";
-import { refineWithLlm } from "../analyze/llm-analyzer.js";
-import { gatherAndSynthesizeStack } from "../analyze/stack-synthesizer.js";
+import { analyzeProject } from "../analyze/analyze-project.js";
+import { probeSentrux } from "../analyze/architecture-sniffer.js";
 import { installSentrux } from "../install/sentrux-installer.js";
 import { writeClaudeMd } from "../adapt/claude-md-writer.js";
 import { resolveSourceDirs, writeSourceConfig } from "../analyze/source-dir.js";
-import { scanPackages } from "../analyze/package-scanner.js";
 import { runInterview, applyInterviewAnswers } from "../adapt/project-interview.js";
 import { checkDependencies } from "../install/dependency-checker.js";
 import { ensureGhCli } from "../install/gh-installer.js";
@@ -27,11 +23,8 @@ import { writeArchitectureDocs } from "../adapt/architecture-writer.js";
 import { generateSkills, GENERATED_SKILLS } from "../adapt/llm-skills.js";
 import { writeMarker } from "../adapt/skill-gen-marker.js";
 import { renderSkillsReport } from "./skills-report.js";
-import { applyConfirmedOverrides } from "../analyze/ground-truth-overrides.js";
-import { readLedger } from "../artifacts/ground-truth.js";
 import { cavemanCompress } from "../adapt/caveman-compress.js";
 import type { TemplateVariables } from "../shared/types.js";
-import { DEFAULT_TEMPLATE_VARS } from "../shared/templates.js";
 
 // Walk a directory recursively, returning all file paths
 function walkFiles(dir: string): string[] {
@@ -100,43 +93,28 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     }
   }
 
-  // Step 2 — Detect project. LLM refinement runs on-by-default when the claude CLI is
-  // present; pass --no-llm to force the fast template/heuristic path.
-  const detectSpinner = ora("Analyzing project structure...").start();
-  let project = await detectProject(cwd);
+  // Steps 2–4 — the shared analysis pipeline (B11): detect → (LLM refine) → sniff →
+  // scanPackages → synthesize stack → map vars → apply the D1 ledger. One builder, also used
+  // by `analyze`, so the two can never drift. LLM refinement runs on-by-default when claude is
+  // present; --no-llm forces the fast path. init then layers the sentrux probe + interview on
+  // the returned templateVars.
   const llmRequested = opts.llm !== false;
-  if (llmRequested && !opts.dryRun) {
-    detectSpinner.text = "Refining analysis with Claude...";
-    const refined = refineWithLlm(cwd, project);
-    project = refined.project;
-    if (!refined.usedLlm) {
-      detectSpinner.warn(`LLM refinement skipped: ${refined.reason}`);
-      detectSpinner.start();
-    }
+  const analysisSpinner = ora("Analyzing project (detect → stack → best practices)...").start();
+  const analysis = await analyzeProject(cwd, { useLlm: llmRequested && !opts.dryRun });
+  const project = analysis.project;
+  const patterns = analysis.patterns;
+  const stackProfile = analysis.stackProfile;
+  const ledger = analysis.ledger;
+  let templateVars: TemplateVariables = analysis.templateVars;
+  if (llmRequested && !opts.dryRun && !analysis.llmRefined) {
+    analysisSpinner.warn(`LLM refinement skipped: ${analysis.llmReason}`);
+    analysisSpinner.start();
   }
-  detectSpinner.succeed(
-    `Detected: ${project.backend?.framework ?? "no backend"} / ${project.frontend?.framework ?? "no frontend"}`,
-  );
-
-  // Step 3 — Sniff architecture
-  const archSpinner = ora("Sniffing architecture conventions...").start();
-  const patterns = await sniffArchitecture(cwd, project);
-  archSpinner.succeed(`Found ${patterns.length} architectural patterns`);
-
-  // Step 4 — Map best practices. The evidence-driven StackProfile (gathered from the
-  // project's own manifests/CI, optionally refined by Claude) is the authority for the
-  // backend stack and every toolchain command — so e.g. a Java/Spring project never gets
-  // Python tooling. LLM refinement follows the same on-by-default policy as detection.
-  const bpSpinner = ora("Mapping best practices...").start();
-  const packageUsage = await scanPackages(cwd);
-  const stackProfile = await gatherAndSynthesizeStack(cwd, { useLlm: llmRequested && !opts.dryRun });
-  let templateVars: TemplateVariables = mapBestPractices(project, patterns, DEFAULT_TEMPLATE_VARS, packageUsage, stackProfile);
-  // C2/D1 — read-first authority: human-confirmed ground-truth values override detection and
-  // short-circuit re-inference, so accumulated corrections compound across runs.
-  const ledger = readLedger(cwd);
-  templateVars = applyConfirmedOverrides(templateVars, ledger);
   const confirmedCount = Object.keys(ledger.values).filter((k) => ledger.values[k].source === "confirmed").length;
-  bpSpinner.succeed(`Best practices mapped (stack: ${stackProfile.language ?? "none"}${stackProfile.framework ? "/" + stackProfile.framework : ""}${confirmedCount ? `, ${confirmedCount} confirmed` : ""})`);
+  analysisSpinner.succeed(
+    `Detected: ${project.backend?.framework ?? "no backend"} / ${project.frontend?.framework ?? "no frontend"} · ` +
+    `${patterns.length} patterns · stack ${stackProfile.language ?? "none"}${stackProfile.framework ? "/" + stackProfile.framework : ""}${confirmedCount ? ` · ${confirmedCount} confirmed` : ""}`,
+  );
 
   // Step 4c — Sentrux probe (live scan to seed rules.toml thresholds)
   const sentruxSpinner = ora("Probing architecture quality (sentrux scan)...").start();

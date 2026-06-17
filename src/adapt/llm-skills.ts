@@ -77,10 +77,73 @@ export function buildMasterSkillPrompt(_projectRoot?: string): string {
   return loadSkillGeneratorPrompt();
 }
 
+export interface SkillReportEntry {
+  name: string;
+  path: string;
+  rewritten: boolean;
+  recommendedPractices: number;
+}
+
+export interface SkillsReport {
+  stack: string;
+  skills: SkillReportEntry[];
+  bestPracticesDoc?: string;
+  notes?: string;
+}
+
 export interface SkillGenResult {
   ran: boolean;
   reason?: string;
   summary?: string;
+  /** Parsed + cross-checked report (P4); absent if the model emitted no valid report block. */
+  report?: SkillsReport;
+}
+
+const REPORT_SENTINEL = /<<<AGENT_SMITH_SKILLS_REPORT\s*([\s\S]*?)\s*AGENT_SMITH_SKILLS_REPORT>>>/;
+
+/**
+ * Extract the sentinel-fenced JSON skills report from claude's stdout (P4). Returns null on a
+ * missing block or any parse/shape failure — the caller falls back to the one-line summary, so
+ * a malformed report never fails init.
+ */
+export function parseSkillsReport(stdout: string): SkillsReport | null {
+  const m = REPORT_SENTINEL.exec(stdout);
+  if (!m) return null;
+  try {
+    const parsed = JSON.parse(m[1]) as Partial<SkillsReport>;
+    if (typeof parsed.stack !== "string" || !Array.isArray(parsed.skills)) return null;
+    const skills: SkillReportEntry[] = parsed.skills
+      .filter((s): s is SkillReportEntry => !!s && typeof s.name === "string" && typeof s.path === "string")
+      .map((s) => ({
+        name: s.name,
+        path: s.path,
+        rewritten: s.rewritten === true,
+        recommendedPractices: Number.isFinite(s.recommendedPractices) ? s.recommendedPractices : 0,
+      }));
+    return { stack: parsed.stack, skills, bestPracticesDoc: parsed.bestPracticesDoc, notes: parsed.notes };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cross-check a parsed report against the real filesystem (P4). A skill the model CLAIMED it
+ * rewrote is downgraded to rewritten:false if its file is missing or still contains a {{
+ * placeholder — catching a model that reported success but left a stub behind.
+ */
+export function crossCheckReport(report: SkillsReport, projectRoot: string): SkillsReport {
+  const skills = report.skills.map((s) => {
+    if (!s.rewritten) return s;
+    const abs = path.join(projectRoot, s.path);
+    let ok = false;
+    try {
+      ok = fs.existsSync(abs) && !fs.readFileSync(abs, "utf-8").includes("{{");
+    } catch {
+      ok = false;
+    }
+    return ok ? s : { ...s, rewritten: false };
+  });
+  return { ...report, skills };
 }
 
 export interface GenerateSkillsOptions {
@@ -144,5 +207,7 @@ export function generateSkills(projectRoot: string, opts: GenerateSkillsOptions 
   if (out === null) {
     return { ran: false, reason: "LLM skill generation failed or claude unavailable" };
   }
-  return { ran: true, summary: out.trim().split("\n").pop() ?? "" };
+  const parsed = parseSkillsReport(out);
+  const report = parsed ? crossCheckReport(parsed, projectRoot) : undefined;
+  return { ran: true, summary: out.trim().split("\n").pop() ?? "", report };
 }

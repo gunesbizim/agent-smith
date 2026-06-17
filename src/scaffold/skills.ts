@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 import { resolveTemplate } from "../shared/templates.js";
+import { validateContract } from "./skill-contracts.js";
 import type { TemplateVariables } from "../shared/types.js";
 
 function getPackageRoot(): string {
@@ -43,6 +44,38 @@ const GITMEMORY_SKILLS: Record<string, string> = {
   "git-memory/git-memory-status/SKILL.md": "git-memory-status",
 };
 
+// Resolve one worker-skill template, validate its optional contract (A4), and write it.
+async function writeWorkerSkill(
+  skillsDir: string,
+  targetDir: string,
+  relPath: string,
+  templatePath: string,
+  vars: TemplateVariables,
+  dryRun: boolean,
+): Promise<void> {
+  const destPath = path.join(skillsDir, relPath);
+  if (!dryRun) fs.ensureDirSync(path.dirname(destPath));
+
+  let template: string;
+  try {
+    template = await fs.readFile(path.join(getPackageRoot(), templatePath), "utf-8");
+  } catch {
+    template = await fs.readFile(path.join(targetDir, templatePath), "utf-8");
+  }
+
+  const resolved = resolveTemplate(template, vars);
+  // A4 — validate any capability contract in the frontmatter (warn, never block scaffolding).
+  const contractIssues = validateContract(resolved);
+  if (contractIssues.length > 0) {
+    console.warn(`  ⚠ contract issues in ${relPath}: ${contractIssues.join("; ")}`);
+  }
+  if (dryRun) {
+    console.log(`  Would write: ${destPath}`);
+  } else {
+    await fs.writeFile(destPath, resolved, "utf-8");
+  }
+}
+
 export async function scaffoldSkills(
   targetDir: string,
   vars: TemplateVariables,
@@ -55,26 +88,7 @@ export async function scaffoldSkills(
 
   // Main worker skills
   for (const [relPath, templatePath] of Object.entries(SKILL_TEMPLATES)) {
-    const destPath = path.join(skillsDir, relPath);
-    if (!dryRun) {
-      fs.ensureDirSync(path.dirname(destPath));
-    }
-
-    let template: string;
-    try {
-      const pkgTemplatePath = path.join(getPackageRoot(), templatePath);
-      template = await fs.readFile(pkgTemplatePath, "utf-8");
-    } catch {
-      const fallbackPath = path.join(targetDir, templatePath);
-      template = await fs.readFile(fallbackPath, "utf-8");
-    }
-
-    const resolved = resolveTemplate(template, vars);
-    if (dryRun) {
-      console.log(`  Would write: ${destPath}`);
-    } else {
-      await fs.writeFile(destPath, resolved, "utf-8");
-    }
+    await writeWorkerSkill(skillsDir, targetDir, relPath, templatePath, vars, dryRun);
   }
 
   // fable-mode execution-discipline skill — copied verbatim (no template vars). Shipped to

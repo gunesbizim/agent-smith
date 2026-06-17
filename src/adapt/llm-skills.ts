@@ -3,6 +3,7 @@
 // template-substituted stub. Best-effort: returns a result describing what happened; the
 // caller keeps the already-scaffolded template skills when the LLM path is unavailable.
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 import { runClaude } from "../analyze/claude-runner.js";
 
@@ -18,107 +19,61 @@ export const GENERATED_SKILLS = [
 
 const SKILLS_TIMEOUT_MS = 600_000; // skill authoring fans out subagents — allow several minutes
 
-// The master prompt. It instructs the model to FIRST understand the whole project and read
-// the architecture docs, THEN fan out one subagent per skill to rewrite it in place.
-export function buildMasterSkillPrompt(projectRoot: string): string {
+/** Thrown when an externalized prompt template file cannot be found/read (P1). */
+export class SkillPromptError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SkillPromptError";
+  }
+}
+
+// Resolve the agent-smith package root (NOT the project root) — the prompt templates ship
+// with agent-smith. Same pattern as scaffold/hooks.ts. From <out>/adapt/llm-skills.js the
+// package root is two levels up.
+function getPackageRoot(): string {
+  const thisFile = fileURLToPath(import.meta.url);
+  return path.resolve(path.dirname(thisFile), "..", "..");
+}
+
+// Where the externalized generator prompt templates live. Overridable via
+// AGENT_SMITH_PROMPTS_DIR so a user can test a custom prompt without editing the package.
+function promptsDir(): string {
+  return process.env.AGENT_SMITH_PROMPTS_DIR || path.join(getPackageRoot(), "templates", "prompts");
+}
+
+/**
+ * Load and interpolate the externalized skill-generator master prompt (P1, C1 keystone).
+ * Reads templates/prompts/skill-generator.md and inlines the example stub, so the prose is
+ * editable without recompiling. Throws SkillPromptError if a template file is missing — the
+ * caller converts that to ran:false rather than shipping a silently-empty prompt.
+ */
+export function loadSkillGeneratorPrompt(): string {
+  const dir = promptsDir();
+  const promptPath = path.join(dir, "skill-generator.md");
+  const examplePath = path.join(dir, "skill-stub-example.md");
+
+  if (!fs.existsSync(promptPath)) {
+    throw new SkillPromptError(`skill-generator prompt template not found at ${promptPath}`);
+  }
+  if (!fs.existsSync(examplePath)) {
+    throw new SkillPromptError(`skill-stub-example template not found at ${examplePath}`);
+  }
+
+  const template = fs.readFileSync(promptPath, "utf-8");
+  const example = fs.readFileSync(examplePath, "utf-8").trimEnd();
   const skillList = GENERATED_SKILLS.map((s) => `  - .claude/skills/${s}/SKILL.md`).join("\n");
-  return [
-    "You are the agent-smith skill generator. Your job: rewrite this project's scaffolded",
-    "skill files so each is precisely grounded in THIS repository — its real structure,",
-    "stack, conventions, and the architecture docs — instead of generic template stubs.",
-    "",
-    "You are running in the project root with Read, Glob, Grep, Write, and Task tools.",
-    "",
-    "## Phase 1 — Understand the project (do this FIRST, before writing anything)",
-    "",
-    "1. Read the binding source-of-truth docs (skip any that do not exist):",
-    "   - docs/architecture/backend-architecture.md",
-    "   - docs/architecture/frontend-architecture.md",
-    "   - docs/architecture/best-practices.md   (existing + recommended engineering standards)",
-    "   - docs/architecture/decisions.md         (team conventions captured at init)",
-    "2. Explore the real source tree (Glob/Grep/Read): directory layout, layering, naming,",
-    "   test setup, lint/build commands, auth/permissions, i18n, state management, logging.",
-    "3. Identify the engineering best practices the project ALREADY follows — derive them from",
-    "   the architecture docs AND the patterns that recur in the real code (e.g. layered",
-    "   views/services/repos, structured logging with canonical keys, fail-closed auth, typed",
-    "   API boundaries, fixture/mount-factory test patterns). These become ENFORCED rules.",
-    "4. Read every existing stub you will rewrite so you preserve its INTENT and structure:",
-    skillList,
-    "5. Note the configured MCP tools mentioned in the stubs (gitnexus, git-memory, serena,",
-    "   sentrux, obsidian, playwright, chrome-devtools) and keep references accurate.",
-    "",
-    "## Phase 1.5 — Refresh the best-practices doc",
-    "",
-    "Author or update docs/architecture/best-practices.md so it reflects THIS project. Two parts:",
-    "  - **Followed** — the standards the code already upholds (from Phase 1 step 3), each stated",
-    "    concretely enough that a reviewer can check it.",
-    "  - **Recommended** — good practices the project does NOT yet follow, grounded in recognized",
-    "    engineering standards for its actual stack and in the latest framework documentation",
-    "    available to you (consult docs/web tools when present; otherwise use well-established",
-    "    current standards — never invent project-specific facts). Each recommendation gets a",
-    "    one-line rationale and a concrete 'how to adopt'. Clearly mark these as SUGGESTIONS.",
-    "Cover backend, frontend, PR review, testing, documentation, and git/commit hygiene as the",
-    "stack warrants (omit a side that does not exist).",
-    "",
-    "## Phase 2 — Fan out subagents (one per skill)",
-    "",
-    "For EACH skill file above, summon a subagent via the Task tool. Give each subagent:",
-    "  - the full path of the stub to rewrite,",
-    "  - the relevant architecture doc(s) to treat as binding,",
-    "  - this instruction set (below).",
-    "Run them concurrently where possible. Each subagent rewrites its ONE file in place with Write.",
-    "",
-    "## What each subagent MUST do (edge cases template substitution misses)",
-    "",
-    "- Preserve the YAML frontmatter `name:` exactly; refine `description:` to match the real stack.",
-    "- Replace ALL stack assumptions with what the code actually uses. The stubs assume",
-    "  Django/DRF + Vue3/Vuetify/Pinia/vue-i18n — if this project differs (FastAPI, Express,",
-    "  Rails, Go, Rust, React, Svelte, a CLI/library with no web tier, a monorepo, etc.),",
-    "  rewrite accordingly. NEVER leave a rule that does not apply to this repo.",
-    "- If a side does not exist (e.g. no frontend for a CLI tool), the corresponding skill",
-    "  must say so plainly and scope itself to what exists, not invent a stack.",
-    "- Use the REAL commands from the architecture docs / package manifests (test, lint,",
-    "  typecheck, build, dev server) — never placeholders.",
-    "- Keep the skill's workflow shape (Plan → analyze → act → verify) and its MCP-tool usage",
-    "  steps, but make every command and path correct for this repo.",
-    "- Resolve any remaining {{TEMPLATE_VARS}} to concrete values; leave no unresolved braces.",
-    "- Reference sibling commands by their as-* names (e.g. /as-pr-review, /as-test).",
-    "- Serena correctness (CRITICAL — only emit calls that actually exist):",
-    "    * Real tools: mcp__serena__get_symbols_overview, find_symbol, find_referencing_symbols,",
-    "      replace_symbol_body, insert_after_symbol, insert_before_symbol, rename_symbol,",
-    "      replace_content, check_onboarding_performed. There is NO find_implementations and NO",
-    "      get_diagnostics_for_file — never emit those.",
-    "    * Name paths use '/' not '.', e.g. find_symbol(name_path_pattern=\"ClassName/method\").",
-    "    * find_referencing_symbols requires BOTH name_path AND relative_path.",
-    "    * Instruct: run check_onboarding_performed once before Serena; load deferred Serena",
-    "      tools via tool-search first; edit code discovered via Serena with Serena's symbolic",
-    "      edit tools (built-in Edit is refused after a Serena read); Serena line numbers are 0-based.",
-    "    * To verify after edits, run the project's type-check/test gate — not a diagnostics tool.",
-    "- Reference the fable-mode execution-discipline skill (.claude/skills/fable-mode/SKILL.md):",
-    "  add a short note that, for work spanning multiple files/sources/sessions, the skill's",
-    "  staged loop applies (stage map → delegate → failable verification → self-critique). Do",
-    "  NOT duplicate fable-mode's content — point to it.",
-    "- Codify the project's EXISTING best practices (from Phase 1 + best-practices.md) as the",
-    "  skill's concrete, enforced rules — phrased for THIS stack, checkable by a reviewer.",
-    "- Add a '## Recommended best practices' section near the end of each skill: 2-5 SUGGESTIONS",
-    "  drawn from best-practices.md (the Recommended part) and recognized engineering standards",
-    "  for this stack — practices the project does not yet follow. Mark them clearly as",
-    "  suggestions (NOT enforced blockers), each with a one-line why + how to adopt. Reviewers",
-    "  surface them under 'Suggestions'; they never block a merge on their own.",
-    "- Ground every standard in the latest documentation available to you; do not invent",
-    "  framework behavior or cite practices that do not fit the detected stack.",
-    "- Every rule must be concrete and checkable by a reviewer — no generic filler.",
-    "- Output is the rewritten file ONLY (via Write); do not add commentary inside the file.",
-    "",
-    "## Phase 3 — Verify",
-    "",
-    "After all subagents finish, re-read each file and confirm: valid frontmatter, no leftover",
-    "{{...}} placeholders, no wrong-stack rules, real commands, and a 'Recommended best practices'",
-    "section present in each. Confirm docs/architecture/best-practices.md was written. Fix shortfalls.",
-    "",
-    "When done, output a one-line summary: which skills you rewrote, the stack you grounded them in,",
-    "and how many recommended best practices you surfaced.",
-  ].join("\n");
+
+  return template
+    .replace("{{SKILL_LIST}}", skillList)
+    .replace("{{STUB_EXAMPLE}}", example);
+}
+
+/**
+ * Backwards-compatible alias. The master prompt is now externalized (P1); this wrapper keeps
+ * the historical name and signature. `projectRoot` is unused — prompts ship with the package.
+ */
+export function buildMasterSkillPrompt(_projectRoot?: string): string {
+  return loadSkillGeneratorPrompt();
 }
 
 export interface SkillGenResult {
@@ -151,7 +106,15 @@ export function generateSkills(projectRoot: string): SkillGenResult {
     return { ran: false, reason: "architecture docs not generated yet" };
   }
 
-  const prompt = buildMasterSkillPrompt(projectRoot);
+  let prompt: string;
+  try {
+    prompt = loadSkillGeneratorPrompt();
+  } catch (err) {
+    if (err instanceof SkillPromptError) {
+      return { ran: false, reason: err.message };
+    }
+    throw err;
+  }
   const out = runClaude(prompt, {
     cwd: projectRoot,
     allowedTools: ["Read", "Glob", "Grep", "Write", "Task"],

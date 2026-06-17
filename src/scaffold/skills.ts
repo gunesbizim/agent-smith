@@ -17,6 +17,12 @@ const SKILL_TEMPLATES: Record<string, string> = {
   "test-frontend/SKILL.md": "templates/skills/test-frontend/SKILL.md",
   "docs-backend/SKILL.md": "templates/skills/docs-backend/SKILL.md",
   "docs-frontend/SKILL.md": "templates/skills/docs-frontend/SKILL.md",
+  // A5 — adversarial critic panel (one distinct lens each; /as-pr-review fans out + synthesizes).
+  "pr-critic-security/SKILL.md": "templates/skills/pr-critic-security/SKILL.md",
+  "pr-critic-performance/SKILL.md": "templates/skills/pr-critic-performance/SKILL.md",
+  "pr-critic-simplicity/SKILL.md": "templates/skills/pr-critic-simplicity/SKILL.md",
+  "pr-critic-maintainability/SKILL.md": "templates/skills/pr-critic-maintainability/SKILL.md",
+  "pr-critic-dx/SKILL.md": "templates/skills/pr-critic-dx/SKILL.md",
 };
 
 // gitnexus helper skill stubs

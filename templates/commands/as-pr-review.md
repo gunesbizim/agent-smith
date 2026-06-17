@@ -65,19 +65,49 @@ git diff origin/main...HEAD --stat
 - **Commit hygiene**: every commit contains a ticket reference, format `type(scope): TICKET-XX description` (≤ 72 chars).
 - **Migration ↔ frontend coupling**: new backend fields surfaced in UI without i18n keys, or vice versa.
 
+## Step 3.5 — Adversarial critic panel (perspective-diverse verification)
+
+Beyond the per-side reviews, fan out the **critic panel** — five single-lens adversarial
+reviewers, each trying to REFUTE the change from its own angle (not a balanced review). Run them
+as parallel subagents on the same diff:
+
+- `pr-critic-security` — injection, authz, secrets, SSRF, unsafe deserialization.
+- `pr-critic-performance` — N+1, unbounded loops/allocations, blocking I/O, missing indexes.
+- `pr-critic-simplicity` — unnecessary abstraction, dead code, simpler equivalents.
+- `pr-critic-maintainability` — naming, cohesion/coupling, test gaps, undocumented decisions.
+- `pr-critic-dx` — API ergonomics, error messages, hidden config, surprising defaults.
+
+Spawn one Agent per critic:
+> Read `.claude/skills/pr-critic-<lens>/SKILL.md` and execute it exactly on the branch diff.
+> `$ARGUMENTS` = `<scope>`. Return ONLY your `{severity, file, line, problem, fix}` findings.
+
+### Synthesis (consensus, not raw dump)
+
+After the critics return, a synthesis pass consolidates — do NOT dump every critic verbatim:
+1. **Dedup** findings that point at the same file/line across lenses.
+2. **Rank** by severity; a finding is **consensus** when ≥2 lenses independently flag the same
+   issue — surface those first.
+3. **Blockers vs suggestions**: only `blocker`-severity findings affect the verdict; `suggestion`
+   findings are listed under Suggestions and never block a merge on their own.
+4. A single critic's lone, low-confidence finding is a suggestion, not a blocker — this prevents
+   one noisy lens from blocking the merge.
+
 ## Step 4 — Merged output
 
 ```
 ## PR Review — <branch or PR number>
 
 ### Verdict
-mergeable / needs changes / blocked   (worst of the two side verdicts)
+mergeable / needs changes / blocked   (worst of: side verdicts + critic-panel blockers)
 
 ### Backend report
 <verbatim from the backend subagent, or "no backend changes">
 
 ### Frontend report
 <verbatim from the frontend subagent, or "no frontend changes">
+
+### Critic panel (synthesized)
+<consensus blockers first (≥2 lenses), then per-lens blockers; suggestions listed separately>
 
 ### Cross-cutting findings
 <contract drift, commit hygiene, coupling issues>

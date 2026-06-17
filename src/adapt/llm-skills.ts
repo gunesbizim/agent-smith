@@ -16,6 +16,12 @@ export const GENERATED_SKILLS = [
   "test-frontend",
   "docs-backend",
   "docs-frontend",
+  // A5 — the adversarial critic panel is grounded per project too, so each lens speaks the real stack.
+  "pr-critic-security",
+  "pr-critic-performance",
+  "pr-critic-simplicity",
+  "pr-critic-maintainability",
+  "pr-critic-dx",
 ];
 
 const SKILLS_TIMEOUT_MS = 600_000; // skill authoring fans out subagents — allow several minutes

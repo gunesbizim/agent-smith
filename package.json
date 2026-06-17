@@ -1,6 +1,6 @@
 {
   "name": "@gunesbizim/agent-smith",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Autonomous development pipeline — MCP auto-config, project-aware skill stubs, Jira-to-PR automation, Playwright+Obsidian docs",
   "keywords": [
     "claude-code",

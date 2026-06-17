@@ -62,8 +62,12 @@ Run them concurrently where possible. Each subagent rewrites its ONE file in pla
   rewrite accordingly. NEVER leave a rule that does not apply to this repo.
 - If a side does not exist (e.g. no frontend for a CLI tool), the corresponding skill
   must say so plainly and scope itself to what exists, not invent a stack.
-- Use the REAL commands from the architecture docs / package manifests (test, lint,
-  typecheck, build, dev server) — never placeholders.
+- Use the REAL commands derived from the project's own manifests / CI / tool configs
+  (package.json scripts, Makefile, go.mod, Cargo.toml, pyproject, `.github/workflows`) — for
+  test, lint, typecheck, format, migrate, build, dev server. NEVER a placeholder and NEVER a
+  generic language default. If a command cannot be proven from the project's files, state that
+  it is **unconfirmed** (and that it can be settled via `agent-smith confirm`) rather than
+  inventing one.
 - Keep the skill's workflow shape (Plan → analyze → act → verify) and its MCP-tool usage
   steps, but make every command and path correct for this repo.
 - Resolve any remaining {{TEMPLATE_VARS}} to concrete values; leave no unresolved braces.

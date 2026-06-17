@@ -64,7 +64,10 @@ describe("crossCheckReport (P4)", () => {
     const rel = ".claude/skills/test-backend/SKILL.md";
     const file = path.join(tmp, rel);
     fs.ensureDirSync(path.dirname(file));
-    fs.writeFileSync(file, "Run: go test ./...\n");
+    fs.writeFileSync(file, "---\nname: test-backend\n---\n" +
+      "You write backend tests for this Go/Echo service. Run the suite with `go test ./...` and " +
+      "lint with `golangci-lint run`. Cover happy, error, and edge paths; no empty stubs. Use the " +
+      "project's real fixtures and table-driven tests, grounded in the actual repository layout.\n");
     const report = { stack: "x", skills: [{ name: "test-backend", path: rel, rewritten: true, recommendedPractices: 2 }] };
     expect(crossCheckReport(report, tmp).skills[0].rewritten).toBe(true);
   });

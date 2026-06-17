@@ -61,6 +61,33 @@ describe("generateSkills", () => {
     expect(opts.allowedTools).toEqual(expect.arrayContaining(["Task", "Write", "Read"]));
   });
 
+  it("proceeds for a frontend-only project (only frontend-architecture.md present) — P5", () => {
+    for (const s of GENERATED_SKILLS) {
+      const dir = path.join(tmp, ".claude", "skills", s);
+      fs.ensureDirSync(dir);
+      fs.writeFileSync(path.join(dir, "SKILL.md"), `---\nname: ${s}\n---\nstub\n`);
+    }
+    fs.ensureDirSync(path.join(tmp, "docs", "architecture"));
+    fs.writeFileSync(path.join(tmp, "docs", "architecture", "frontend-architecture.md"), "# Frontend\n");
+    runClaudeMock.mockReturnValue("Rewrote 6 skills grounded in React/Zustand.");
+    const r = generateSkills(tmp);
+    expect(r.ran).toBe(true);
+    expect(runClaudeMock).toHaveBeenCalledOnce();
+  });
+
+  it("returns ran:false when NO architecture doc exists at all — P5 regression", () => {
+    for (const s of GENERATED_SKILLS) {
+      const dir = path.join(tmp, ".claude", "skills", s);
+      fs.ensureDirSync(dir);
+      fs.writeFileSync(path.join(dir, "SKILL.md"), `---\nname: ${s}\n---\nstub\n`);
+    }
+    fs.ensureDirSync(path.join(tmp, "docs", "architecture"));
+    const r = generateSkills(tmp);
+    expect(r.ran).toBe(false);
+    expect(r.reason).toMatch(/architecture/i);
+    expect(runClaudeMock).not.toHaveBeenCalled();
+  });
+
   it("returns ran:false when the LLM call fails", () => {
     scaffoldStubs(tmp);
     runClaudeMock.mockReturnValue(null);

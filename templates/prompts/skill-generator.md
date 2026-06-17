@@ -13,8 +13,11 @@ You are running in the project root with Read, Glob, Grep, Write, and Task tools
    - docs/architecture/decisions.md         (team conventions captured at init)
 2. Explore the real source tree (Glob/Grep/Read): directory layout, layering, naming,
    test setup, lint/build commands, auth/permissions, i18n, state management, logging.
-3. Identify the engineering best practices the project ALREADY follows — derive them from
-   the architecture docs AND the patterns that recur in the real code (e.g. layered
+3. Identify the engineering best practices the project ALREADY follows. **Start from the
+   programmatically detected conventions** in the "Detected conventions (Followed — auto-detected
+   from the real code)" section of docs/architecture/best-practices.md — each is evidence-cited
+   and should be treated as a confirmed Followed standard. Then add any others you derive from the
+   architecture docs AND the patterns that recur in the real code (e.g. layered
    views/services/repos, structured logging with canonical keys, fail-closed auth, typed
    API boundaries, fixture/mount-factory test patterns). These become ENFORCED rules.
 4. Read every existing stub you will rewrite so you preserve its INTENT and structure:

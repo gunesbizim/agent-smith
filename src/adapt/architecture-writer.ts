@@ -4,6 +4,7 @@ import fs from "fs-extra";
 import type { TemplateVariables, DetectedProject } from "../shared/types.js";
 import { isClaudeAvailable } from "../analyze/claude-runner.js";
 import { generateArchitectureDoc } from "./llm-architecture.js";
+import { detectConventions, renderFollowedConventions } from "../analyze/conventions.js";
 
 /**
  * Write .sentrux/rules.toml seeded from a live probe.
@@ -136,11 +137,27 @@ export async function writeArchitectureDocs(
   // Engineering best practices — a curated baseline (Followed vs Recommended). The LLM skill
   // generator (Phase 1.5) refreshes this with what THIS project actually follows; the template
   // here is the deterministic fallback and the starting point.
+  // C4 — seed the "Followed" bucket from PROGRAMMATICALLY detected conventions (evidence-cited),
+  // so best-practices.md is grounded even when the LLM path is unavailable.
+  let detected = "";
+  if (opts.project) {
+    const conventions = await detectConventions(targetDir, opts.project);
+    detected = [
+      "",
+      "## Detected conventions (Followed — auto-detected from the real code)",
+      "",
+      "These were found programmatically and cited with evidence; a reviewer can check each.",
+      "Confirm or correct them with `agent-smith confirm` so the next run treats them as ground truth.",
+      "",
+      renderFollowedConventions(conventions),
+      "",
+    ].join("\n");
+  }
   const bpPath = path.join(archDir, "best-practices.md");
   if (dryRun) {
     console.log(`  Would write: ${bpPath}`);
   } else {
-    await fs.writeFile(bpPath, generateBestPracticesDoc(vars), "utf-8");
+    await fs.writeFile(bpPath, generateBestPracticesDoc(vars) + detected, "utf-8");
   }
 }
 

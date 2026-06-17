@@ -3,6 +3,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import type { TemplateVariables } from "../shared/types.js";
 import { resolveTemplate } from "../shared/templates.js";
+import { extractPlaceholders } from "./template-engine.js";
 
 const SKILL_FILES = [
   ".claude/skills/pr-review-backend/SKILL.md",
@@ -34,11 +35,10 @@ export async function customizeSkills(
 
     let content = await fs.readFile(filePath, "utf-8");
 
-    // Apply template variable substitution
-    content = resolveTemplate(content, vars);
-
-    // Apply framework-specific customizations
+    // B8: framework customizations run FIRST (they may inject {{VAR}} placeholders),
+    // then substitution is the authoritative final pass.
     content = applyFrameworkCustomizations(content, vars);
+    content = substituteToFixpoint(content, vars, relPath);
 
     if (dryRun) {
       console.log(`  Would customize: ${filePath}`);
@@ -53,8 +53,8 @@ export async function customizeSkills(
     if (!fs.existsSync(filePath)) continue;
 
     let content = await fs.readFile(filePath, "utf-8");
-    content = resolveTemplate(content, vars);
     content = applyFrameworkCustomizations(content, vars);
+    content = substituteToFixpoint(content, vars, relPath);
 
     if (dryRun) {
       console.log(`  Would customize: ${filePath}`);
@@ -62,6 +62,36 @@ export async function customizeSkills(
       await fs.writeFile(filePath, content, "utf-8");
     }
   }
+}
+
+/**
+ * Substitution as the authoritative final pass (B8). Resolves {{VAR}} placeholders
+ * repeatedly until the output stabilises (a fixpoint) so any placeholder re-injected by
+ * an earlier customization step is also resolved. Any residual `{{...}}` after the fixpoint
+ * is a genuinely unknown variable: it is reported loudly rather than shipped silently.
+ *
+ * Exported so tests can assert the invariant directly.
+ */
+export function substituteToFixpoint(
+  content: string,
+  vars: Partial<TemplateVariables>,
+  fileLabel = "<inline>",
+): string {
+  let prev = content;
+  let out = resolveTemplate(content, vars);
+  // resolveTemplate leaves unknown placeholders intact, so this converges in one extra
+  // pass; the bound is a safety net against pathological self-referential placeholders.
+  for (let i = 0; out !== prev && i < 5; i++) {
+    prev = out;
+    out = resolveTemplate(out, vars);
+  }
+  const residual = extractPlaceholders(out);
+  if (residual.length > 0) {
+    console.warn(
+      `⚠ Unresolved template placeholders in ${fileLabel}: ${residual.map((p) => `{{${p}}}`).join(", ")}`,
+    );
+  }
+  return out;
 }
 
 function applyFrameworkCustomizations(content: string, vars: TemplateVariables): string {

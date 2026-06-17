@@ -31,6 +31,7 @@ program
   .option("--no-llm", "Disable LLM generation; use fast template/heuristic path only (LLM is on by default when the `claude` CLI is present)")
   .option("--yes", "Approve MCP installation without prompting")
   .option("--no-install", "Skip installing MCP server binaries (config files are still written)")
+  .option("--regen-skills", "Re-run LLM skill generation even if it already ran for this repo")
   .action(async (opts) => {
     const { initCommand } = await import("./init.js");
     await initCommand(opts);

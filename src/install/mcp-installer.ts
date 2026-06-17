@@ -101,7 +101,7 @@ export function selectServersToInstall(opts: InstallOptions = {}): MCPServerDefi
  * while a slow `npm`/`npx`/`pipx` install runs — otherwise the spinner freezes
  * mid-frame and the CLI looks hung.
  */
-function runCommandAsync(command: string): Promise<void> {
+export function runCommandAsync(command: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, { shell: true, stdio: ["ignore", "ignore", "pipe"] });
     let stderr = "";
@@ -117,7 +117,7 @@ function runCommandAsync(command: string): Promise<void> {
 }
 
 /** Async, non-blocking equivalent of "does this command succeed?" (exit 0). */
-function commandSucceeds(command: string): Promise<boolean> {
+export function commandSucceeds(command: string): Promise<boolean> {
   return runCommandAsync(command).then(
     () => true,
     () => false,

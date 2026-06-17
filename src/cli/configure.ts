@@ -2,8 +2,8 @@
 import chalk from "chalk";
 import ora from "ora";
 import { checkDependencies } from "../install/dependency-checker.js";
-import { installMCPs, configureMCPs, registerLocalMCPs, ensureGitignore, selectServersToInstall, PLAYWRIGHT_OUTPUT_DIR } from "../install/mcp-installer.js";
-import { resolveConsent } from "../install/install-consent.js";
+import { configureMCPs, registerLocalMCPs, ensureGitignore, PLAYWRIGHT_OUTPUT_DIR } from "../install/mcp-installer.js";
+import { installWithConsent } from "../install/install-flow.js";
 import { setupObsidianVault } from "../install/obsidian-vault.js";
 import { scaffoldConfigs } from "../scaffold/configs.js";
 import { detectProject } from "../analyze/project-detector.js";
@@ -37,13 +37,10 @@ export async function configureCommand(opts: ConfigureOptions): Promise<void> {
   // servers (browser/vuetify/laravel-boost) to projects they actually apply to.
   const project = await detectProject(cwd);
 
-  // Consent-gate the install (same flow as init). installMCPs renders the
+  // Consent-gate the install (shared flow with init). installMCPs renders the
   // cli-progress bar with the live command per server.
-  const toInstall = selectServersToInstall({ servers, project });
-  const consent = await resolveConsent(toInstall, { yes: opts.yes, noInstall: opts.install === false });
-  if (consent.approved) {
-    await installMCPs({ servers, project });
-  } else {
+  const { consent } = await installWithConsent({ servers, project }, { yes: opts.yes, noInstall: opts.install === false });
+  if (!consent.approved) {
     console.log(chalk.yellow(`\n⊘ Skipping MCP install — ${consent.reason}.`));
   }
 

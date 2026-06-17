@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { configureMCPs, hasRequiredEnv, registerLocalMCPs, ensureGitignore, installMCPs } from "../../install/mcp-installer.js";
+import { configureMCPs, hasRequiredEnv, registerLocalMCPs, ensureGitignore, installMCPs, runCommandAsync, commandSucceeds } from "../../install/mcp-installer.js";
 import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
 import type { DetectedProject, FrontendInfo } from "../../shared/types.js";
 
@@ -214,6 +214,45 @@ describe("installMCPs — progress loop", () => {
     );
     expect(summary.manual).toContain("laravel-boost");
     expect(ran).toEqual([]);
+  });
+
+  it("records already-present servers", async () => {
+    const summary = await installMCPs(
+      { servers: ["gitnexus"] },
+      { showProgress: false, check: async () => true, run: async () => {} },
+    );
+    expect(summary.alreadyPresent).toContain("gitnexus");
+  });
+
+  it("records a failed install without throwing", async () => {
+    const summary = await installMCPs(
+      { servers: ["gitnexus"] },
+      { showProgress: false, check: async () => false, run: async () => { throw new Error("boom"); } },
+    );
+    expect(summary.failed[0]).toMatchObject({ name: "gitnexus", error: "boom" });
+  });
+
+  it("renders the progress bar + summary footer (showProgress) and buckets outcomes", async () => {
+    const summary = await installMCPs(
+      { servers: ["gitnexus", "vuetify", "laravel-boost"] },
+      { showProgress: true, check: async () => false, run: async () => {} },
+    );
+    expect(summary.installed).toContain("gitnexus");
+    expect(summary.onDemand).toContain("vuetify");
+    expect(summary.manual).toContain("laravel-boost");
+  });
+});
+
+describe("runCommandAsync / commandSucceeds (real spawn)", () => {
+  it("runCommandAsync resolves on exit 0", async () => {
+    await expect(runCommandAsync("node --version")).resolves.toBeUndefined();
+  });
+  it("runCommandAsync rejects on non-zero exit", async () => {
+    await expect(runCommandAsync('node -e "process.exit(3)"')).rejects.toThrow();
+  });
+  it("commandSucceeds reflects the exit status", async () => {
+    expect(await commandSucceeds("node --version")).toBe(true);
+    expect(await commandSucceeds('node -e "process.exit(1)"')).toBe(false);
   });
 });
 

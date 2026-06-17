@@ -108,8 +108,16 @@ import os from "node:os";
 import path from "node:path";
 import { initCommand } from "../../cli/init.js";
 import { probeSentrux } from "../../analyze/architecture-sniffer.js";
+import { ensureGhCli } from "../../install/gh-installer.js";
+import { resolveConsent } from "../../install/install-consent.js";
+import { registerLocalMCPs } from "../../install/mcp-installer.js";
 
 const mockProbeSentrux = vi.mocked(probeSentrux);
+const mockGh = vi.mocked(ensureGhCli);
+const mockConsent = vi.mocked(resolveConsent);
+const mockRegisterLocal = vi.mocked(registerLocalMCPs);
+
+const PROBE_OK = { available: true, cycles: 0, maxCC: 12, couplingGrade: "A", qualitySignal: 90, bottleneck: null } as const;
 
 describe("initCommand — sentrux probe integration", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -155,6 +163,33 @@ describe("initCommand — sentrux probe integration", () => {
       expect(fs.existsSync(path.join(tmp, ".sentrux", "baseline.json"))).toBe(true);
       expect(fs.existsSync(path.join(tmp, "CLAUDE.md"))).toBe(true);
       expect(fs.readFileSync(path.join(tmp, "CLAUDE.md"), "utf-8")).toContain("<!-- agent-smith:start -->");
+    } finally {
+      fs.removeSync(tmp);
+    }
+  });
+
+  it("non-dry: gh just-installed + consent declined + obsidian vault created + local MCP registered", async () => {
+    mockProbeSentrux.mockResolvedValue(PROBE_OK);
+    mockGh.mockResolvedValue({ available: true, alreadyPresent: false, installed: true, skipped: false });
+    mockConsent.mockResolvedValue({ approved: false, reason: "skipped via --no-install" });
+    mockRegisterLocal.mockReturnValue({ registered: ["obsidian"], skipped: [] });
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agent-smith-init-"));
+    process.env.OBSIDIAN_VAULT_PATH = path.join(tmp, "vault");
+    try {
+      await expect(initCommand({ auto: true, dryRun: false, llm: false, dir: tmp, install: false })).resolves.not.toThrow();
+      expect(fs.existsSync(path.join(tmp, "vault"))).toBe(true); // setupObsidianVault created it
+    } finally {
+      delete process.env.OBSIDIAN_VAULT_PATH;
+      fs.removeSync(tmp);
+    }
+  });
+
+  it("non-dry: warns when gh cannot be auto-installed", async () => {
+    mockProbeSentrux.mockResolvedValue(PROBE_OK);
+    mockGh.mockResolvedValue({ available: false, alreadyPresent: false, installed: false, skipped: true, reason: "install gh manually" });
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agent-smith-init-"));
+    try {
+      await expect(initCommand({ auto: true, dryRun: false, llm: false, dir: tmp })).resolves.not.toThrow();
     } finally {
       fs.removeSync(tmp);
     }

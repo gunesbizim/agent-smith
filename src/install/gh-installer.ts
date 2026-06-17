@@ -51,7 +51,7 @@ export function pickGhInstallCommand(
 }
 
 /** Run a command asynchronously (non-blocking, so a spinner keeps animating). */
-function run(cmd: string, args: string[]): Promise<boolean> {
+export function runGh(cmd: string, args: string[]): Promise<boolean> {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { stdio: "ignore" });
     child.on("error", () => resolve(false));
@@ -59,22 +59,31 @@ function run(cmd: string, args: string[]): Promise<boolean> {
   });
 }
 
+/** Injectable hooks so the install path is unit-testable without spawning. */
+export interface GhInstallDeps {
+  has?: (cmd: string) => boolean;
+  run?: (cmd: string, args: string[]) => Promise<boolean>;
+}
+
 /**
  * Ensure the GitHub CLI is installed, attempting a best-effort auto-install when
  * it is missing. Never throws — returns a result describing what happened.
  */
-export async function ensureGhCli(): Promise<GhInstallResult> {
-  if (commandExists("gh")) {
+export async function ensureGhCli(deps: GhInstallDeps = {}): Promise<GhInstallResult> {
+  const has = deps.has ?? commandExists;
+  const run = deps.run ?? runGh;
+
+  if (has("gh")) {
     return { available: true, alreadyPresent: true, installed: false, skipped: false };
   }
 
-  const install = pickGhInstallCommand(process.platform);
+  const install = pickGhInstallCommand(process.platform, has);
   if (!install) {
     return { available: false, alreadyPresent: false, installed: false, skipped: true, reason: GH_MANUAL_HINT };
   }
 
   const ok = await run(install.cmd, install.args);
-  if (ok && commandExists("gh")) {
+  if (ok && has("gh")) {
     return { available: true, alreadyPresent: false, installed: true, skipped: false };
   }
 

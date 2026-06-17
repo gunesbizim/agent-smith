@@ -15,8 +15,8 @@ import { scanPackages } from "../analyze/package-scanner.js";
 import { runInterview, applyInterviewAnswers } from "../adapt/project-interview.js";
 import { checkDependencies } from "../install/dependency-checker.js";
 import { ensureGhCli } from "../install/gh-installer.js";
-import { installMCPs, configureMCPs, registerLocalMCPs, selectServersToInstall } from "../install/mcp-installer.js";
-import { resolveConsent } from "../install/install-consent.js";
+import { configureMCPs, registerLocalMCPs } from "../install/mcp-installer.js";
+import { installWithConsent } from "../install/install-flow.js";
 import { setupObsidianVault } from "../install/obsidian-vault.js";
 import { scaffoldCommands } from "../scaffold/commands.js";
 import { scaffoldSkills } from "../scaffold/skills.js";
@@ -257,11 +257,11 @@ export async function initCommand(opts: InitOptions): Promise<void> {
   // the single place agent-smith installs MCPs — nothing relies on the configure
   // command, generated skills, or Claude Code to do it. Stack-gated by `project`.
   if (!opts.dryRun) {
-    const toInstall = selectServersToInstall({ project });
-    const consent = await resolveConsent(toInstall, { yes: opts.yes, noInstall: opts.install === false, auto: opts.auto });
-    if (consent.approved) {
-      await installMCPs({ project });
-    } else {
+    const { consent } = await installWithConsent(
+      { project },
+      { yes: opts.yes, noInstall: opts.install === false, auto: opts.auto },
+    );
+    if (!consent.approved) {
       console.log(chalk.yellow(`  ⊘ Skipping MCP install — ${consent.reason}.`));
       console.log(chalk.gray("    Run `agent-smith configure` later to install them."));
     }

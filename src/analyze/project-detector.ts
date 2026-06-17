@@ -14,6 +14,37 @@ import type {
   DatabaseInfo,
   MonorepoInfo,
 } from "../shared/types.js";
+import {
+  type FsCache,
+  createFsCache,
+  fileExists,
+  findFile,
+  readFirstFile,
+  readFileSafe,
+  readJson,
+  grepFirst,
+  dirExists,
+  pkgDeps,
+  findSubPackages,
+  findAllPackageJsons,
+} from "./fs-helpers.js";
+import {
+  detectBackendFromRegistry,
+  manifestEvidence,
+  nodeEvidence,
+  phpEvidence,
+  goModVersion,
+  goORM,
+  goAuth,
+  GO_ROWS,
+  RUST_ROWS,
+  NODE_ROWS,
+  RUBY_ROWS,
+  PHP_ROWS,
+  JVM_ROWS,
+  DOTNET_ROWS,
+  SWIFT_ROWS,
+} from "./detector-registry.js";
 
 // ============================================================
 // Main entry
@@ -96,25 +127,6 @@ function getSearchRoots(rootPath: string, project: DetectedProject): string[] {
 // Backend detection — all languages gitnexus supports
 // ============================================================
 
-// Find all package.json files in monorepo subdirectories
-async function findSubPackages(rootPath: string): Promise<string[]> {
-  const dirs: string[] = [];
-  for (const subdir of ["apps", "packages", "services", "libs"]) {
-    const subPath = path.join(rootPath, subdir);
-    try {
-      if (await fs.pathExists(subPath)) {
-        const entries = await fs.readdir(subPath, { withFileTypes: true });
-        for (const entry of entries) {
-          if (entry.isDirectory() && !entry.name.startsWith(".")) {
-            dirs.push(path.join(subPath, entry.name));
-          }
-        }
-      }
-    } catch {}
-  }
-  return dirs;
-}
-
 async function detectBackend(rootPath: string, project?: DetectedProject): Promise<BackendInfo | null> {
   // ---- Python ----
   if (await fileExists(rootPath, "**/pyproject.toml") || await fileExists(rootPath, "requirements.txt") || await fileExists(rootPath, "**/setup.py")) {
@@ -139,163 +151,20 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
   }
 
   // ---- TypeScript/JavaScript (Node.js) ----
+  // The registry holds the framework facts; this resolves WHICH package.json to read.
   const rootPkg = await readJson(rootPath, "package.json");
   const backendPkg = await readJson(rootPath, "backend/package.json") ?? await readJson(rootPath, "server/package.json") ?? await readJson(rootPath, "api/package.json");
   const pkg = backendPkg ?? rootPkg;
 
   if (pkg) {
-    const deps = pkgDeps(pkg);
-
-    // NestJS
-    if (deps["@nestjs/core"]) {
-      return {
-        framework: "nestjs", language: "typescript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: true, usesAPIView: false, usesFunctionViews: false,
-        importStyle: "absolute", rolePattern: "decorators", authMethod: "JWT",
-        loggingPattern: "structured", orm: deps["@prisma/client"] ? "Prisma" : deps.typeorm ? "TypeORM" : deps.mikroorm ? "MikroORM" : deps.knex ? "Knex" : null,
-      };
-    }
-
-    // Fastify
-    if (deps.fastify) {
-      return {
-        framework: "fastify", language: deps.typescript ? "typescript" : "javascript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "unstructured", orm: nodeORM(deps),
-      };
-    }
-
-    // Koa
-    if (deps.koa) {
-      return {
-        framework: "koa", language: deps.typescript ? "typescript" : "javascript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "unstructured", orm: nodeORM(deps),
-      };
-    }
-
-    // Hono
-    if (deps.hono) {
-      return {
-        framework: "hono", language: "typescript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "unstructured", orm: nodeORM(deps),
-      };
-    }
-
-    // AdonisJS
-    if (deps["@adonisjs/core"]) {
-      return {
-        framework: "adonisjs", language: "typescript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: true, usesAPIView: false, usesFunctionViews: false,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "session",
-        loggingPattern: "structured", orm: "Lucid",
-      };
-    }
-
-    // Express / generic Node
-    if (deps.express) {
-      return {
-        framework: "express", language: deps.typescript ? "typescript" : "javascript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "unstructured", orm: nodeORM(deps),
-      };
-    }
-
-    // FeathersJS
-    if (deps["@feathersjs/feathers"]) {
-      return {
-        framework: "feathersjs", language: "typescript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: true, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "unstructured", orm: nodeORM(deps),
-      };
-    }
-
-    // Next.js API
-    if (deps.next) {
-      return {
-        framework: "nextjs-api", language: "typescript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "NextAuth",
-        loggingPattern: "unstructured", orm: deps.prisma ? "Prisma" : deps.drizzle ? "Drizzle" : null,
-      };
-    }
-
-    // Nuxt API
-    if (deps.nuxt || deps["nuxt3"]) {
-      return {
-        framework: "nuxt-api", language: "typescript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "session",
-        loggingPattern: "unstructured", orm: deps.prisma ? "Prisma" : deps.drizzle ? "Drizzle" : null,
-      };
-    }
-
-    // Remix
-    if (deps["@remix-run/node"] || deps["@remix-run/react"]) {
-      return {
-        framework: "remix", language: "typescript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "session",
-        loggingPattern: "unstructured", orm: deps.prisma ? "Prisma" : null,
-      };
-    }
-
-    // SvelteKit API
-    if (deps["@sveltejs/kit"]) {
-      return {
-        framework: "sveltekit-api", language: "typescript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "session",
-        loggingPattern: "unstructured", orm: deps.prisma ? "Prisma" : deps.drizzle ? "Drizzle" : null,
-      };
-    }
-
-    // Generic Node server (has express-like patterns)
-    if (deps["body-parser"] || deps.cors || deps.helmet) {
-      return {
-        framework: "generic-server", language: "typescript", languageVersion: "5.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "none", authMethod: "none",
-        loggingPattern: "unstructured", orm: nodeORM(deps),
-      };
-    }
+    const result = detectBackendFromRegistry(NODE_ROWS, nodeEvidence(pkgDeps(pkg)));
+    if (result) return result;
   }
 
   // ---- Ruby ----
   if (await fileExists(rootPath, "Gemfile")) {
     const gemfile = await readFileSafe(rootPath, "Gemfile") ?? "";
-
-    if (gemfile.includes("rails")) {
-      return {
-        framework: "rails", language: "ruby", languageVersion: "3.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "Devise",
-        loggingPattern: "structured", orm: "ActiveRecord",
-      };
-    }
-
-    if (gemfile.includes("sinatra")) {
-      return {
-        framework: "sinatra", language: "ruby", languageVersion: "3.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "manual", authMethod: "none",
-        loggingPattern: "unstructured", orm: gemfile.includes("activerecord") ? "ActiveRecord" : gemfile.includes("sequel") ? "Sequel" : null,
-      };
-    }
-
-    // Generic Ruby
-    return {
-      framework: "generic-server", language: "ruby", languageVersion: "3.x",
-      hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-      importStyle: "absolute", rolePattern: "none", authMethod: "none",
-      loggingPattern: "unstructured", orm: null,
-    };
+    return detectBackendFromRegistry(RUBY_ROWS, manifestEvidence(gemfile));
   }
 
   // ---- PHP ----
@@ -303,251 +172,40 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
     const composer = await readJson(rootPath, "composer.json");
     if (composer) {
       const require = (composer.require as Record<string, string>) ?? {};
-
-      if (require["laravel/framework"]) {
-        return {
-          framework: "laravel", language: "php", languageVersion: "8.x",
-          hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: false,
-          importStyle: "absolute", rolePattern: "middleware", authMethod: "Sanctum",
-          loggingPattern: "unstructured", orm: "Eloquent",
-        };
-      }
-
-      if (require["symfony/framework-bundle"] || require["symfony/http-kernel"]) {
-        return {
-          framework: "symfony", language: "php", languageVersion: "8.x",
-          hasHexagonalArch: false, hasServiceRepo: true, usesAPIView: false, usesFunctionViews: false,
-          importStyle: "absolute", rolePattern: "middleware", authMethod: "Symfony Security",
-          loggingPattern: "structured", orm: require["doctrine/orm"] ? "Doctrine" : null,
-        };
-      }
-
-      if (require["slim/slim"]) {
-        return {
-          framework: "slim", language: "php", languageVersion: "8.x",
-          hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-          importStyle: "absolute", rolePattern: "middleware", authMethod: "none",
-          loggingPattern: "unstructured", orm: require["illuminate/database"] ? "Eloquent" : require["doctrine/orm"] ? "Doctrine" : null,
-        };
-      }
-
-      // Generic PHP
-      return {
-        framework: "generic-server", language: "php", languageVersion: "8.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "none", authMethod: "none",
-        loggingPattern: "unstructured", orm: null,
-      };
+      return detectBackendFromRegistry(PHP_ROWS, phpEvidence(require));
     }
   }
 
   // ---- Java / Kotlin / Scala (JVM) ----
   if (await fileExists(rootPath, "**/pom.xml") || await fileExists(rootPath, "**/build.gradle") || await fileExists(rootPath, "**/build.gradle.kts")) {
-    // Try to read build file
     const pom = await readFileSafe(rootPath, "**/pom.xml") ?? "";
     const gradle = (await readFileSafe(rootPath, "**/build.gradle") ?? "") + (await readFileSafe(rootPath, "**/build.gradle.kts") ?? "");
     const buildContent = pom + gradle;
-
-    if (buildContent.includes("spring-boot") || buildContent.includes("org.springframework.boot")) {
-      const isKotlin = buildContent.includes("kotlin");
-      return {
-        framework: isKotlin ? "spring-boot-kotlin" : "spring-boot",
-        language: isKotlin ? "kotlin" : "java",
-        languageVersion: isKotlin ? "2.x" : "21",
-        hasHexagonalArch: false, hasServiceRepo: true, usesAPIView: false, usesFunctionViews: false,
-        importStyle: "absolute", rolePattern: "decorators", authMethod: "Spring Security",
-        // Match real JPA artifacts: "spring-boot-starter-data-jpa" does NOT contain the substring
-        // "spring-data-jpa", so check the broader "data-jpa" plus direct Hibernate/JPA markers.
-        loggingPattern: "structured", orm: buildContent.includes("data-jpa") || buildContent.includes("hibernate") || buildContent.includes("jakarta.persistence") || buildContent.includes("javax.persistence") ? "JPA/Hibernate" : buildContent.includes("mybatis") ? "MyBatis" : null,
-      };
-    }
-
-    if (buildContent.includes("quarkus")) {
-      return {
-        framework: "quarkus", language: "java", languageVersion: "21",
-        hasHexagonalArch: false, hasServiceRepo: true, usesAPIView: false, usesFunctionViews: false,
-        importStyle: "absolute", rolePattern: "decorators", authMethod: "Quarkus Security",
-        loggingPattern: "structured", orm: buildContent.includes("hibernate") ? "Hibernate/Panache" : null,
-      };
-    }
-
-    if (buildContent.includes("micronaut")) {
-      return {
-        framework: "micronaut", language: "java", languageVersion: "21",
-        hasHexagonalArch: false, hasServiceRepo: true, usesAPIView: false, usesFunctionViews: false,
-        importStyle: "absolute", rolePattern: "decorators", authMethod: "Micronaut Security",
-        loggingPattern: "structured", orm: buildContent.includes("jpa") ? "JPA/Hibernate" : null,
-      };
-    }
-
-    if (buildContent.includes("jakarta") || buildContent.includes("javax.ws.rs")) {
-      return {
-        framework: "jakarta-ee", language: "java", languageVersion: "21",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: false,
-        importStyle: "absolute", rolePattern: "decorators", authMethod: "Jakarta Security",
-        loggingPattern: "unstructured", orm: buildContent.includes("jpa") ? "JPA" : null,
-      };
-    }
-
-    if (buildContent.includes("ktor")) {
-      return {
-        framework: "ktor", language: "kotlin", languageVersion: "2.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "Ktor Auth",
-        loggingPattern: "unstructured", orm: buildContent.includes("exposed") ? "Exposed" : buildContent.includes("hibernate") ? "Hibernate" : null,
-      };
-    }
-
-    if (buildContent.includes("play")) {
-      return {
-        framework: "play-framework", language: "scala", languageVersion: "3.x",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: false,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "Play Auth",
-        loggingPattern: "unstructured", orm: buildContent.includes("slick") ? "Slick" : buildContent.includes("anorm") ? "Anorm" : null,
-      };
-    }
-
-    // Generic JVM
-    return {
-      framework: "generic-server", language: "java", languageVersion: "21",
-      hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: false,
-      importStyle: "absolute", rolePattern: "none", authMethod: "none",
-      loggingPattern: "unstructured", orm: null,
-    };
+    return detectBackendFromRegistry(JVM_ROWS, manifestEvidence(buildContent));
   }
 
   // ---- Go ----
   if (await fileExists(rootPath, "go.mod")) {
     const goMod = await readFileSafe(rootPath, "go.mod") ?? "";
-
-    if (goMod.includes("gin-gonic/gin")) {
-      return {
-        framework: "gin", language: "go", languageVersion: goModVersion(goMod),
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: goAuth(goMod),
-        loggingPattern: "unstructured", orm: goORM(goMod),
-      };
-    }
-
-    if (goMod.includes("labstack/echo")) {
-      return {
-        framework: "echo", language: "go", languageVersion: goModVersion(goMod),
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: goAuth(goMod),
-        loggingPattern: "unstructured", orm: goORM(goMod),
-      };
-    }
-
-    if (goMod.includes("gofiber/fiber")) {
-      return {
-        framework: "fiber", language: "go", languageVersion: goModVersion(goMod),
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: goAuth(goMod),
-        loggingPattern: "unstructured", orm: goORM(goMod),
-      };
-    }
-
-    if (goMod.includes("go-chi/chi")) {
-      return {
-        framework: "chi", language: "go", languageVersion: goModVersion(goMod),
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: goAuth(goMod),
-        loggingPattern: "unstructured", orm: goORM(goMod),
-      };
-    }
-
-    // Generic Go
-    return {
-      framework: "generic-server", language: "go", languageVersion: goModVersion(goMod),
-      hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-      importStyle: "absolute", rolePattern: "middleware", authMethod: "none",
-      loggingPattern: "unstructured", orm: null,
-    };
+    return detectBackendFromRegistry(GO_ROWS, manifestEvidence(goMod));
   }
 
   // ---- Rust ----
   if (await fileExists(rootPath, "Cargo.toml")) {
     const cargo = await readFileSafe(rootPath, "Cargo.toml") ?? "";
-
-    if (cargo.includes("actix-web")) {
-      return {
-        framework: "actix-web", language: "rust", languageVersion: "stable",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "structured", orm: cargo.includes("diesel") ? "Diesel" : cargo.includes("sqlx") ? "SQLx" : cargo.includes("sea-orm") ? "SeaORM" : null,
-      };
-    }
-
-    if (cargo.includes("axum")) {
-      return {
-        framework: "axum", language: "rust", languageVersion: "stable",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "structured", orm: cargo.includes("sqlx") ? "SQLx" : cargo.includes("diesel") ? "Diesel" : cargo.includes("sea-orm") ? "SeaORM" : null,
-      };
-    }
-
-    if (cargo.includes("rocket")) {
-      return {
-        framework: "rocket", language: "rust", languageVersion: "stable",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "session",
-        loggingPattern: "unstructured", orm: cargo.includes("diesel") ? "Diesel" : null,
-      };
-    }
-
-    // Generic Rust
-    return {
-      framework: "generic-server", language: "rust", languageVersion: "stable",
-      hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-      importStyle: "absolute", rolePattern: "none", authMethod: "none",
-      loggingPattern: "unstructured", orm: null,
-    };
+    return detectBackendFromRegistry(RUST_ROWS, manifestEvidence(cargo));
   }
 
   // ---- C# (.NET) ----
   if (await fileExists(rootPath, "**/*.csproj") || await fileExists(rootPath, "**/*.sln")) {
     const csproj = await readFirstFile(rootPath, "**/*.csproj") ?? "";
-
-    if (csproj.includes("Microsoft.NET.Sdk.Web") || csproj.includes("Microsoft.AspNetCore")) {
-      const isBlazor = csproj.includes("Blazor");
-      return {
-        framework: isBlazor ? "blazor-api" : "aspnet-core",
-        language: "csharp",
-        languageVersion: ".NET 8",
-        hasHexagonalArch: false, hasServiceRepo: isBlazor ? false : true,
-        usesAPIView: false, usesFunctionViews: false,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "ASP.NET Identity",
-        loggingPattern: "structured",
-        orm: csproj.includes("EntityFrameworkCore") ? "Entity Framework Core" : csproj.includes("Dapper") ? "Dapper" : null,
-      };
-    }
-
-    return {
-      framework: "generic-server", language: "csharp", languageVersion: ".NET 8",
-      hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: false,
-      importStyle: "absolute", rolePattern: "none", authMethod: "none",
-      loggingPattern: "unstructured", orm: null,
-    };
+    return detectBackendFromRegistry(DOTNET_ROWS, manifestEvidence(csproj));
   }
 
   // ---- Swift ----
   if (await fileExists(rootPath, "Package.swift")) {
     const pkgSwift = await readFileSafe(rootPath, "Package.swift") ?? "";
-    if (pkgSwift.includes("vapor")) {
-      return {
-        framework: "vapor", language: "swift", languageVersion: "5.10",
-        hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-        importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT",
-        loggingPattern: "structured", orm: pkgSwift.includes("fluent") ? "Fluent" : null,
-      };
-    }
-    return {
-      framework: "generic-server", language: "swift", languageVersion: "5.10",
-      hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true,
-      importStyle: "absolute", rolePattern: "none", authMethod: "none",
-      loggingPattern: "unstructured", orm: null,
-    };
+    return detectBackendFromRegistry(SWIFT_ROWS, manifestEvidence(pkgSwift));
   }
 
   // ---- Monorepo subdirectory search (go, rust, typescript) ----
@@ -589,16 +247,9 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
   return null;
 }
 
-// Parse the real version from a go.mod's `go X.Y` directive (e.g. "go 1.22" → "1.22").
-// Falls back to "" so we never report a fabricated version.
-function goModVersion(goMod: string): string {
-  for (const line of goMod.split("\n")) {
-    const t = line.trim();
-    if (t.startsWith("go ")) return t.slice(3).trim();
-  }
-  return "";
-}
-
+// Monorepo subpackage Go detection. NOTE: deliberately distinct from the root GO_ROWS
+// registry path — here auth defaults to a hardcoded "JWT" for the named frameworks and
+// the ORM scan omits sqlc, matching the original behavior for sub-package discovery.
 function detectGoBackend(subDir: string, goMod: string): BackendInfo | null {
   if (goMod.includes("gin-gonic/gin")) return { framework: "gin", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : goMod.includes("ent") ? "Ent" : null };
   if (goMod.includes("labstack/echo")) return { framework: "echo", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
@@ -1113,30 +764,9 @@ async function detectDatabase(rootPath: string, backend: BackendInfo | null): Pr
 // ============================================================
 // Helpers
 // ============================================================
-
-/**
- * Facts-only Go ORM detection. Returns an ORM name ONLY when go.mod proves it.
- * Drivers (pgx, lib/pq) are deliberately NOT ORMs — they yield null here so we
- * never fabricate an ORM the project does not use (B3).
- */
-function goORM(goMod: string): string | null {
-  if (goMod.includes("gorm")) return "GORM";
-  if (goMod.includes("entgo.io/ent")) return "Ent";
-  if (goMod.includes("sqlx")) return "sqlx";
-  if (goMod.includes("sqlc")) return "sqlc";
-  return null;
-}
-
-/**
- * Facts-only Go auth detection. Only assert "JWT" when a jwt dependency is
- * actually present; otherwise "unknown" (the codebase's honest sentinel for
- * "could not determine") rather than a fabricated "JWT" (B3).
- */
-function goAuth(goMod: string): string {
-  if (goMod.includes("jwt")) return "JWT";
-  if (goMod.includes("gorilla/sessions")) return "session";
-  return "unknown";
-}
+// fs helpers (readJson/readFileSafe/fileExists/grepFirst/findFile/readFirstFile/
+// dirExists/pkgDeps/findSubPackages/findAllPackageJsons) live in ./fs-helpers.
+// goORM/goAuth/goModVersion live in ./detector-registry (shared with the registry).
 
 function buildBackendInfo(
   framework: BackendFramework, language: BackendInfo["language"], langVersion: string,
@@ -1154,10 +784,6 @@ function buildBackendInfo(
     loggingPattern: framework === "django" || framework === "fastapi" ? "structured" : "unstructured",
     orm,
   };
-}
-
-function pkgDeps(pkg: Record<string, unknown>): Record<string, unknown> {
-  return { ...(pkg.dependencies as Record<string, unknown> ?? {}), ...(pkg.devDependencies as Record<string, unknown> ?? {}) };
 }
 
 function nodeORM(deps: Record<string, unknown>): string | null {
@@ -1207,97 +833,3 @@ async function findSubPackageGoMods(rootPath: string): Promise<string[]> {
   return mods;
 }
 
-// Collect all package.json from root + monorepo subdirs
-async function findAllPackageJsons(rootPath: string): Promise<Record<string, unknown>[]> {
-  const pkgs: Record<string, unknown>[] = [];
-  const rootPkg = await readJson(rootPath, "package.json");
-  if (rootPkg) pkgs.push(rootPkg);
-  const subDirs = await findSubPackages(rootPath);
-  for (const subDir of subDirs) {
-    const p = await readJson(subDir, "package.json");
-    if (p) pkgs.push(p);
-  }
-  return pkgs;
-}
-
-// ---- Generic file/dir operations ----
-
-async function fileExists(root: string, pattern: string): Promise<boolean> {
-  // For simple filenames (no glob chars), try direct path first
-  if (!pattern.includes("*") && !pattern.includes("?")) {
-    const simple = pattern.replace(/^\*\*\//, ""); // strip **/ prefix for direct check
-    try { if (await fs.pathExists(path.join(root, simple))) return true; } catch {}
-  }
-  // Then try glob
-  return (await findFile(root, pattern)) !== null;
-}
-
-async function findFile(root: string, pattern: string): Promise<string | null> {
-  try {
-    const { glob } = await import("tinyglobby");
-    const patterns = [pattern];
-    // If pattern uses **/ prefix, also try without it (for root-level files)
-    if (pattern.startsWith("**/")) {
-      patterns.push(pattern.slice(3)); // "**/main.py" -> "main.py"
-    }
-    const matches = await glob(patterns, {
-      cwd: root, absolute: true,
-      ignore: ["node_modules/**", ".git/**", "**/vendor/**"],
-    });
-    return matches.length > 0 ? matches[0] : null;
-  } catch { return null; }
-}
-
-async function readFirstFile(root: string, pattern: string): Promise<string | null> {
-  const f = await findFile(root, pattern);
-  if (!f) return null;
-  try { return await fs.readFile(f, "utf-8"); } catch { return null; }
-}
-
-function contentMatches(content: string, pattern: string): boolean {
-  if (!pattern) return true;
-  // Support pipe-separated alternation: "FastAPI|fastapi" matches either
-  const alternates = pattern.split("|");
-  return alternates.some((alt) => content.includes(alt));
-}
-
-async function grepFirst(root: string, filePattern: string, contentPattern: string): Promise<boolean> {
-  try {
-    const { glob } = await import("tinyglobby");
-    // Try both the glob pattern and the plain filename (for root-level files)
-    const patterns = [filePattern];
-    if (filePattern.startsWith("**/")) {
-      patterns.push(filePattern.slice(3));
-    }
-    const matches = await glob(patterns, {
-      cwd: root, absolute: true,
-      ignore: ["node_modules/**", ".git/**", "**/vendor/**"],
-    });
-    for (const file of matches.slice(0, 5)) {
-      try {
-        const content = await fs.readFile(file, "utf-8");
-        if (contentMatches(content, contentPattern)) return true;
-      } catch {}
-    }
-  } catch {}
-  return false;
-}
-
-async function dirExists(dirPath: string): Promise<boolean> {
-  try { return (await fs.stat(dirPath)).isDirectory(); } catch { return false; }
-}
-
-async function readJson(root: string, relativePath: string): Promise<Record<string, unknown> | null> {
-  try { return (await fs.readJson(path.join(root, relativePath))) as Record<string, unknown>; } catch { return null; }
-}
-
-async function readFileSafe(root: string, relativePath: string): Promise<string | null> {
-  // If path contains glob wildcards, use findFile to locate it first
-  if (relativePath.includes("*") || relativePath.includes("?")) {
-    return await readFirstFile(root, relativePath);
-  }
-  try {
-    let content = await fs.readFile(path.join(root, relativePath), "utf-8");
-    return content.replace(/\r\n/g, "\n"); // normalize line endings
-  } catch { return null; }
-}

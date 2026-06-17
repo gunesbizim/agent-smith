@@ -101,6 +101,9 @@ Run them concurrently where possible. Each subagent rewrites its ONE file in pla
       tools via tool-search first; edit code discovered via Serena with Serena's symbolic
       edit tools (built-in Edit is refused after a Serena read); Serena line numbers are 0-based.
     * To verify after edits, run the project's type-check/test gate — not a diagnostics tool.
+    * PREFER symbolic edits (replace_symbol_body / insert_after_symbol / insert_before_symbol)
+      over blunt full-file rewrites for code changes — they are AST-level and surgical (A6). Never
+      instruct rewriting an entire source file when a symbolic edit targets the change.
 - Reference the fable-mode execution-discipline skill (.claude/skills/fable-mode/SKILL.md):
   add a short note that, for work spanning multiple files/sources/sessions, the skill's
   staged loop applies (stage map → delegate → failable verification → self-critique). Do

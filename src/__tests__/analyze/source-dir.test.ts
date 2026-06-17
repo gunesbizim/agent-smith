@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { detectSourceDirs, resolveSourceDirs, writeSourceConfig } from "../../analyze/source-dir.js";
+import { detectSourceDirs, resolveSourceDirs } from "../../analyze/source-dir.js";
+import { writeSourceConfig } from "../../scaffold/source-config.js";
 import type { DetectedProject } from "../../shared/types.js";
 
 const BASE_PROJECT: DetectedProject = {

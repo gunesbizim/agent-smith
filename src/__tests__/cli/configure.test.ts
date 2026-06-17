@@ -1,22 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("node:readline", () => ({
-  default: {
-    createInterface: vi.fn(() => ({
-      question: (_q: string, cb: (answer: string) => void) => cb("/prompted/vault"),
-      close: vi.fn(),
-    })),
-  },
-}));
 vi.mock("../../install/dependency-checker.js", () => ({
   checkDependencies: vi.fn(),
 }));
 vi.mock("../../install/mcp-installer.js", () => ({
-  installMCPs: vi.fn(async () => {}),
+  installMCPs: vi.fn(async () => ({ installed: [], prewarmed: [], alreadyPresent: [], onDemand: [], manual: [], failed: [] })),
   configureMCPs: vi.fn(async () => ({})),
   registerLocalMCPs: vi.fn(() => ({ registered: [], skipped: [] })),
   ensureGitignore: vi.fn(() => []),
+  selectServersToInstall: vi.fn(() => [{ name: "gitnexus" }]),
   PLAYWRIGHT_OUTPUT_DIR: ".playwright-mcp",
+}));
+// Consent is unit-tested in install-consent.test.ts; default to approved here so
+// the install path runs. Individual tests override to test the skip path.
+vi.mock("../../install/install-consent.js", () => ({
+  resolveConsent: vi.fn(async () => ({ approved: true })),
+}));
+// The obsidian vault prompt + directory-creation logic lives in (and is unit-tested
+// by) obsidian-vault.test.ts. Mock it here so configure tests focus on orchestration
+// and never touch the real filesystem with a prompted path.
+vi.mock("../../install/obsidian-vault.js", () => ({
+  setupObsidianVault: vi.fn(async () => ({ vaultPath: null, created: false })),
 }));
 vi.mock("../../scaffold/configs.js", () => ({
   scaffoldConfigs: vi.fn(async () => {}),
@@ -30,9 +34,12 @@ import {
   registerLocalMCPs,
   ensureGitignore,
 } from "../../install/mcp-installer.js";
+import { setupObsidianVault } from "../../install/obsidian-vault.js";
+import { resolveConsent } from "../../install/install-consent.js";
 
 const mockedCheck = vi.mocked(checkDependencies);
 const mockedRegister = vi.mocked(registerLocalMCPs);
+const mockedConsent = vi.mocked(resolveConsent);
 
 describe("configureCommand", () => {
   const origVault = process.env.OBSIDIAN_VAULT_PATH;
@@ -44,6 +51,7 @@ describe("configureCommand", () => {
     (process.stdin as { isTTY?: boolean }).isTTY = false;
     mockedCheck.mockResolvedValue({ ok: true } as Awaited<ReturnType<typeof checkDependencies>>);
     mockedRegister.mockReturnValue({ registered: [], skipped: [] });
+    mockedConsent.mockResolvedValue({ approved: true });
   });
 
   afterEach(() => {
@@ -79,21 +87,24 @@ describe("configureCommand", () => {
     await expect(configureCommand({})).resolves.toBeUndefined();
   });
 
+  it("skips install when consent is declined, but still writes config", async () => {
+    mockedConsent.mockResolvedValue({ approved: false, reason: "skipped via --no-install" });
+    await configureCommand({ install: false });
+    expect(installMCPs).not.toHaveBeenCalled();
+    expect(configureMCPs).toHaveBeenCalled(); // config files are still written
+  });
+
   it("splits the --mcp option into a server list", async () => {
     await configureCommand({ mcp: "obsidian, playwright" });
-    expect(installMCPs).toHaveBeenCalledWith({ servers: ["obsidian", "playwright"] });
+    // installMCPs now also receives the detected project for stack-aware gating.
+    expect(installMCPs).toHaveBeenCalledWith({
+      servers: ["obsidian", "playwright"],
+      project: expect.anything(),
+    });
   });
 
-  it("prompts for the vault path on a TTY and exports it", async () => {
-    (process.stdin as { isTTY?: boolean }).isTTY = true;
+  it("sets up the obsidian vault (prompt + directory creation) interactively", async () => {
     await configureCommand({});
-    expect(process.env.OBSIDIAN_VAULT_PATH).toBe("/prompted/vault");
-  });
-
-  it("does not prompt when OBSIDIAN_VAULT_PATH is already set", async () => {
-    process.env.OBSIDIAN_VAULT_PATH = "/preset/vault";
-    (process.stdin as { isTTY?: boolean }).isTTY = true;
-    await configureCommand({});
-    expect(process.env.OBSIDIAN_VAULT_PATH).toBe("/preset/vault");
+    expect(setupObsidianVault).toHaveBeenCalledWith(expect.any(String), { interactive: true });
   });
 });

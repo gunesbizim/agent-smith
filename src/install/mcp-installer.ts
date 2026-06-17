@@ -1,19 +1,39 @@
 // MCP installer — downloads and configures MCP servers
-import { execSync, execFileSync } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import path from "node:path";
 import fs from "fs-extra";
-import ora from "ora";
+import chalk from "chalk";
+import cliProgress from "cli-progress";
 import { MCP_REGISTRY, getMCPServer } from "./registry.js";
 import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall, MCPServerDefinition, DetectedProject } from "../shared/types.js";
 
+/** True when the detected project uses Vuetify on the frontend. */
+function usesVuetify(project: DetectedProject): boolean {
+  return (project.frontend?.uiLibrary ?? "").toLowerCase().includes("vuetify");
+}
+
+/** True when the detected project has a Laravel backend. */
+function usesLaravel(project: DetectedProject): boolean {
+  return project.backend?.framework === "laravel";
+}
+
 // Decide whether an MCP server is relevant to the detected stack.
-// Browser-automation servers require a frontend; everything else is stack-agnostic.
+// Stack-specific servers are gated so we never configure a server that has no
+// bearing on the project (e.g. the Vuetify docs server for a non-Vuetify app).
+// When project is null the caller skipped detection — include everything for
+// backward compatibility.
 function isServerApplicable(
   server: MCPServerDefinition,
   project: DetectedProject | null,
   hasFrontend: boolean,
 ): boolean {
-  if (project && server.category === "browser" && !hasFrontend) return false;
+  if (!project) return true;
+  // Browser-automation servers require a frontend.
+  if (server.category === "browser" && !hasFrontend) return false;
+  // Vuetify component-docs server is only useful on a Vuetify frontend.
+  if (server.name === "vuetify" && !usesVuetify(project)) return false;
+  // Laravel Boost server is only useful on a Laravel backend.
+  if (server.name === "laravel-boost" && !usesLaravel(project)) return false;
   return true;
 }
 
@@ -22,45 +42,182 @@ function resolveInstall(cmd: PlatformInstall): string {
   return cmd[process.platform as "darwin" | "linux" | "win32"] ?? "";
 }
 
-interface InstallOptions {
-  servers?: string[];
-  scope?: "project" | "user" | "all";
+/** The platform-resolved install command for a server (""=nothing to run here). */
+export function resolveInstallCommand(server: MCPServerDefinition): string {
+  return resolveInstall(server.installCommand);
 }
 
-export async function installMCPs(opts: InstallOptions = {}): Promise<void> {
+export interface InstallOptions {
+  servers?: string[];
+  scope?: "project" | "user" | "all";
+  /**
+   * Detected project — when provided, stack-specific servers (browser, vuetify,
+   * laravel-boost) are filtered out for projects they don't apply to, so we never
+   * try to install a server the project has no use for. Omit (or null) to install
+   * everything, preserving backward-compatible behaviour.
+   */
+  project?: DetectedProject | null;
+}
+
+/** Injectable hooks so the install loop is unit-testable without spawning real processes. */
+export interface InstallDeps {
+  run?: (command: string) => Promise<void>;
+  check?: (command: string) => Promise<boolean>;
+  /** Render the cli-progress bar (default true). Tests pass false. */
+  showProgress?: boolean;
+}
+
+/** Outcome of an install run, bucketed by what happened to each server. */
+export interface InstallSummary {
+  installed: string[];
+  prewarmed: string[];
+  alreadyPresent: string[];
+  onDemand: string[];
+  manual: string[];
+  failed: { name: string; error: string }[];
+}
+
+/**
+ * The set of servers an install run will act on, after scope + stack gating.
+ * Exported so the consent prompt and the installer agree on the exact list.
+ */
+export function selectServersToInstall(opts: InstallOptions = {}): MCPServerDefinition[] {
   const servers = opts.servers ?? MCP_REGISTRY.map((s) => s.name);
   const scope = opts.scope ?? "all";
-
-  const toInstall = MCP_REGISTRY.filter(
-    (s) => servers.includes(s.name) && (scope === "all" || s.scope === scope || s.scope === "both"),
+  const project = opts.project ?? null;
+  const hasFrontend = project ? project.frontend !== null : true;
+  return MCP_REGISTRY.filter(
+    (s) =>
+      servers.includes(s.name) &&
+      (scope === "all" || s.scope === scope || s.scope === "both") &&
+      isServerApplicable(s, project, hasFrontend),
   );
+}
 
-  for (const server of toInstall) {
-    const spinner = ora(`Installing ${server.name}...`).start();
+/**
+ * Run a shell command asynchronously, resolving on exit code 0 and rejecting
+ * otherwise. Unlike execSync this does NOT block Node's event loop, which is
+ * what lets the ora spinner keep animating (and the elapsed-time ticker fire)
+ * while a slow `npm`/`npx`/`pipx` install runs — otherwise the spinner freezes
+ * mid-frame and the CLI looks hung.
+ */
+export function runCommandAsync(command: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, { shell: true, stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(stderr.trim() || `command exited with code ${code}`));
+    });
+  });
+}
 
-    // Check if already installed
-    try {
-      execSync(server.checkCommand, { stdio: "ignore" });
-      spinner.succeed(`${server.name} already installed`);
-      continue;
-    } catch {
-      // Not installed — proceed
-    }
+/** Async, non-blocking equivalent of "does this command succeed?" (exit 0). */
+export function commandSucceeds(command: string): Promise<boolean> {
+  return runCommandAsync(command).then(
+    () => true,
+    () => false,
+  );
+}
 
-    const resolved = resolveInstall(server.installCommand);
+/** What happened to a single server. `kind` (except "failed") maps to an InstallSummary array. */
+type InstallOutcome =
+  | { kind: "installed" | "prewarmed" | "alreadyPresent" | "onDemand" | "manual"; status: string }
+  | { kind: "failed"; status: string; error: string };
 
-    if (server.installType === "manual" || !resolved) {
-      spinner.warn(`${server.name} requires manual installation: ${resolved || "see docs"}`);
-      continue;
-    }
+/** Resolve, check, and run the install for one server. Pure of progress-bar concerns
+ *  beyond the injected `onTick` callback, which keeps the bar redrawing during a slow run. */
+async function installOneServer(
+  server: MCPServerDefinition,
+  run: (command: string) => Promise<void>,
+  check: (command: string) => Promise<boolean>,
+  onTick: (status: string) => void,
+): Promise<InstallOutcome> {
+  const resolved = resolveInstall(server.installCommand);
 
-    try {
-      execSync(resolved, { stdio: "pipe" });
-      spinner.succeed(`${server.name} installed`);
-    } catch (err) {
-      spinner.fail(`${server.name} failed: ${err instanceof Error ? err.message : err}`);
-    }
+  if (await check(server.checkCommand)) {
+    return { kind: "alreadyPresent", status: `${server.name} — already installed` };
   }
+  if (server.installType === "npx" && !resolved) {
+    return { kind: "onDemand", status: `${server.name} — fetched on first use (npx)` };
+  }
+  if (server.installType === "manual" || !resolved) {
+    return { kind: "manual", status: `${server.name} — manual install required` };
+  }
+
+  const verb = server.installType === "prewarm" ? "pre-warming" : "installing";
+  const startedAt = Date.now();
+  const ticker = setInterval(() => {
+    const seconds = Math.round((Date.now() - startedAt) / 1000);
+    onTick(`${server.name} — ${verb} (${seconds}s): ${resolved}`);
+  }, 1000);
+  onTick(`${server.name} — ${verb}: ${resolved}`);
+  try {
+    await run(resolved);
+    const kind = server.installType === "prewarm" ? "prewarmed" : "installed";
+    return { kind, status: `${server.name} — done` };
+  } catch (err) {
+    return { kind: "failed", status: `${server.name} — FAILED`, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    clearInterval(ticker);
+  }
+}
+
+/** Record an outcome into the right summary bucket. */
+function recordOutcome(summary: InstallSummary, name: string, outcome: InstallOutcome): void {
+  if (outcome.kind === "failed") summary.failed.push({ name, error: outcome.error });
+  else summary[outcome.kind].push(name);
+}
+
+/** One-line footer summarising what happened across all servers. */
+function logInstallSummary(summary: InstallSummary): void {
+  const parts: string[] = [];
+  if (summary.installed.length) parts.push(`installed ${summary.installed.length}`);
+  if (summary.prewarmed.length) parts.push(`pre-warmed ${summary.prewarmed.length}`);
+  if (summary.alreadyPresent.length) parts.push(`already present ${summary.alreadyPresent.length}`);
+  if (summary.onDemand.length) parts.push(`on-demand ${summary.onDemand.length}`);
+  if (summary.manual.length) parts.push(`manual: ${summary.manual.join(", ")}`);
+  if (summary.failed.length) parts.push(chalk.yellow(`failed: ${summary.failed.map((f) => f.name).join(", ")}`));
+  console.log(chalk.gray(`  MCP install — ${parts.join(" · ")}`));
+}
+
+export async function installMCPs(opts: InstallOptions = {}, deps: InstallDeps = {}): Promise<InstallSummary> {
+  const run = deps.run ?? runCommandAsync;
+  const check = deps.check ?? commandSucceeds;
+  const showProgress = deps.showProgress ?? true;
+
+  const toInstall = selectServersToInstall(opts);
+  const summary: InstallSummary = {
+    installed: [], prewarmed: [], alreadyPresent: [], onDemand: [], manual: [], failed: [],
+  };
+  if (toInstall.length === 0) return summary;
+
+  // A real progress bar that stays visible for the whole install and names the server +
+  // the actual command running. The per-server ticker keeps it redrawing during slow runs.
+  const bar = showProgress
+    ? new cliProgress.SingleBar(
+        { format: "  Installing MCPs |{bar}| {value}/{total} · {status}", hideCursor: true, clearOnComplete: false, stopOnComplete: true },
+        cliProgress.Presets.shades_classic,
+      )
+    : null;
+  bar?.start(toInstall.length, 0, { status: "starting…" });
+
+  let index = 0;
+  for (const server of toInstall) {
+    bar?.update(index, { status: `${server.name} — checking` });
+    const outcome = await installOneServer(server, run, check, (status) => bar?.update(index, { status }));
+    recordOutcome(summary, server.name, outcome);
+    index += 1;
+    bar?.update(index, { status: outcome.status });
+  }
+
+  bar?.stop();
+  if (showProgress) logInstallSummary(summary);
+  return summary;
 }
 
 export async function configureMCPs(

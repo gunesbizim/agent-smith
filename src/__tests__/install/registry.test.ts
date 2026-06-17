@@ -59,6 +59,30 @@ describe("MCP Registry", () => {
       expect(s.configTemplate.command).toBe("npx");
     }
   });
+
+  it("has exactly 12 servers", () => {
+    expect(MCP_REGISTRY.length).toBe(12);
+  });
+
+  it("includes laravel-boost", () => {
+    expect(MCP_REGISTRY.map((s) => s.name)).toContain("laravel-boost");
+  });
+
+  it("prewarm servers never launch the server (install command ends with --version)", () => {
+    const prewarm = MCP_REGISTRY.filter((s) => s.installType === "prewarm");
+    expect(prewarm.map((s) => s.name).sort()).toEqual(["chrome-devtools", "playwright"]);
+    for (const s of prewarm) {
+      const cmd = typeof s.installCommand === "string" ? s.installCommand : "";
+      expect(cmd).toContain("--version");
+    }
+  });
+
+  it("declares requiresPackageManager for every server", () => {
+    for (const server of MCP_REGISTRY) {
+      expect(Array.isArray(server.requiresPackageManager)).toBe(true);
+      expect(server.requiresPackageManager!.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("getMCPServer", () => {

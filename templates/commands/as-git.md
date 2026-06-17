@@ -10,6 +10,8 @@ You are the git workflow skill. Commit the current work and push to remote, foll
 - Branch naming: `<type>/TICKET-XX-short-description`.
 - **Always ask for the branch name / ticket number** before creating a branch or committing.
 
+> **GitHub CLI (`gh`).** Opening a PR / reporting its link uses `gh`. `agent-smith init` auto-installs it when a no-sudo package manager is available (Homebrew on macOS/Linux, winget/choco on Windows); otherwise install per https://github.com/cli/cli#installation. It must be authenticated once via `gh auth login` (`gh auth status` to verify). If `gh` is unavailable, still commit + push, then report that the PR must be opened manually.
+
 ## Commit format (conventional commits — mandatory)
 
 ```

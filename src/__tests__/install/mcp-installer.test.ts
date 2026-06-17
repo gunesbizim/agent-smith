@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { configureMCPs, hasRequiredEnv, registerLocalMCPs, ensureGitignore } from "../../install/mcp-installer.js";
+import { configureMCPs, hasRequiredEnv, registerLocalMCPs, ensureGitignore, installMCPs, runCommandAsync, commandSucceeds } from "../../install/mcp-installer.js";
 import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
 import type { DetectedProject, FrontendInfo } from "../../shared/types.js";
 
@@ -101,6 +101,35 @@ describe("configureMCPs — stack-aware MCP selection", () => {
     expect(bundle.projectSettings.playwright).toBeDefined();
     expect(bundle.projectMcp.playwright).toBeDefined();
   });
+
+  it("excludes the vuetify MCP for a non-Vuetify frontend", async () => {
+    const reactish: FrontendInfo = { ...FRONTEND, framework: "react", uiLibrary: "MUI" };
+    const project = makeProject({ projectType: "web-app", frontend: reactish });
+    const bundle = await configureMCPs("/tmp/x", DEFAULT_TEMPLATE_VARS, "claude-code", true, project);
+    expect(bundle.userMcp.vuetify).toBeUndefined();
+  });
+
+  it("includes the vuetify MCP when the frontend uses Vuetify", async () => {
+    const project = makeProject({ projectType: "web-app", frontend: FRONTEND });
+    const bundle = await configureMCPs("/tmp/x", DEFAULT_TEMPLATE_VARS, "claude-code", true, project);
+    expect(bundle.userMcp.vuetify).toBeDefined();
+  });
+
+  it("excludes laravel-boost for a non-Laravel project", async () => {
+    const project = makeProject({ projectType: "web-app", frontend: FRONTEND });
+    const bundle = await configureMCPs("/tmp/x", DEFAULT_TEMPLATE_VARS, "claude-code", true, project);
+    expect(bundle.projectSettings["laravel-boost"]).toBeUndefined();
+  });
+
+  it("includes laravel-boost when a Laravel backend is detected", async () => {
+    const project = makeProject({
+      projectType: "web-app",
+      backend: { framework: "laravel", language: "php", languageVersion: "8.x" } as DetectedProject["backend"],
+    });
+    const bundle = await configureMCPs("/tmp/x", DEFAULT_TEMPLATE_VARS, "claude-code", true, project);
+    expect(bundle.projectSettings["laravel-boost"]).toBeDefined();
+    expect(bundle.projectSettings["laravel-boost"].command).toBe("php");
+  });
 });
 
 describe("configureMCPs — dryRun: true — no files written", () => {
@@ -137,6 +166,93 @@ describe("configureMCPs — dryRun: true — no files written", () => {
     expect(bundle.projectSettings.obsidian).toBeUndefined();
     expect(bundle.projectMcp.obsidian).toBeUndefined();
     expect(bundle.userMcp.obsidian).toBeUndefined();
+  });
+});
+
+describe("installMCPs — progress loop", () => {
+  // Filtering to an unknown server name yields an empty install set, so the
+  // loop spawns no child processes and must resolve to an empty summary.
+  it("resolves to an empty summary when no servers match", async () => {
+    const summary = await installMCPs({ servers: ["__definitely_not_a_real_server__"] }, { showProgress: false });
+    expect(summary.installed).toEqual([]);
+    expect(summary.failed).toEqual([]);
+  });
+
+  it("pre-warms playwright/chrome-devtools with a --version command (never launches the server)", async () => {
+    const ran: string[] = [];
+    const summary = await installMCPs(
+      { servers: ["playwright", "chrome-devtools"] },
+      {
+        showProgress: false,
+        check: async () => false, // force the install path
+        run: async (cmd) => {
+          ran.push(cmd);
+          // A bare server-launch command would hang in reality; assert we never issue one.
+          expect(cmd).toContain("--version");
+        },
+      },
+    );
+    expect(summary.prewarmed.sort()).toEqual(["chrome-devtools", "playwright"]);
+    expect(ran.every((c) => c.includes("--version"))).toBe(true);
+  });
+
+  it("treats npx-on-demand servers (no install command) as a no-op", async () => {
+    const ran: string[] = [];
+    const summary = await installMCPs(
+      { servers: ["vuetify"] },
+      { showProgress: false, check: async () => false, run: async (cmd) => { ran.push(cmd); } },
+    );
+    expect(summary.onDemand).toContain("vuetify");
+    expect(ran).toEqual([]); // nothing spawned
+  });
+
+  it("marks manual servers (laravel-boost) as manual without running anything", async () => {
+    const ran: string[] = [];
+    const summary = await installMCPs(
+      { servers: ["laravel-boost"] },
+      { showProgress: false, check: async () => false, run: async (cmd) => { ran.push(cmd); } },
+    );
+    expect(summary.manual).toContain("laravel-boost");
+    expect(ran).toEqual([]);
+  });
+
+  it("records already-present servers", async () => {
+    const summary = await installMCPs(
+      { servers: ["gitnexus"] },
+      { showProgress: false, check: async () => true, run: async () => {} },
+    );
+    expect(summary.alreadyPresent).toContain("gitnexus");
+  });
+
+  it("records a failed install without throwing", async () => {
+    const summary = await installMCPs(
+      { servers: ["gitnexus"] },
+      { showProgress: false, check: async () => false, run: async () => { throw new Error("boom"); } },
+    );
+    expect(summary.failed[0]).toMatchObject({ name: "gitnexus", error: "boom" });
+  });
+
+  it("renders the progress bar + summary footer (showProgress) and buckets outcomes", async () => {
+    const summary = await installMCPs(
+      { servers: ["gitnexus", "vuetify", "laravel-boost"] },
+      { showProgress: true, check: async () => false, run: async () => {} },
+    );
+    expect(summary.installed).toContain("gitnexus");
+    expect(summary.onDemand).toContain("vuetify");
+    expect(summary.manual).toContain("laravel-boost");
+  });
+});
+
+describe("runCommandAsync / commandSucceeds (real spawn)", () => {
+  it("runCommandAsync resolves on exit 0", async () => {
+    await expect(runCommandAsync("node --version")).resolves.toBeUndefined();
+  });
+  it("runCommandAsync rejects on non-zero exit", async () => {
+    await expect(runCommandAsync('node -e "process.exit(3)"')).rejects.toThrow();
+  });
+  it("commandSucceeds reflects the exit status", async () => {
+    expect(await commandSucceeds("node --version")).toBe(true);
+    expect(await commandSucceeds('node -e "process.exit(1)"')).toBe(false);
   });
 });
 

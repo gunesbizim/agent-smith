@@ -121,15 +121,24 @@ export interface DatabaseInfo {
 
 export type PlatformInstall = string | { darwin?: string; linux?: string; win32?: string };
 
+/** Underlying tools an MCP server needs present (beyond node/npm) to install or run. */
+export type PackageManager =
+  | "npm" | "npx" | "pipx" | "python" | "brew" | "composer" | "php" | "winget" | "choco";
+
 export interface MCPServerDefinition {
   name: string;
   description: string;
   category: "code-intelligence" | "browser" | "documentation" | "quality" | "memory" | "pm" | "design";
   scope: "project" | "user" | "both" | "local";
-  installType: "npm" | "npx" | "pipx" | "python" | "shell" | "manual";
+  // "prewarm": runs via npx at runtime; at install time we only warm the npx cache with a fast,
+  //   non-server command (e.g. `npx -y pkg --version`) — it must NEVER launch the server.
+  // "npx": runs via npx at runtime, fetched on first use — install is a no-op.
+  installType: "npm" | "npx" | "pipx" | "python" | "shell" | "manual" | "prewarm";
   installCommand: PlatformInstall;
   checkCommand: string;
   requiredEnvVars: string[];
+  /** Package managers this server needs present; consumed by detection + consent UX. */
+  requiresPackageManager?: PackageManager[];
   configTemplate: MCPConfigEntry;
 }
 

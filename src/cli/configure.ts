@@ -1,28 +1,21 @@
 // configure command — MCP configuration only
-import readline from "node:readline";
 import chalk from "chalk";
 import ora from "ora";
 import { checkDependencies } from "../install/dependency-checker.js";
-import { installMCPs, configureMCPs, registerLocalMCPs, ensureGitignore, PLAYWRIGHT_OUTPUT_DIR } from "../install/mcp-installer.js";
+import { configureMCPs, registerLocalMCPs, ensureGitignore, PLAYWRIGHT_OUTPUT_DIR } from "../install/mcp-installer.js";
+import { installWithConsent } from "../install/install-flow.js";
+import { setupObsidianVault } from "../install/obsidian-vault.js";
 import { scaffoldConfigs } from "../scaffold/configs.js";
 import { detectProject } from "../analyze/project-detector.js";
 import { DEFAULT_TEMPLATE_VARS } from "../shared/templates.js";
 
-/** Prompt once for a value on a TTY; returns "" when non-interactive or left blank. */
-async function promptValue(message: string): Promise<string> {
-  if (!process.stdin.isTTY) return "";
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    const answer = await new Promise<string>((resolve) => rl.question(message, resolve));
-    return answer.trim();
-  } finally {
-    rl.close();
-  }
-}
-
 interface ConfigureOptions {
   mcp?: string;
   scope?: string;
+  /** Approve MCP installs without prompting. */
+  yes?: boolean;
+  /** Commander maps `--no-install` to `install: false`. */
+  install?: boolean;
 }
 
 export async function configureCommand(opts: ConfigureOptions): Promise<void> {
@@ -40,21 +33,26 @@ export async function configureCommand(opts: ConfigureOptions): Promise<void> {
 
   const servers = opts.mcp ? opts.mcp.split(",").map((s) => s.trim()) : undefined;
 
-  const installSpinner = ora("Installing MCP servers...").start();
-  await installMCPs({ servers });
-  installSpinner.succeed("MCP servers installed");
+  // Detect the stack first so install + config can both gate stack-specific
+  // servers (browser/vuetify/laravel-boost) to projects they actually apply to.
+  const project = await detectProject(cwd);
 
-  // Obsidian (local scope) needs a per-repo vault path. Ask for it at install time —
-  // it is stored privately in ~/.claude.json, never committed.
-  if (!process.env.OBSIDIAN_VAULT_PATH) {
-    const vault = await promptValue(
-      chalk.white("\nObsidian vault path for this repo (absolute; blank to skip obsidian): "),
-    );
-    if (vault) process.env.OBSIDIAN_VAULT_PATH = vault;
+  // Consent-gate the install (shared flow with init). installMCPs renders the
+  // cli-progress bar with the live command per server.
+  const { consent } = await installWithConsent({ servers, project }, { yes: opts.yes, noInstall: opts.install === false });
+  if (!consent.approved) {
+    console.log(chalk.yellow(`\n⊘ Skipping MCP install — ${consent.reason}.`));
+  }
+
+  // Obsidian (local scope) needs a per-repo vault path. Ask for it at install
+  // time — it is stored privately in ~/.claude.json, never committed — and
+  // create the directory so the mcp-obsidian server can actually start.
+  const vault = await setupObsidianVault(cwd, { interactive: true });
+  if (vault.vaultPath && vault.created) {
+    console.log(chalk.gray(`  Created Obsidian vault: ${vault.vaultPath}`));
   }
 
   const configSpinner = ora("Writing MCP configurations...").start();
-  const project = await detectProject(cwd);
   await configureMCPs(cwd, DEFAULT_TEMPLATE_VARS, "claude-code", false, project);
   await scaffoldConfigs(cwd, "claude-code");
   // Keep Playwright screenshot artifacts out of version control.

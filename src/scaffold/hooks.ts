@@ -44,6 +44,7 @@ export interface HookConfig {
 
 export function buildHookConfig(projectRoot: string, hooksDir: string): HookConfig {
   const doctorHook = path.join(hooksDir, "session-start-doctor.js");
+  const permissionGuardHook = path.join(hooksDir, "pre-tool-permission-guard.js");
   const gitGuardHook = path.join(hooksDir, "pre-tool-git-guard.js");
   const sentruxGateHook = path.join(hooksDir, "pre-tool-sentrux-gate.js");
   const changeDetectorHook = path.join(hooksDir, "stop-change-detector.js");
@@ -64,6 +65,12 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
       {
         matcher: "Bash",
         hooks: [
+          {
+            type: "command",
+            command: `node "${permissionGuardHook}"`,
+            timeout: 5000,
+            statusMessage: "Agent Smith — enforcing permission policy...",
+          },
           {
             type: "command",
             command: `node "${gitGuardHook}"`,

@@ -24,6 +24,8 @@ const SKILL_TEMPLATES: Record<string, string> = {
   "pr-critic-simplicity/SKILL.md": "templates/skills/pr-critic-simplicity/SKILL.md",
   "pr-critic-maintainability/SKILL.md": "templates/skills/pr-critic-maintainability/SKILL.md",
   "pr-critic-dx/SKILL.md": "templates/skills/pr-critic-dx/SKILL.md",
+  // A8 — post-PR verification skill (smoke / health / migrate-rollback checklist).
+  "smoke-test/SKILL.md": "templates/skills/smoke-test/SKILL.md",
 };
 
 // gitnexus helper skill stubs

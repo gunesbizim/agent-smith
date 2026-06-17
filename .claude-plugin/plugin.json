@@ -1,6 +1,6 @@
 {
   "name": "agent-smith",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Autonomous development pipeline — auto-configures MCP servers, scaffolds project-aware Claude Code skills, and drives ticket-to-PR workflows",
   "author": {
     "name": "Gunes Bizim",

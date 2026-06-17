@@ -2,6 +2,7 @@
 import chalk from "chalk";
 import ora from "ora";
 import type { ApprovalGate } from "../shared/types.js";
+import { printExperimentalBanner } from "./experimental-banner.js";
 
 interface TicketOptions {
   auto?: boolean;
@@ -11,6 +12,7 @@ interface TicketOptions {
 
 export async function ticketCommand(ticketId: string, opts: TicketOptions): Promise<void> {
   console.log(chalk.bold.cyan(`\n⚒ Agent Smith — Ticket: ${ticketId}\n`));
+  printExperimentalBanner();
 
   const approvalGate: ApprovalGate = opts.auto ? "none" : opts.approveAll ? "all" : opts.approvePlan ? "plan" : "plan";
 
@@ -21,7 +23,7 @@ export async function ticketCommand(ticketId: string, opts: TicketOptions): Prom
   spinner.info("Jira MCP integration pending (Milestone 5)");
   spinner.succeed("Ticket structure ready");
 
-  console.log(chalk.gray("\nPipeline will execute:"));
+  console.log(chalk.gray("\nPlanned phases (preview — not executed):"));
   console.log(chalk.white("  Plan → Implement → Test → Review → Document → PR\n"));
   console.log(chalk.yellow(`  Approval gate: ${approvalGate}`));
   console.log(chalk.gray(`  Branch: ${ticketId.toLowerCase()}-auto\n`));

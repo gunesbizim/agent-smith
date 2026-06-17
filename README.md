@@ -111,7 +111,7 @@ After the interview finishes, `init` **installs the MCP server binaries programm
 
 ### 4. Operate — do the work, with a human in the loop
 
-Now you (and the assistant) use the installed `/as-*` commands and skills. There's also a **semi-autonomous ticket-to-PR pipeline** — it can take a Jira ticket through plan → implement → test → review → docs → PR, **pausing at gates for human approval**. It is human-gated by design, not fully autonomous.
+Now you (and the assistant) use the installed `/as-*` commands and skills. There's also a **planned semi-autonomous ticket-to-PR pipeline** — it is designed to take a Jira ticket through plan → implement → test → review → docs → PR, **pausing at gates for human approval**. It is human-gated by design, not fully autonomous. **Status: experimental — the `ticket`/`pipeline` commands currently preview the planned phase sequence but do not yet execute it (the orchestration engine is on the roadmap, item A1).**
 
 > Code: `src/cli/*`, `src/pipeline/*`.
 

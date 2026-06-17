@@ -72,7 +72,7 @@ program
 // ------ ticket ------
 program
   .command("ticket <ticketId>")
-  .description("Fetch Jira ticket and run autonomous pipeline")
+  .description("Fetch Jira ticket and run the pipeline (experimental — orchestration not yet wired; see roadmap A1)")
   .option("--auto", "Full autonomous — no human approval gates")
   .option("--approve-plan", "Pause after planning phase")
   .option("--approve-all", "Pause after each phase")
@@ -84,7 +84,7 @@ program
 // ------ pipeline ------
 program
   .command("pipeline")
-  .description("Run full pipeline on current branch changes")
+  .description("Run the pipeline on current branch changes (experimental — orchestration not yet wired; see roadmap A1)")
   .option("--auto", "Full autonomous — no human approval gates")
   .option("--from <phase>", "Resume from a specific phase")
   .action(async (opts) => {

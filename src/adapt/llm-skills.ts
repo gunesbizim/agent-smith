@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 import { runClaude } from "../analyze/claude-runner.js";
+import { readMarker } from "./skill-gen-marker.js";
 
 // The skills we regenerate, relative to the project's .claude/skills dir.
 export const GENERATED_SKILLS = [
@@ -82,10 +83,25 @@ export interface SkillGenResult {
   summary?: string;
 }
 
+export interface GenerateSkillsOptions {
+  /** Pass the project's .mcp.json to the spawned claude so generation can use its MCP servers (P2). */
+  useProjectMcp?: boolean;
+  /** Disable project hooks for the generation spawn so PreToolUse hooks don't block Write (P2). */
+  suppressHooks?: boolean;
+  /** Re-run generation even if the first-run marker is present (`--regen-skills`). */
+  regen?: boolean;
+}
+
 // Regenerate skills in place via the LLM. Requires the scaffolded stubs + architecture docs
 // to already exist under projectRoot. Returns ran:false (with a reason) on any failure so
 // the caller silently keeps the template-customized skills.
-export function generateSkills(projectRoot: string): SkillGenResult {
+export function generateSkills(projectRoot: string, opts: GenerateSkillsOptions = {}): SkillGenResult {
+  // P3: first-run gate. If generation already ran for this repo and --regen-skills was not
+  // passed, skip the expensive step entirely (do NOT invoke claude).
+  if (!opts.regen && readMarker(projectRoot)) {
+    return { ran: false, reason: "already generated (use --regen-skills to re-run)" };
+  }
+
   // Guard: the stubs and at least one architecture doc must exist.
   const skillsDir = path.join(projectRoot, ".claude", "skills");
   const archDir = path.join(projectRoot, "docs", "architecture");
@@ -115,10 +131,15 @@ export function generateSkills(projectRoot: string): SkillGenResult {
     }
     throw err;
   }
+  // P2/P3: when generating against the live project, boot its MCP servers and suppress the
+  // project's hooks so the model's Write calls aren't blocked by the sentrux/git PreToolUse
+  // gates. The .mcp.json path is guarded by runClaude (falls back to zero-MCP if absent).
   const out = runClaude(prompt, {
     cwd: projectRoot,
     allowedTools: ["Read", "Glob", "Grep", "Write", "Task"],
     timeoutMs: SKILLS_TIMEOUT_MS,
+    mcpConfigPath: opts.useProjectMcp ? path.join(projectRoot, ".mcp.json") : undefined,
+    suppressHooks: opts.suppressHooks,
   });
   if (out === null) {
     return { ran: false, reason: "LLM skill generation failed or claude unavailable" };

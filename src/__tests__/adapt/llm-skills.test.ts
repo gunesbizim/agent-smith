@@ -10,6 +10,7 @@ vi.mock("../../analyze/claude-runner.js", () => ({
 }));
 
 import { generateSkills, GENERATED_SKILLS, buildMasterSkillPrompt } from "../../adapt/llm-skills.js";
+import { writeMarker, markerPath } from "../../adapt/skill-gen-marker.js";
 
 function scaffoldStubs(root: string): void {
   for (const s of GENERATED_SKILLS) {
@@ -94,6 +95,50 @@ describe("generateSkills", () => {
     const r = generateSkills(tmp);
     expect(r.ran).toBe(false);
     expect(r.reason).toMatch(/failed|unavailable/i);
+  });
+
+  // ---- P3: first-run gate + MCP/hook wiring ----
+
+  it("skips generation when the marker is present and regen is not set — P3", () => {
+    scaffoldStubs(tmp);
+    writeMarker(tmp, { generatedAt: "2026-06-17T00:00:00.000Z" });
+    const r = generateSkills(tmp);
+    expect(r.ran).toBe(false);
+    expect(r.reason).toMatch(/already generated/i);
+    expect(runClaudeMock).not.toHaveBeenCalled();
+  });
+
+  it("bypasses the marker gate when regen:true — P3", () => {
+    scaffoldStubs(tmp);
+    writeMarker(tmp, { generatedAt: "2026-06-17T00:00:00.000Z" });
+    runClaudeMock.mockReturnValue("Rewrote 6 skills.");
+    const r = generateSkills(tmp, { regen: true });
+    expect(r.ran).toBe(true);
+    expect(runClaudeMock).toHaveBeenCalledOnce();
+  });
+
+  it("passes the project .mcp.json path and suppressHooks when useProjectMcp — P3", () => {
+    scaffoldStubs(tmp);
+    runClaudeMock.mockReturnValue("done");
+    generateSkills(tmp, { useProjectMcp: true, suppressHooks: true });
+    const opts = runClaudeMock.mock.calls[0][1];
+    expect(opts.mcpConfigPath).toBe(path.join(tmp, ".mcp.json"));
+    expect(opts.suppressHooks).toBe(true);
+  });
+
+  it("does not pass an mcpConfigPath when useProjectMcp is unset — P3", () => {
+    scaffoldStubs(tmp);
+    runClaudeMock.mockReturnValue("done");
+    generateSkills(tmp);
+    const opts = runClaudeMock.mock.calls[0][1];
+    expect(opts.mcpConfigPath).toBeUndefined();
+  });
+
+  it("does not itself write the marker (the caller owns the clock) — P3", () => {
+    scaffoldStubs(tmp);
+    runClaudeMock.mockReturnValue("done");
+    generateSkills(tmp);
+    expect(fs.existsSync(markerPath(tmp))).toBe(false);
   });
 });
 

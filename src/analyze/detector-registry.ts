@@ -79,6 +79,22 @@ export function goModVersion(goMod: string): string {
   return "";
 }
 
+// Parse the real TypeScript version from a package.json deps map (e.g. "^5.4.2" → "5.4.2").
+// Falls back to "" so we never stamp a fabricated "5.x" (B1).
+export function tsVersion(deps: Record<string, unknown>): string {
+  const v = deps.typescript;
+  if (typeof v !== "string") return "";
+  return v.replace(/^[\^~>=<\s]+/, "").trim();
+}
+
+// Parse the Rust toolchain version from a rust-toolchain(.toml) file's `channel`/`toolchain`
+// directive when present; Cargo.toml does NOT carry the compiler version, so this returns ""
+// (honest unknown) rather than the old fabricated "stable" (B1).
+export function rustVersion(toolchain: string): string {
+  const m = /(?:channel|toolchain)\s*=\s*"([^"]+)"/.exec(toolchain);
+  return m ? m[1] : "";
+}
+
 // ============================================================
 // Shared fact extractors (facts-only — B3)
 // ============================================================
@@ -145,25 +161,25 @@ export const RUST_ROWS: DetectorRow[] = [
   {
     marker: (ev) => ev.manifest.includes("actix-web"),
     framework: "actix-web", language: "rust",
-    facts: baseFacts({ languageVersion: "stable", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", usesFunctionViews: true }),
     capabilities: { orm: (ev) => ev.manifest.includes("diesel") ? "Diesel" : ev.manifest.includes("sqlx") ? "SQLx" : ev.manifest.includes("sea-orm") ? "SeaORM" : null },
   },
   {
     marker: (ev) => ev.manifest.includes("axum"),
     framework: "axum", language: "rust",
-    facts: baseFacts({ languageVersion: "stable", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", usesFunctionViews: true }),
     capabilities: { orm: (ev) => ev.manifest.includes("sqlx") ? "SQLx" : ev.manifest.includes("diesel") ? "Diesel" : ev.manifest.includes("sea-orm") ? "SeaORM" : null },
   },
   {
     marker: (ev) => ev.manifest.includes("rocket"),
     framework: "rocket", language: "rust",
-    facts: baseFacts({ languageVersion: "stable", rolePattern: "middleware", authMethod: "session", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "session", usesFunctionViews: true }),
     capabilities: { orm: (ev) => ev.manifest.includes("diesel") ? "Diesel" : null },
   },
   {
     marker: () => true,
     framework: "generic-server", language: "rust",
-    facts: baseFacts({ languageVersion: "stable", rolePattern: "none", authMethod: "none", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "none", authMethod: "none", usesFunctionViews: true }),
   },
 ];
 
@@ -171,72 +187,72 @@ export const NODE_ROWS: DetectorRow[] = [
   {
     marker: (ev) => !!ev.deps["@nestjs/core"],
     framework: "nestjs", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", hasServiceRepo: true, rolePattern: "decorators", authMethod: "JWT", loggingPattern: "structured" }),
+    facts: baseFacts({ languageVersion: "", hasServiceRepo: true, rolePattern: "decorators", authMethod: "JWT", loggingPattern: "structured" }),
     capabilities: { orm: (ev) => ev.deps["@prisma/client"] ? "Prisma" : ev.deps.typeorm ? "TypeORM" : ev.deps.mikroorm ? "MikroORM" : ev.deps.knex ? "Knex" : null },
   },
   {
     marker: (ev) => !!ev.deps.fastify,
     framework: "fastify", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", rolePattern: "middleware", authMethod: "JWT", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "JWT", usesFunctionViews: true }),
     capabilities: { language: (ev) => ev.deps.typescript ? "typescript" : "javascript", orm: (ev) => nodeORM(ev.deps) },
   },
   {
     marker: (ev) => !!ev.deps.koa,
     framework: "koa", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", rolePattern: "middleware", authMethod: "JWT", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "JWT", usesFunctionViews: true }),
     capabilities: { language: (ev) => ev.deps.typescript ? "typescript" : "javascript", orm: (ev) => nodeORM(ev.deps) },
   },
   {
     marker: (ev) => !!ev.deps.hono,
     framework: "hono", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", rolePattern: "middleware", authMethod: "JWT", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "JWT", usesFunctionViews: true }),
     capabilities: { orm: (ev) => nodeORM(ev.deps) },
   },
   {
     marker: (ev) => !!ev.deps["@adonisjs/core"],
     framework: "adonisjs", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", hasServiceRepo: true, rolePattern: "middleware", authMethod: "session", loggingPattern: "structured", orm: "Lucid" }),
+    facts: baseFacts({ languageVersion: "", hasServiceRepo: true, rolePattern: "middleware", authMethod: "session", loggingPattern: "structured", orm: "Lucid" }),
   },
   {
     marker: (ev) => !!ev.deps.express,
     framework: "express", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", rolePattern: "middleware", authMethod: "JWT", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "JWT", usesFunctionViews: true }),
     capabilities: { language: (ev) => ev.deps.typescript ? "typescript" : "javascript", orm: (ev) => nodeORM(ev.deps) },
   },
   {
     marker: (ev) => !!ev.deps["@feathersjs/feathers"],
     framework: "feathersjs", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", hasServiceRepo: true, rolePattern: "middleware", authMethod: "JWT", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", hasServiceRepo: true, rolePattern: "middleware", authMethod: "JWT", usesFunctionViews: true }),
     capabilities: { orm: (ev) => nodeORM(ev.deps) },
   },
   {
     marker: (ev) => !!ev.deps.next,
     framework: "nextjs-api", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", rolePattern: "middleware", authMethod: "NextAuth", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "NextAuth", usesFunctionViews: true }),
     capabilities: { orm: (ev) => ev.deps.prisma ? "Prisma" : ev.deps.drizzle ? "Drizzle" : null },
   },
   {
     marker: (ev) => !!(ev.deps.nuxt || ev.deps["nuxt3"]),
     framework: "nuxt-api", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", rolePattern: "middleware", authMethod: "session", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "session", usesFunctionViews: true }),
     capabilities: { orm: (ev) => ev.deps.prisma ? "Prisma" : ev.deps.drizzle ? "Drizzle" : null },
   },
   {
     marker: (ev) => !!(ev.deps["@remix-run/node"] || ev.deps["@remix-run/react"]),
     framework: "remix", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", rolePattern: "middleware", authMethod: "session", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "session", usesFunctionViews: true }),
     capabilities: { orm: (ev) => ev.deps.prisma ? "Prisma" : null },
   },
   {
     marker: (ev) => !!ev.deps["@sveltejs/kit"],
     framework: "sveltekit-api", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", rolePattern: "middleware", authMethod: "session", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "session", usesFunctionViews: true }),
     capabilities: { orm: (ev) => ev.deps.prisma ? "Prisma" : ev.deps.drizzle ? "Drizzle" : null },
   },
   {
     marker: (ev) => !!(ev.deps["body-parser"] || ev.deps.cors || ev.deps.helmet),
     framework: "generic-server", language: "typescript",
-    facts: baseFacts({ languageVersion: "5.x", rolePattern: "none", authMethod: "none", usesFunctionViews: true }),
+    facts: baseFacts({ languageVersion: "", rolePattern: "none", authMethod: "none", usesFunctionViews: true }),
     capabilities: { orm: (ev) => nodeORM(ev.deps) },
   },
 ];
@@ -396,10 +412,17 @@ export function detectBackendFromRegistry(rows: DetectorRow[], ev: DetectionEvid
   for (const row of rows) {
     if (!row.marker(ev)) continue;
     const cap = row.capabilities;
+    const language = cap?.language ? cap.language(ev) : row.language;
+    let languageVersion = cap?.version ? cap.version(ev) : row.facts.languageVersion;
+    // B1: derive the REAL TS/JS version from package.json rather than a fabricated stamp; an
+    // unparseable version stays "" (honest) instead of the old hardcoded "5.x".
+    if (!languageVersion && (language === "typescript" || language === "javascript")) {
+      languageVersion = tsVersion(ev.deps);
+    }
     return {
       framework: cap?.framework ? cap.framework(ev) : row.framework,
-      language: cap?.language ? cap.language(ev) : row.language,
-      languageVersion: cap?.version ? cap.version(ev) : row.facts.languageVersion,
+      language,
+      languageVersion,
       hasHexagonalArch: row.facts.hasHexagonalArch,
       hasServiceRepo: cap?.hasServiceRepo ? cap.hasServiceRepo(ev) : row.facts.hasServiceRepo,
       usesAPIView: row.facts.usesAPIView,

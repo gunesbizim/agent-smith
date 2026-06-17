@@ -320,6 +320,27 @@ describe("Project Detector — facts-only detection (B3)", () => {
   });
 });
 
+describe("Project Detector — real language versions (B1)", () => {
+  it("NestJS reports the real typescript dep version, not a hardcoded 5.x", async () => {
+    const dir = await makeProject("nestjs-tsver", {
+      "package.json": JSON.stringify({ dependencies: { "@nestjs/core": "^10" }, devDependencies: { typescript: "^5.4.2" } }),
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.languageVersion).toBe("5.4.2");
+    expect(result.backend!.languageVersion).not.toBe("5.x");
+  });
+
+  it("Rust reports an honest empty version, not a fabricated 'stable'", async () => {
+    const dir = await makeProject("axum-ver", {
+      "Cargo.toml": '[package]\nname = "api"\n[dependencies]\naxum = "0.7"',
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.language).toBe("rust");
+    expect(result.backend!.languageVersion).not.toBe("stable");
+    expect(result.backend!.languageVersion).toBe("");
+  });
+});
+
 describe("Project Detector — Frontend", () => {
   it("detects Vue 3 project with Vuetify", async () => {
     const dir = await makeProject("vue3-app", {

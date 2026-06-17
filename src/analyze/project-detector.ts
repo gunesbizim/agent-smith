@@ -36,6 +36,8 @@ import {
   goModVersion,
   goORM,
   goAuth,
+  tsVersion,
+  rustVersion,
   GO_ROWS,
   RUST_ROWS,
   NODE_ROWS,
@@ -221,24 +223,26 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
       // Rust backends in subdirs
       if (await fileExists(subDir, "Cargo.toml")) {
         const cargo = await readFileSafe(subDir, "Cargo.toml") ?? "";
-        const result = detectRustBackend(subDir, cargo);
+        const toolchain = (await readFileSafe(subDir, "rust-toolchain.toml")) ?? (await readFileSafe(subDir, "rust-toolchain")) ?? "";
+        const result = detectRustBackend(subDir, cargo, toolchain);
         if (result) return result;
       }
       // TypeScript backends in subdirs (Hono, Express, NestJS, etc.)
       const subPkg = await readJson(subDir, "package.json");
       if (subPkg) {
         const deps = pkgDeps(subPkg);
+        const tsv = tsVersion(deps); // B1: real typescript version, "" when unknown (never "5.x")
         if (deps.hono) {
-          return { framework: "hono", language: "typescript", languageVersion: "5.x", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
+          return { framework: "hono", language: "typescript", languageVersion: tsv, hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
         }
         if (deps.express) {
-          return { framework: "express", language: "typescript", languageVersion: "5.x", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: nodeORM(deps) };
+          return { framework: "express", language: "typescript", languageVersion: tsv, hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: nodeORM(deps) };
         }
         if (deps.fastify) {
-          return { framework: "fastify", language: "typescript", languageVersion: "5.x", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: nodeORM(deps) };
+          return { framework: "fastify", language: "typescript", languageVersion: tsv, hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: nodeORM(deps) };
         }
         if (deps["@nestjs/core"]) {
-          return { framework: "nestjs", language: "typescript", languageVersion: "5.x", hasHexagonalArch: false, hasServiceRepo: true, usesAPIView: false, usesFunctionViews: false, importStyle: "absolute", rolePattern: "decorators", authMethod: "JWT", loggingPattern: "structured", orm: deps["@prisma/client"] ? "Prisma" : null };
+          return { framework: "nestjs", language: "typescript", languageVersion: tsv, hasHexagonalArch: false, hasServiceRepo: true, usesAPIView: false, usesFunctionViews: false, importStyle: "absolute", rolePattern: "decorators", authMethod: "JWT", loggingPattern: "structured", orm: deps["@prisma/client"] ? "Prisma" : null };
         }
       }
     }
@@ -261,11 +265,12 @@ function detectGoBackend(subDir: string, goMod: string): BackendInfo | null {
   return null;
 }
 
-function detectRustBackend(subDir: string, cargo: string): BackendInfo | null {
-  if (cargo.includes("actix-web")) return { framework: "actix-web", language: "rust", languageVersion: "stable", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", orm: cargo.includes("diesel") ? "Diesel" : cargo.includes("sqlx") ? "SQLx" : null };
-  if (cargo.includes("axum")) return { framework: "axum", language: "rust", languageVersion: "stable", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", orm: cargo.includes("sqlx") ? "SQLx" : null };
-  if (cargo.includes("rocket")) return { framework: "rocket", language: "rust", languageVersion: "stable", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "session", loggingPattern: "unstructured", orm: cargo.includes("diesel") ? "Diesel" : null };
-  if (cargo.includes("[package]")) return { framework: "generic-server", language: "rust", languageVersion: "stable", hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "none", authMethod: "none", loggingPattern: "unstructured", orm: null };
+function detectRustBackend(subDir: string, cargo: string, toolchain = ""): BackendInfo | null {
+  const rv = rustVersion(toolchain); // B1: real toolchain version when pinned, else "" (never "stable")
+  if (cargo.includes("actix-web")) return { framework: "actix-web", language: "rust", languageVersion: rv, hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", orm: cargo.includes("diesel") ? "Diesel" : cargo.includes("sqlx") ? "SQLx" : null };
+  if (cargo.includes("axum")) return { framework: "axum", language: "rust", languageVersion: rv, hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", orm: cargo.includes("sqlx") ? "SQLx" : null };
+  if (cargo.includes("rocket")) return { framework: "rocket", language: "rust", languageVersion: rv, hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "session", loggingPattern: "unstructured", orm: cargo.includes("diesel") ? "Diesel" : null };
+  if (cargo.includes("[package]")) return { framework: "generic-server", language: "rust", languageVersion: rv, hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "none", authMethod: "none", loggingPattern: "unstructured", orm: null };
   return null;
 }
 

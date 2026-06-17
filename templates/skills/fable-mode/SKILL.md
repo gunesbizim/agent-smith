@@ -53,6 +53,18 @@ Stage 2: [Name] → [Expected output]
 ...
 ```
 
+*Hierarchical planning tiers (large features / migrations only):* for work that spans many
+files or sessions, expand the flat stage map into three explicit tiers — plan top-down, execute
+bottom-up:
+- **Strategic** — the goal and the few high-level moves; what success looks like end-to-end.
+- **Tactical** — a per-move stage map (the numbered stage list above), one per strategic move.
+- **Atomic** — the executable steps inside a stage: the exact files, commands, and the failable
+  verification (step 3) for that step.
+
+*When to tier:* only when the scale warrants it — a multi-file feature, a migration, or a
+multi-session effort. For a small task a single flat stage map is correct; **do not** manufacture
+three tiers for trivial work. Tiering is a tool for managing scale, not a ceremony.
+
 **2. Delegate independent work (if the runtime supports it)**
 First check whether subagent/Agent tooling exists in the current runtime. If it does
 not (for example, a plain chat surface with no Agent tool), run the stages sequentially

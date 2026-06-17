@@ -38,4 +38,14 @@ describe("scaffoldSkills — fable-mode", () => {
     await scaffoldSkills(tmp, DEFAULT_TEMPLATE_VARS, true);
     expect(fs.existsSync(path.join(tmp, ".claude", "skills", "fable-mode", "SKILL.md"))).toBe(false);
   });
+
+  it("documents the hierarchical planning tiers and the when-to-tier guard (A7)", async () => {
+    await scaffoldSkills(tmp, DEFAULT_TEMPLATE_VARS, false);
+    const skill = fs.readFileSync(path.join(tmp, ".claude", "skills", "fable-mode", "SKILL.md"), "utf-8");
+    expect(skill).toContain("Hierarchical planning tiers");
+    expect(skill).toMatch(/\*\*Strategic\*\*/);
+    expect(skill).toMatch(/\*\*Tactical\*\*/);
+    expect(skill).toMatch(/\*\*Atomic\*\*/);
+    expect(skill).toContain("When to tier"); // the anti-over-engineering guard
+  });
 });

@@ -101,5 +101,27 @@ After all subagents finish, re-read each file and confirm: valid frontmatter, no
 {{...}} placeholders, no wrong-stack rules, real commands, and a 'Recommended best practices'
 section present in each. Confirm docs/architecture/best-practices.md was written. Fix shortfalls.
 
-When done, output a one-line summary: which skills you rewrote, the stack you grounded them in,
-and how many recommended best practices you surfaced.
+## Final output — the skills report (machine-parseable)
+
+End your run with EXACTLY ONE sentinel-fenced JSON block matching the schema below. Everything
+outside the sentinels is ignored by the parser, so any prose you add around it is fine. Emit the
+block verbatim with the sentinels on their own lines:
+
+<<<AGENT_SMITH_SKILLS_REPORT
+{
+  "stack": "Go 1.22 / Echo + React/Zustand",
+  "skills": [
+    { "name": "pr-review-backend", "path": ".claude/skills/pr-review-backend/SKILL.md", "rewritten": true, "recommendedPractices": 3 }
+  ],
+  "bestPracticesDoc": "docs/architecture/best-practices.md",
+  "notes": "frontend skills scoped to React; no Vue rules emitted"
+}
+AGENT_SMITH_SKILLS_REPORT>>>
+
+- `skills` lists every skill you were asked to rewrite, one object each, with the relative
+  `path`, whether you actually `rewritten` it, and `recommendedPractices` (the count of
+  suggestions you surfaced in that skill).
+- `stack` is the human label you grounded the skills in; `bestPracticesDoc` is the path you
+  authored/updated; `notes` is one line of free text (scoping decisions, omissions).
+- Keep the JSON valid (double quotes, no trailing commas). This block IS the report the user
+  sees — be accurate, especially the `rewritten` flags.

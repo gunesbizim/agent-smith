@@ -1,6 +1,7 @@
 // Package scanner — reads lock files, categorizes deps, confirms usage via imports
 import path from "node:path";
 import fs from "fs-extra";
+import { readFileSafe, readJson } from "./fs-helpers.js";
 
 // ---- Types ----
 
@@ -452,14 +453,4 @@ function applyTestCategory(pkg: PackageUsage, category: string, name: string, ve
 }
 
 // ---- Helpers ----
-
-async function readFileSafe(rootPath: string, relativePath: string): Promise<string | null> {
-  try {
-    let content = await fs.readFile(path.join(rootPath, relativePath), "utf-8");
-    return content.replace(/\r\n/g, "\n"); // normalize line endings for cross-platform
-  } catch { return null; }
-}
-
-async function readJson(rootPath: string, relativePath: string): Promise<Record<string, unknown> | null> {
-  try { return (await fs.readJson(path.join(rootPath, relativePath))) as Record<string, unknown>; } catch { return null; }
-}
+// readFileSafe / readJson are shared via ./fs-helpers (B10 consolidation).

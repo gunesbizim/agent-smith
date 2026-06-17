@@ -4,9 +4,15 @@
 // caller keeps the already-scaffolded template skills when the LLM path is unavailable.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import crypto from "node:crypto";
 import fs from "fs-extra";
 import { runClaude } from "../analyze/claude-runner.js";
 import { readMarker } from "./skill-gen-marker.js";
+
+/** Stable short hash of the generator prompt (A11) — recorded per run for reproducibility. */
+export function hashPrompt(prompt: string): string {
+  return crypto.createHash("sha256").update(prompt).digest("hex").slice(0, 12);
+}
 
 // The skills we regenerate, relative to the project's .claude/skills dir.
 export const GENERATED_SKILLS = [
@@ -103,6 +109,8 @@ export interface SkillGenResult {
   summary?: string;
   /** Parsed + cross-checked report (P4); absent if the model emitted no valid report block. */
   report?: SkillsReport;
+  /** Hash of the generator prompt used for this run (A11); the caller stamps it into the marker. */
+  promptHash?: string;
 }
 
 const REPORT_SENTINEL = /<<<AGENT_SMITH_SKILLS_REPORT\s*([\s\S]*?)\s*AGENT_SMITH_SKILLS_REPORT>>>/;
@@ -185,9 +193,20 @@ export interface GenerateSkillsOptions {
 // the caller silently keeps the template-customized skills.
 export function generateSkills(projectRoot: string, opts: GenerateSkillsOptions = {}): SkillGenResult {
   // P3: first-run gate. If generation already ran for this repo and --regen-skills was not
-  // passed, skip the expensive step entirely (do NOT invoke claude).
-  if (!opts.regen && readMarker(projectRoot)) {
-    return { ran: false, reason: "already generated (use --regen-skills to re-run)" };
+  // passed, skip the expensive step entirely (do NOT invoke claude). A11: if the generator
+  // prompt changed since the recorded run, say so — the prior output is no longer reproducible
+  // from the current prompt, so a regen is advisable.
+  if (!opts.regen) {
+    const marker = readMarker(projectRoot);
+    if (marker) {
+      let drift = "";
+      try {
+        if (marker.promptHash && marker.promptHash !== hashPrompt(loadSkillGeneratorPrompt())) {
+          drift = " — note: the generator prompt CHANGED since this run; re-run with --regen-skills to refresh";
+        }
+      } catch { /* prompt unreadable → no drift note */ }
+      return { ran: false, reason: `already generated (use --regen-skills to re-run)${drift}` };
+    }
   }
 
   // Guard: the stubs and at least one architecture doc must exist.
@@ -234,5 +253,6 @@ export function generateSkills(projectRoot: string, opts: GenerateSkillsOptions 
   }
   const parsed = parseSkillsReport(out);
   const report = parsed ? crossCheckReport(parsed, projectRoot) : undefined;
-  return { ran: true, summary: out.trim().split("\n").pop() ?? "", report };
+  // A11: record the prompt hash so the caller can stamp it into the marker for reproducibility.
+  return { ran: true, summary: out.trim().split("\n").pop() ?? "", report, promptHash: hashPrompt(prompt) };
 }

@@ -17,6 +17,8 @@ export interface SkillGenMarker {
   skills?: string[];
   /** agent-smith version that produced the marker. */
   agentSmithVersion?: string;
+  /** Hash of the generator prompt used (A11) — lets a later run detect the prompt changed. */
+  promptHash?: string;
 }
 
 /** Absolute path to the marker file for a project root. */

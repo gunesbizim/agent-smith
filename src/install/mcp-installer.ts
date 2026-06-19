@@ -5,6 +5,7 @@ import fs from "fs-extra";
 import chalk from "chalk";
 import cliProgress from "cli-progress";
 import { MCP_REGISTRY, getMCPServer } from "./registry.js";
+import { detectionEnv } from "../shared/exec-env.js";
 import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall, MCPServerDefinition, DetectedProject } from "../shared/types.js";
 
 /** True when the detected project uses Vuetify on the frontend. */
@@ -103,7 +104,8 @@ export function selectServersToInstall(opts: InstallOptions = {}): MCPServerDefi
  */
 export function runCommandAsync(command: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, { shell: true, stdio: ["ignore", "ignore", "pipe"] });
+    // Augmented PATH so checks/installs find tools in ~/.local/bin, /opt/homebrew/bin, etc.
+    const child = spawn(command, { shell: true, stdio: ["ignore", "ignore", "pipe"], env: detectionEnv() });
     let stderr = "";
     child.stderr?.on("data", (chunk) => {
       stderr += chunk.toString();
@@ -116,9 +118,15 @@ export function runCommandAsync(command: string): Promise<void> {
   });
 }
 
-/** Async, non-blocking equivalent of "does this command succeed?" (exit 0). */
+/** Async, non-blocking equivalent of "does this command succeed?" (exit 0).
+ *
+ *  A bare single-token command (e.g. "serena", "gitnexus") is a PRESENCE check — testing it by
+ *  *running* the tool is fragile (it may launch a server, hang, or exit non-zero with no args).
+ *  Such tokens are normalized to `command -v <token>`, which only asks "is it on PATH?". Commands
+ *  with arguments (e.g. "sentrux --version") are run as-is. */
 export function commandSucceeds(command: string): Promise<boolean> {
-  return runCommandAsync(command).then(
+  const probe = /^[\w@./+-]+$/.test(command.trim()) ? `command -v ${command.trim()}` : command;
+  return runCommandAsync(probe).then(
     () => true,
     () => false,
   );

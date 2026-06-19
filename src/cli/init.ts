@@ -61,6 +61,8 @@ interface InitOptions {
   dryRun?: boolean;
   dir?: string;
   caveman?: boolean;
+  /** Commander maps `--no-interview` to `interview: false`. `noInterview` kept for direct callers. */
+  interview?: boolean;
   noInterview?: boolean;
   llm?: boolean;
   /** Approve MCP installs without prompting. */
@@ -69,6 +71,15 @@ interface InitOptions {
   install?: boolean;
   /** Re-run LLM skill generation even if the first-run marker is present (`--regen-skills`). */
   regenSkills?: boolean;
+}
+
+/**
+ * Whether to skip the conventions interview. Commander maps `--no-interview` to
+ * `opts.interview === false` (NOT `opts.noInterview`), so both are honored — checking only the
+ * bare `noInterview` silently ignored the flag (the e2e regression). Exported for testing.
+ */
+export function shouldSkipInterview(opts: InitOptions): boolean {
+  return !!opts.auto || opts.interview === false || !!opts.noInterview || !!opts.dryRun;
 }
 
 export async function initCommand(opts: InitOptions): Promise<void> {
@@ -164,9 +175,9 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     );
   }
 
-  // Step 4b — Interactive interview (unless --auto or --no-interview)
+  // Step 4b — Interactive interview (unless --auto or --no-interview or --dry-run).
   let interviewAnswers = null;
-  if (!opts.auto && !opts.noInterview && !opts.dryRun) {
+  if (!shouldSkipInterview(opts)) {
     const sentruxForInterview = sentruxProbe.available
       ? { cycles: sentruxProbe.cycles, maxCC: sentruxProbe.maxCC }
       : undefined;
@@ -179,7 +190,7 @@ export async function initCommand(opts: InitOptions): Promise<void> {
       console.log(chalk.yellow(`\n  Interview skipped: ${err instanceof Error ? err.message : err}`));
     }
     console.log(chalk.gray(""));
-  } else if (opts.auto || opts.noInterview) {
+  } else if (!opts.dryRun) {
     console.log(chalk.gray("  Interview: skipped (--auto or --no-interview)"));
   }
 

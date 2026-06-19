@@ -158,7 +158,10 @@ function manifest(evidence: StackEvidence, filename: string): { path: string; co
 // Each detector is small and focused (keeps cyclomatic complexity low for the quality gate).
 type Detector = (e: StackEvidence) => StackProfile | null;
 
-const DETECTORS: Detector[] = [javaMaven, javaGradle, nodeBackend, goBackend, rustBackend, pythonBackend];
+// nodeBackend runs LAST: it now matches ANY package.json (CLI/library/frontend, not just backend
+// frameworks), so a Python/Go/Rust project that also ships a package.json for frontend tooling is
+// still classified by its real backend language first. Node is the fallthrough.
+const DETECTORS: Detector[] = [javaMaven, javaGradle, goBackend, rustBackend, pythonBackend, nodeBackend];
 
 export function deterministicProfile(evidence: StackEvidence): StackProfile {
   for (const detect of DETECTORS) {
@@ -254,15 +257,19 @@ function nodeBackend(e: StackEvidence): StackProfile | null {
   try { json = JSON.parse(pkg.content) as Record<string, unknown>; } catch { return null; }
   const deps = { ...(json.dependencies as object), ...(json.devDependencies as object) } as Record<string, string>;
   const has = (name: string) => Object.prototype.hasOwnProperty.call(deps, name);
-  const isBackend = has("express") || has("@nestjs/core") || has("fastify") || has("koa") || has("hono");
-  if (!isBackend) return null;
   const scripts = (json.scripts ?? {}) as Record<string, string>;
   const scriptCmd = (name: string) => (scripts[name] ? `npm run ${name}` : null);
-  const framework = has("@nestjs/core") ? "nestjs" : has("fastify") ? "fastify" : has("koa") ? "koa" : has("hono") ? "hono" : "express";
+  // A backend web framework if one is present; otherwise null — this is a Node/TS CLI, library,
+  // or frontend, which is still a real TypeScript/JavaScript project whose language + toolchain
+  // we detect honestly. (Previously this returned null for any non-backend Node project, so CLIs
+  // and libraries reported "stack none".)
+  const framework = has("@nestjs/core") ? "nestjs" : has("fastify") ? "fastify" : has("koa") ? "koa" : has("hono") ? "hono" : has("express") ? "express" : null;
+  const isTs = !!deps.typescript || has("typescript");
   return {
     ...emptyProfile(),
-    language: deps.typescript || has("typescript") ? "typescript" : "javascript", languageVersion: "",
-    framework, frameworkDetail: framework === "nestjs" ? "NestJS + TypeScript" : `${framework} + TypeScript`,
+    language: isTs ? "typescript" : "javascript", languageVersion: "",
+    framework,
+    frameworkDetail: framework === "nestjs" ? "NestJS + TypeScript" : framework ? `${framework} + TypeScript` : `Node + ${isTs ? "TypeScript" : "JavaScript"}`,
     orm: nodeOrm(has), dbEngine: nodeDb(has),
     authMethod: has("passport") ? "Passport" : has("@nestjs/jwt") || has("jsonwebtoken") ? "JWT" : null,
     roleModel: "none", roleValues: "none", loggingPattern: has("pino") || has("winston") ? "structured" : "unstructured",
@@ -270,10 +277,11 @@ function nodeBackend(e: StackEvidence): StackProfile | null {
       test: scriptCmd("test") ?? (has("vitest") ? "npx vitest run" : has("jest") ? "npx jest" : null),
       lint: scriptCmd("lint") ?? (has("eslint") ? "npx eslint ." : null),
       format: scriptCmd("format") ?? (has("prettier") ? "npx prettier --check ." : null),
-      typecheck: scriptCmd("typecheck") ?? (has("typescript") ? "npx tsc --noEmit" : null),
+      typecheck: scriptCmd("typecheck") ?? (isTs ? "npx tsc --noEmit" : null),
       migrate: has("prisma") ? "npx prisma migrate deploy" : has("typeorm") ? "npx typeorm migration:run" : has("drizzle-orm") ? "npx drizzle-kit migrate" : null,
     },
-    confidence: 0.65, evidenceRefs: [pkg.path],
+    // Lower confidence when no backend framework was matched — language is sure, framework isn't.
+    confidence: framework ? 0.65 : 0.5, evidenceRefs: [pkg.path],
   };
 }
 

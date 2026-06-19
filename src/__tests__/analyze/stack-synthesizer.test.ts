@@ -93,10 +93,13 @@ describe("deterministicProfile — ecosystems", () => {
     expect(p.source).toBe("manifest-fallback");
   });
 
-  it("a non-backend package.json is not misdetected as a backend", () => {
+  it("a non-backend package.json detects the language but NOT a backend framework", () => {
+    // Updated for the 0.9.1 fix: a Node CLI/library/frontend is still a real JS/TS project, so
+    // language is detected — but framework stays null (it is not misdetected as a backend server).
     const pkg = JSON.stringify({ dependencies: { react: "18" } });
     const p = deterministicProfile(ev([{ path: "package.json", content: pkg }]));
-    expect(p.language).toBeNull();
+    expect(p.language).toBe("javascript");
+    expect(p.framework).toBeNull();
   });
 
   it("synthesizeStackProfile without llm returns the deterministic profile", () => {

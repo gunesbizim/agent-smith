@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "fs-extra";
 import type { DetectedProject } from "../shared/types.js";
+import { detectionEnv } from "../shared/exec-env.js";
 
 // ----- Sentrux probe -----
 
@@ -34,6 +35,7 @@ export async function probeSentrux(rootPath: string): Promise<SentruxProbeResult
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 15_000,
       encoding: "utf-8",
+      env: detectionEnv(), // find sentrux in ~/.local/bin / /opt/homebrew/bin under a stripped PATH
     });
     if (result.error) return empty; // binary not found
     const combined = (result.stdout ?? "") + (result.stderr ?? "");

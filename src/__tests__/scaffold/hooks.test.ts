@@ -34,4 +34,8 @@ describe("buildHookConfig", () => {
     expect(cfg.SessionStart![0].hooks[0].command).toContain("session-start-doctor.js");
     expect(cfg.Stop![0].hooks[0].command).toContain("stop-change-detector.js");
   });
+
+  it("registers the PreCompact handoff-snapshot hook", () => {
+    expect(cfg.PreCompact![0].hooks[0].command).toContain("pre-compact-handoff.js");
+  });
 });

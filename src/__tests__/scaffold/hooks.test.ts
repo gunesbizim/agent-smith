@@ -38,4 +38,8 @@ describe("buildHookConfig", () => {
   it("registers the PreCompact handoff-snapshot hook", () => {
     expect(cfg.PreCompact![0].hooks[0].command).toContain("pre-compact-handoff.js");
   });
+
+  it("registers the UserPromptSubmit context-handoff nudge hook", () => {
+    expect(cfg.UserPromptSubmit![0].hooks[0].command).toContain("user-prompt-handoff-nudge.js");
+  });
 });

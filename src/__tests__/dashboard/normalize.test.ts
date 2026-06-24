@@ -1,0 +1,59 @@
+import { describe, expect, it } from "vitest";
+import type { EngineEvent } from "../../engine/events.js";
+import { normalizeRun } from "../../dashboard/normalize.js";
+
+let seq = 0;
+function ev(runId: string, body: Partial<EngineEvent> & { type: EngineEvent["type"]; ts?: string }): EngineEvent {
+  return { v: 1, seq: seq++, id: `e${seq}`, ts: body.ts ?? "2026-06-24T00:00:00Z", runId, ...body } as EngineEvent;
+}
+
+describe("normalizeRun", () => {
+  it("builds a run → phases → calls tree for an engine run", () => {
+    const r = "demo";
+    const events: EngineEvent[] = [
+      ev(r, { type: "run_started", ticketId: "PROJ-1", task: "x", branch: "b", approvalGate: "none", phases: [], origin: "engine", engineVersion: "t", ts: "2026-06-24T00:00:00Z" }),
+      ev(r, { type: "phase_started", phase: "plan" }),
+      ev(r, { type: "agent_call_started", callId: "c1", phase: "plan", model: "opus", attempt: 1, promptSummary: "plan it" }),
+      ev(r, { type: "agent_call_finished", callId: "c1", phase: "plan", model: "opus", status: "ok", durationMs: 1200, tokens: { total: 300 }, costUsd: 0.05, attempt: 1 }),
+      ev(r, { type: "phase_started", phase: "code" }),
+      ev(r, { type: "agent_call_finished", callId: "c2", phase: "code", model: "sonnet", status: "ok", durationMs: 800, tokens: { total: 200 }, attempt: 1 }),
+      ev(r, { type: "run_finished", status: "completed", ts: "2026-06-24T00:05:00Z" }),
+    ];
+    const dto = normalizeRun(r, events);
+
+    expect(dto.origin).toBe("engine");
+    expect(dto.ticketId).toBe("PROJ-1");
+    expect(dto.status).toBe("done");
+    expect(dto.phases.map((p) => p.name)).toEqual(["plan", "code"]);
+    expect(dto.totals).toMatchObject({ tokens: 500, callCount: 2 });
+    expect(dto.totals.costUsd).toBeCloseTo(0.05, 5);
+    expect(dto.totals.wallClockMs).toBe(5 * 60_000);
+
+    const plan = dto.phases.find((p) => p.name === "plan")!;
+    expect(plan.status).toBe("done");
+    expect(plan.calls[0]).toMatchObject({ model: "opus", status: "done", tokens: 300 });
+  });
+
+  it("marks a run failed when a call failed and no run_finished", () => {
+    const r = "f";
+    const events: EngineEvent[] = [
+      ev(r, { type: "phase_started", phase: "code" }),
+      ev(r, { type: "agent_call_finished", callId: "c1", phase: "code", model: "sonnet", status: "error", durationMs: 10, attempt: 1 }),
+    ];
+    const dto = normalizeRun(r, events);
+    expect(dto.status).toBe("failed");
+    expect(dto.phases[0].calls[0].status).toBe("failed");
+  });
+
+  it("handles interactive runs (finished-only calls, synthesized phase)", () => {
+    const r = "interactive-abc";
+    const events: EngineEvent[] = [
+      ev(r, { type: "run_started", ticketId: null, task: "interactive session", branch: "", approvalGate: "none", phases: ["interactive"], origin: "interactive", engineVersion: "hook" }),
+      ev(r, { type: "agent_call_finished", callId: "u1", phase: "interactive", model: "opus", status: "ok", durationMs: 5000, tokens: { total: 1000 }, attempt: 1, origin: "interactive", promptSummary: "explore" }),
+    ];
+    const dto = normalizeRun(r, events);
+    expect(dto.origin).toBe("interactive");
+    expect(dto.phases.map((p) => p.name)).toEqual(["interactive"]);
+    expect(dto.phases[0].calls[0]).toMatchObject({ status: "done", tokens: 1000, origin: "interactive" });
+  });
+});

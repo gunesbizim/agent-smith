@@ -16,6 +16,9 @@ dist/
 !.sentrux/baseline.json
 docs/architecture/
 
+# Runtime engine run logs (transient; events.jsonl is rebuildable, never committed)
+.agent-smith/runs/
+
 # Temp files
 a
 coverage/

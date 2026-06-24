@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Smith — Agent Call Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2330; --border: #30363d;
+    --fg: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+    --opus: #d2a8ff; --sonnet: #7ee787; --run: #58a6ff; --done: #3fb950; --fail: #f85149; --queued: #8b949e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  .live { margin-left: auto; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fail); }
+  .dot.on { background: var(--done); box-shadow: 0 0 6px var(--done); }
+  .totals { display: flex; flex-wrap: wrap; gap: 18px; padding: 10px 18px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+  .totals b { color: var(--fg); }
+  .filters { padding: 10px 18px; display: flex; gap: 8px; align-items: center; }
+  .filters button { background: var(--panel2); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; cursor: pointer; font: inherit; font-size: 12px; }
+  .filters button.active { border-color: var(--accent); color: var(--accent); }
+  main { padding: 0 18px 40px; max-width: 100%; }
+  details.run { border: 1px solid var(--border); border-radius: 8px; margin: 12px 0; background: var(--panel); overflow: hidden; }
+  summary { cursor: pointer; padding: 10px 14px; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  summary::-webkit-details-marker { display: none; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); }
+  .badge.engine { color: var(--accent); border-color: var(--accent); }
+  .badge.interactive { color: var(--opus); border-color: var(--opus); }
+  .st { font-size: 12px; }
+  .st.running { color: var(--run); } .st.done { color: var(--done); } .st.failed { color: var(--fail); } .st.queued { color: var(--queued); }
+  .meta { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .phase { border-top: 1px solid var(--border); }
+  .phase > .phead { padding: 8px 14px 8px 26px; color: var(--muted); display: flex; gap: 10px; align-items: center; }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 640px; }
+  th, td { text-align: left; padding: 5px 10px; border-top: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; }
+  td.prompt { white-space: normal; color: var(--muted); max-width: 420px; }
+  .model { font-weight: 600; }
+  .model.opus { color: var(--opus); } .model.sonnet { color: var(--sonnet); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>⚒ Agent Smith — Agent Call Dashboard</h1>
+    <span class="live"><span class="dot" id="dot"></span><span id="livetext">connecting…</span></span>
+  </header>
+  <div class="totals" id="totals"></div>
+  <div class="filters">
+    <span style="color:var(--muted);font-size:12px">filter:</span>
+    <button data-f="all" class="active">all</button>
+    <button data-f="engine">engine</button>
+    <button data-f="interactive">interactive</button>
+  </div>
+  <main id="runs"><div class="empty">No runs yet. Start one with <code>agent-smith run &lt;ticket|task&gt;</code>.</div></main>
+
+<script>
+  var state = { runs: [], filter: "all" };
+
+  function fmtTokens(n){ return (n||0).toLocaleString(); }
+  function fmtCost(c){ return c == null ? "—" : "$" + Number(c).toFixed(4); }
+  function fmtDur(ms){ if(ms==null) return "—"; if(ms<1000) return ms+"ms"; var s=Math.round(ms/1000); return s<60? s+"s" : Math.floor(s/60)+"m"+(s%60)+"s"; }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
+  function modelClass(m){ m=(m||"").toLowerCase(); return m.indexOf("opus")>=0?"opus":m.indexOf("sonnet")>=0?"sonnet":""; }
+
+  function render(){
+    var runs = state.runs.filter(function(r){ return state.filter==="all" || r.origin===state.filter; });
+    var t = runs.reduce(function(a,r){ a.tokens+=r.totals.tokens; a.cost+=r.totals.costUsd; a.calls+=r.totals.callCount; return a; }, {tokens:0,cost:0,calls:0});
+    document.getElementById("totals").innerHTML =
+      "calls <b>"+t.calls+"</b>" + " &nbsp;|&nbsp; tokens <b>"+fmtTokens(t.tokens)+"</b>" +
+      " &nbsp;|&nbsp; cost <b>"+(t.cost?("$"+t.cost.toFixed(2)):"—")+"</b>" + " &nbsp;|&nbsp; runs <b>"+runs.length+"</b>";
+
+    var main = document.getElementById("runs");
+    if(!runs.length){ main.innerHTML = '<div class="empty">No runs yet.</div>'; return; }
+    main.innerHTML = runs.map(renderRun).join("");
+  }
+
+  function renderRun(r){
+    var phases = r.phases.map(renderPhase).join("");
+    var open = r.status==="running" ? " open" : "";
+    return '<details class="run"'+open+'><summary>'+
+      '<span class="badge '+r.origin+'">'+r.origin+'</span>'+
+      '<strong>'+esc(r.ticketId||r.task||r.runId)+'</strong>'+
+      '<span class="st '+r.status+'">'+r.status+'</span>'+
+      '<span class="meta">'+r.totals.callCount+' calls · '+fmtTokens(r.totals.tokens)+' tok · '+(r.totals.costUsd?("$"+r.totals.costUsd.toFixed(2)):"—")+' · '+fmtDur(r.totals.wallClockMs)+'</span>'+
+      '</summary>'+ (phases || '<div class="phase"><div class="phead">no calls yet</div></div>') +'</details>';
+  }
+
+  function renderPhase(p){
+    var rows = p.calls.map(function(c){
+      return '<tr><td class="model '+modelClass(c.model)+'">'+esc(c.model)+'</td>'+
+        '<td class="st '+c.status+'">'+c.status+'</td>'+
+        '<td class="prompt">'+esc(c.promptSummary)+'</td>'+
+        '<td class="num">'+fmtTokens(c.tokens)+'</td>'+
+        '<td class="num">'+fmtCost(c.costUsd)+'</td>'+
+        '<td class="num">'+fmtDur(c.durationMs)+'</td></tr>';
+    }).join("");
+    return '<div class="phase"><div class="phead"><strong>'+esc(p.name)+'</strong>'+
+      '<span class="st '+p.status+'">'+p.status+'</span>'+
+      '<span class="meta">'+p.calls.length+' calls · '+fmtTokens(p.totals.tokens)+' tok</span></div>'+
+      '<div class="scroll"><table><thead><tr><th>model</th><th>status</th><th>prompt</th><th class="num">tokens</th><th class="num">cost</th><th class="num">dur</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".filters button"), function(b){
+    b.addEventListener("click", function(){
+      state.filter = b.getAttribute("data-f");
+      Array.prototype.forEach.call(document.querySelectorAll(".filters button"), function(x){ x.classList.remove("active"); });
+      b.classList.add("active");
+      render();
+    });
+  });
+
+  function setLive(on){ document.getElementById("dot").className = "dot"+(on?" on":""); document.getElementById("livetext").textContent = on?"live":"disconnected"; }
+
+  function connect(){
+    var es = new EventSource("/api/events");
+    var apply = function(e){ try { var snap = JSON.parse(e.data); state.runs = snap.runs || []; render(); setLive(true); } catch(_){} };
+    es.addEventListener("snapshot", apply);
+    es.addEventListener("update", apply);
+    es.onopen = function(){ setLive(true); };
+    es.onerror = function(){ setLive(false); }; // browser auto-reconnects
+  }
+  connect();
+</script>
+</body>
+</html>

@@ -42,6 +42,10 @@ export const DEFAULT_TEMPLATE_VARS: TemplateVariables = {
   DEFAULT_BRANCH: "main",
   SHIP_MAX_FIX_ATTEMPTS: "3",
 
+  // Runtime engine model routing (opus thinks/plans, sonnet codes). Per-project overridable.
+  ENGINE_PLAN_MODEL: "opus",
+  ENGINE_CODE_MODEL: "sonnet",
+
   LOGGING_PATTERN: "unstructured",
   LOGGING_CANONICAL_KEYS: "none",
 

@@ -210,6 +210,8 @@ describe("Type exports — compile-time verification", () => {
       GIT_HOST: "github.com",
       DEFAULT_BRANCH: "main",
       SHIP_MAX_FIX_ATTEMPTS: "3",
+      ENGINE_PLAN_MODEL: "opus",
+      ENGINE_CODE_MODEL: "sonnet",
       LOGGING_PATTERN: "structured",
       LOGGING_CANONICAL_KEYS: "trace_id, span_id",
       ORM_PACKAGE: "Prisma",

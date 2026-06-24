@@ -38,6 +38,8 @@ export function makeTemplateVars(overrides: Partial<TemplateVariables> = {}): Te
     GIT_HOST: "github.com",
     DEFAULT_BRANCH: "main",
     SHIP_MAX_FIX_ATTEMPTS: "3",
+    ENGINE_PLAN_MODEL: "opus",
+    ENGINE_CODE_MODEL: "sonnet",
     LOGGING_PATTERN: "unstructured",
     LOGGING_CANONICAL_KEYS: "",
     ORM_PACKAGE: "none",

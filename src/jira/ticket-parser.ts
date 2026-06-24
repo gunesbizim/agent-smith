@@ -1,5 +1,61 @@
 // Jira integration — ticket parser, epic decomposer, workflow mapper
+import path from "node:path";
+import { runClaude } from "../analyze/claude-runner.js";
 import type { JiraTicket, DecomposedTask } from "../shared/types.js";
+
+/** A Jira issue key like PROJ-123 (vs a free-text task). */
+export function looksLikeTicketId(input: string): boolean {
+  return /^[A-Z][A-Z0-9]+-\d+$/.test(input.trim());
+}
+
+/**
+ * Best-effort live fetch via the Atlassian MCP, run headlessly in the project (so the project's
+ * .mcp.json servers boot). Returns null when Jira is unreachable — e.g. the claude.ai Atlassian
+ * server requires interactive auth and may be absent headless — so the caller can fall back to
+ * treating the input as a task and letting the UNDERSTAND phase fetch details if it can.
+ */
+export function fetchJiraTicket(ticketId: string, projectRoot: string): JiraTicket | null {
+  const prompt =
+    `Fetch Jira issue ${ticketId} using the Atlassian MCP (getJiraIssue / searchJiraIssuesUsingJql). ` +
+    `Return ONLY JSON: {"key","summary","description","acceptanceCriteria":[],` +
+    `"issueType":"story|bug|task|epic","status"}. If you cannot reach Jira, return {"error":"unavailable"}.`;
+  const out = runClaude(prompt, {
+    cwd: projectRoot,
+    allowedTools: [
+      "mcp__claude_ai_Atlassian__getJiraIssue",
+      "mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql",
+    ],
+    mcpConfigPath: path.join(projectRoot, ".mcp.json"),
+    timeoutMs: 60_000,
+  });
+  const parsed = parseTicketJson(out);
+  if (!parsed || parsed.error || !parsed.summary) return null;
+  return {
+    key: typeof parsed.key === "string" ? parsed.key : ticketId,
+    summary: String(parsed.summary),
+    description: typeof parsed.description === "string" ? parsed.description : "",
+    acceptanceCriteria: Array.isArray(parsed.acceptanceCriteria) ? parsed.acceptanceCriteria.map(String) : [],
+    issueType: ["story", "bug", "task", "epic"].includes(parsed.issueType) ? parsed.issueType : "story",
+    status: typeof parsed.status === "string" ? parsed.status : "",
+    assignee: null,
+    sprint: null,
+    epic: null,
+  };
+}
+
+function parseTicketJson(out: string | null): Record<string, any> | null {
+  if (!out) return null;
+  const fence = out.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const text = fence ? fence[1] : out;
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(text.slice(start, end + 1)) as Record<string, any>;
+  } catch {
+    return null;
+  }
+}
 
 export async function parseJiraTicket(ticketId: string): Promise<JiraTicket> {
   // In production, this calls the Jira MCP to fetch the ticket

@@ -199,6 +199,10 @@ export interface TemplateVariables {
   // Ship workflow
   SHIP_MAX_FIX_ATTEMPTS: string;
 
+  // Runtime engine model routing
+  ENGINE_PLAN_MODEL: string;
+  ENGINE_CODE_MODEL: string;
+
   // Observability
   LOGGING_PATTERN: string;
   LOGGING_CANONICAL_KEYS: string;

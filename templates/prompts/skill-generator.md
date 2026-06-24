@@ -4,6 +4,16 @@ stack, conventions, and the architecture docs — instead of generic template st
 
 You are running in the project root with Read, Glob, Grep, Write, and Task tools.
 
+**Grounding priority — PREFER MCP tools when grabbing code or documentation.** If code-intelligence
+or documentation MCP tools are available, use them BEFORE raw file reads — they are faster and far
+more precise. Preference order when gathering understanding:
+1. **gitnexus** — architecture map, call graphs, dependencies, change impact (the big-picture structure).
+2. **serena** — symbol overview / find_symbol / find_referencing_symbols (precise code navigation).
+3. **git-memory** — why code changed / historical context for a component.
+4. **documentation MCP** (obsidian / context7 / similar) — project notes and library docs.
+Fall back to Read / Glob / Grep ONLY when no MCP tool can answer or none are configured. (Some of
+these may be absent in a given project — silently skip the ones that are not available.)
+
 ## Phase 1 — Understand the project (do this FIRST, before writing anything)
 
 1. Read the binding source-of-truth docs (skip any that do not exist):
@@ -11,7 +21,8 @@ You are running in the project root with Read, Glob, Grep, Write, and Task tools
    - docs/architecture/frontend-architecture.md
    - docs/architecture/best-practices.md   (existing + recommended engineering standards)
    - docs/architecture/decisions.md         (team conventions captured at init)
-2. Explore the real source tree (Glob/Grep/Read): directory layout, layering, naming,
+2. Explore the real structure — **MCP-first** (gitnexus/serena for layout, layering, symbols, call
+   graphs, impact), falling back to Glob/Grep/Read: directory layout, layering, naming,
    test setup, lint/build commands, auth/permissions, i18n, state management, logging.
 3. Identify the engineering best practices the project ALREADY follows. **Start from the
    programmatically detected conventions** in the "Detected conventions (Followed — auto-detected

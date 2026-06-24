@@ -79,6 +79,7 @@ export function normalizeRun(runId: string, events: EngineEvent[], nowMs: number
         dto.tokens = e.tokens?.total ?? dto.tokens;
         dto.costUsd = e.costUsd ?? dto.costUsd;
         dto.finishedAt = e.ts;
+        if (e.tools) dto.tools = e.tools;
         calls.set(e.callId, dto);
         break;
       }

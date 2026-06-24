@@ -10,6 +10,11 @@ const runClaudeMock = vi.fn();
 vi.mock("../../analyze/claude-runner.js", () => ({
   isClaudeAvailable: () => true,
   runClaude: (...args: unknown[]) => runClaudeMock(...args),
+  runClaudeDetailed: (...args: unknown[]) => {
+    const r = runClaudeMock(...args);
+    if (r && typeof r === "object" && "status" in r) return r;
+    return { text: r ?? null, status: r === null || r === undefined ? "error" : "ok", durationMs: 1 };
+  },
 }));
 
 import { hashPrompt, generateSkills, GENERATED_SKILLS, loadSkillGeneratorPrompt } from "../../adapt/llm-skills.js";

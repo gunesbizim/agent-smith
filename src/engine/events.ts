@@ -107,6 +107,8 @@ export interface AgentCallFinishedEvent extends EngineEventBase {
   costUsd?: number;
   subtaskKey?: string;
   attempt: number;
+  /** Per-tool call counts for this agent (incl. `mcp__*` tools) — powers dashboard tool visibility. */
+  tools?: Record<string, number>;
   /** Tag interactive (hook-captured, non-engine) calls so the dashboard can group them. */
   origin?: "engine" | "interactive";
   /** Carried by interactive (telemetry-hook) calls that have no preceding started event. */

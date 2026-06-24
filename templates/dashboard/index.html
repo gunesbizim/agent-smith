@@ -43,6 +43,10 @@
   .model.opus { color: var(--opus); } .model.sonnet { color: var(--sonnet); }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+  .tools { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .tool { font-size: 10px; padding: 0 5px; border-radius: 8px; background: var(--panel2); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
+  .tool.mcp { color: var(--opus); border-color: var(--opus); font-weight: 600; }
+  .mcpbadge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--opus); color: var(--opus); margin-left: 8px; }
 </style>
 </head>
 <body>
@@ -87,15 +91,35 @@
       '<span class="badge '+r.origin+'">'+r.origin+'</span>'+
       '<strong>'+esc(r.ticketId||r.task||r.runId)+'</strong>'+
       '<span class="st '+r.status+'">'+r.status+'</span>'+
-      '<span class="meta">'+r.totals.callCount+' calls · '+fmtTokens(r.totals.tokens)+' tok · '+(r.totals.costUsd?("$"+r.totals.costUsd.toFixed(2)):"—")+' · '+fmtDur(r.totals.wallClockMs)+'</span>'+
+      '<span class="meta">'+r.totals.callCount+' calls · '+fmtTokens(r.totals.tokens)+' tok · '+(r.totals.costUsd?("$"+r.totals.costUsd.toFixed(2)):"—")+' · '+fmtDur(r.totals.wallClockMs)+'</span>'+ mcpBadge(r) +
       '</summary>'+ (phases || '<div class="phase"><div class="phead">no calls yet</div></div>') +'</details>';
+  }
+
+  function mcpCount(r){
+    var n=0;
+    r.phases.forEach(function(p){ p.calls.forEach(function(c){
+      if(c.tools) Object.keys(c.tools).forEach(function(k){ if(k.indexOf("mcp__")===0) n+=c.tools[k]; });
+    }); });
+    return n;
+  }
+  function mcpBadge(r){ var n=mcpCount(r); return n>0 ? '<span class="mcpbadge">MCP '+n+'</span>' : ''; }
+
+  function renderTools(tools){
+    if(!tools) return "";
+    var keys=Object.keys(tools); if(!keys.length) return "";
+    keys.sort(function(a,b){ return tools[b]-tools[a]; });
+    var parts=keys.map(function(k){
+      var cls = k.indexOf("mcp__")===0 ? "tool mcp" : "tool";
+      return '<span class="'+cls+'">'+esc(k)+' '+tools[k]+'</span>';
+    });
+    return '<div class="tools">'+parts.join("")+'</div>';
   }
 
   function renderPhase(p){
     var rows = p.calls.map(function(c){
       return '<tr><td class="model '+modelClass(c.model)+'">'+esc(c.model)+'</td>'+
         '<td class="st '+c.status+'">'+c.status+'</td>'+
-        '<td class="prompt">'+esc(c.promptSummary)+'</td>'+
+        '<td class="prompt">'+esc(c.promptSummary)+renderTools(c.tools)+'</td>'+
         '<td class="num">'+fmtTokens(c.tokens)+'</td>'+
         '<td class="num">'+fmtCost(c.costUsd)+'</td>'+
         '<td class="num">'+fmtDur(c.durationMs)+'</td></tr>';

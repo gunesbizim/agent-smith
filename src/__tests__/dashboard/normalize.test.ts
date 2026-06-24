@@ -34,6 +34,16 @@ describe("normalizeRun", () => {
     expect(plan.calls[0]).toMatchObject({ model: "opus", status: "done", tokens: 300 });
   });
 
+  it("carries per-call tool usage (incl. MCP) onto the DTO", () => {
+    const r = "tooled";
+    const events: EngineEvent[] = [
+      ev(r, { type: "phase_started", phase: "generate" }),
+      ev(r, { type: "agent_call_finished", callId: "c1", phase: "generate", model: "sonnet", status: "ok", durationMs: 5, attempt: 1, tools: { Read: 9, "mcp__serena__find_symbol": 3 } }),
+    ];
+    const dto = normalizeRun(r, events);
+    expect(dto.phases[0].calls[0].tools).toEqual({ Read: 9, "mcp__serena__find_symbol": 3 });
+  });
+
   it("marks a run failed when a call failed and no run_finished", () => {
     const r = "f";
     const events: EngineEvent[] = [

@@ -71,6 +71,8 @@ export interface ClaudeRunResult {
   durationMs: number;
   // Present only when outputFormat is "json" and parsing succeeded.
   usage?: ClaudeUsage;
+  // The CLI session id (from the json envelope) — lets callers locate this run's transcript.
+  sessionId?: string;
 }
 
 // Detailed variant: returns status, wall-clock duration, and (with outputFormat "json") token/cost
@@ -150,7 +152,8 @@ function parseJsonEnvelope(raw: string): Omit<ClaudeRunResult, "durationMs"> {
       costUsd: numOrUndef(obj.total_cost_usd),
     };
     const isError = obj.is_error === true || obj.subtype === "error";
-    return { text, status: isError ? "error" : "ok", usage };
+    const sessionId = typeof obj.session_id === "string" ? obj.session_id : undefined;
+    return { text, status: isError ? "error" : "ok", usage, sessionId };
   } catch {
     return { text: raw, status: "ok" };
   }

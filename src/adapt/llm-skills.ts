@@ -3,11 +3,60 @@
 // template-substituted stub. Best-effort: returns a result describing what happened; the
 // caller keeps the already-scaffolded template skills when the LLM path is unavailable.
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import fs from "fs-extra";
-import { runClaude } from "../analyze/claude-runner.js";
+import { runClaudeDetailed, type ClaudeRunResult } from "../analyze/claude-runner.js";
+import { getMCPServer } from "../install/registry.js";
+import { collectSkillGenUsage, writeSkillGenRun } from "./skillgen-telemetry.js";
 import { readMarker } from "./skill-gen-marker.js";
+
+// MCP categories whose tools help GROUND skill authoring (reading code + docs). Browser/quality/pm/
+// memory servers are excluded so generation doesn't, e.g., launch a browser to author a skill.
+const GROUNDING_MCP_CATEGORIES = new Set(["code-intelligence", "documentation"]);
+
+function readMcpServers(file: string): Record<string, unknown> {
+  if (!fs.existsSync(file)) return {};
+  try {
+    const cfg = fs.readJsonSync(file) as { mcpServers?: Record<string, unknown> };
+    return cfg.mcpServers ?? {};
+  } catch {
+    return {};
+  }
+}
+
+export interface GroundingMcp {
+  /** Server name → config, for the servers to boot during the generation spawn. */
+  servers: Record<string, unknown>;
+  /** Matching `mcp__<server>` allowlist entries. */
+  allow: string[];
+}
+
+/**
+ * Collect the configured code-intelligence / documentation MCP servers to ground skill generation,
+ * from BOTH `.mcp.json` AND `.claude/settings.json`. This matters because agent-smith writes
+ * project-scoped non-browser servers (gitnexus, serena, git-memory) into settings.json — not
+ * .mcp.json — so a generation spawn pointed only at .mcp.json (under --strict-mcp-config) would never
+ * see them. Returns the servers to boot plus their `mcp__<server>` allowlist. Empty when none are
+ * configured (generation then runs on file tools only).
+ */
+export function buildGroundingMcp(projectRoot: string): GroundingMcp {
+  const merged: Record<string, unknown> = {
+    ...readMcpServers(path.join(projectRoot, ".mcp.json")),
+    ...readMcpServers(path.join(projectRoot, ".claude", "settings.json")),
+  };
+  const servers: Record<string, unknown> = {};
+  const allow: string[] = [];
+  for (const name of Object.keys(merged)) {
+    const def = getMCPServer(name);
+    if (def && GROUNDING_MCP_CATEGORIES.has(def.category)) {
+      servers[name] = merged[name];
+      allow.push(`mcp__${name}`);
+    }
+  }
+  return { servers, allow };
+}
 
 /** Stable short hash of the generator prompt (A11) — recorded per run for reproducibility. */
 export function hashPrompt(prompt: string): string {
@@ -30,7 +79,16 @@ export const GENERATED_SKILLS = [
   "pr-critic-dx",
 ];
 
-const SKILLS_TIMEOUT_MS = 600_000; // skill authoring fans out subagents — allow several minutes
+// Skill authoring fans out subagents (Task) to ground each skill in the repo, which on a large
+// monorepo can take well over 10 minutes. The old hardcoded 600s cap SIGTERM'd those runs, surfacing
+// as the misleading "claude unavailable" fallback. Default to 20 min and let big repos raise it via
+// AGENT_SMITH_SKILLS_TIMEOUT_MS (milliseconds).
+const DEFAULT_SKILLS_TIMEOUT_MS = 1_200_000;
+export function skillsTimeoutMs(): number {
+  const raw = process.env.AGENT_SMITH_SKILLS_TIMEOUT_MS;
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_SKILLS_TIMEOUT_MS;
+}
 
 /** Thrown when an externalized prompt template file cannot be found/read (P1). */
 export class SkillPromptError extends Error {
@@ -188,6 +246,50 @@ export interface GenerateSkillsOptions {
   regen?: boolean;
 }
 
+// Run the generation spawn: boot ONLY the configured code-intelligence / documentation MCP servers
+// (from .mcp.json AND .claude/settings.json) via a temp strict config so generation can prefer them,
+// suppress project hooks so Write isn't gated, and clean up the temp config afterward.
+function runSkillGenClaude(projectRoot: string, prompt: string, opts: GenerateSkillsOptions): ClaudeRunResult {
+  const grounding = opts.useProjectMcp ? buildGroundingMcp(projectRoot) : { servers: {}, allow: [] };
+  let mcpConfigPath: string | undefined;
+  let tmpMcpDir: string | undefined;
+  if (Object.keys(grounding.servers).length > 0) {
+    tmpMcpDir = fs.mkdtempSync(path.join(os.tmpdir(), "as-skillgen-mcp-"));
+    mcpConfigPath = path.join(tmpMcpDir, "mcp.json");
+    fs.writeJsonSync(mcpConfigPath, { mcpServers: grounding.servers });
+  }
+  try {
+    return runClaudeDetailed(prompt, {
+      cwd: projectRoot,
+      allowedTools: ["Read", "Glob", "Grep", "Write", "Task", ...grounding.allow],
+      timeoutMs: skillsTimeoutMs(),
+      mcpConfigPath,
+      suppressHooks: opts.suppressHooks,
+      // JSON output yields the session id so we can locate the transcript and surface tool/MCP usage.
+      outputFormat: "json",
+    });
+  } finally {
+    if (tmpMcpDir) {
+      try {
+        fs.removeSync(tmpMcpDir);
+      } catch {
+        /* best-effort temp cleanup */
+      }
+    }
+  }
+}
+
+// Best-effort: surface the generation's tool usage (incl. MCP) in the dashboard. Never throws.
+function recordSkillGenUsage(projectRoot: string, sessionId: string | undefined): void {
+  if (!sessionId) return;
+  try {
+    const usage = collectSkillGenUsage(sessionId);
+    if (usage) writeSkillGenRun(projectRoot, usage);
+  } catch {
+    /* telemetry is best-effort */
+  }
+}
+
 // Regenerate skills in place via the LLM. Requires the scaffolded stubs + architecture docs
 // to already exist under projectRoot. Returns ran:false (with a reason) on any failure so
 // the caller silently keeps the template-customized skills.
@@ -238,19 +340,20 @@ export function generateSkills(projectRoot: string, opts: GenerateSkillsOptions 
     }
     throw err;
   }
-  // P2/P3: when generating against the live project, boot its MCP servers and suppress the
-  // project's hooks so the model's Write calls aren't blocked by the sentrux/git PreToolUse
-  // gates. The .mcp.json path is guarded by runClaude (falls back to zero-MCP if absent).
-  const out = runClaude(prompt, {
-    cwd: projectRoot,
-    allowedTools: ["Read", "Glob", "Grep", "Write", "Task"],
-    timeoutMs: SKILLS_TIMEOUT_MS,
-    mcpConfigPath: opts.useProjectMcp ? path.join(projectRoot, ".mcp.json") : undefined,
-    suppressHooks: opts.suppressHooks,
-  });
-  if (out === null) {
-    return { ran: false, reason: "LLM skill generation failed or claude unavailable" };
+  // P2/P3: boot the grounding MCP servers + suppress hooks (see runSkillGenClaude); record best-effort
+  // dashboard telemetry after a successful run.
+  const res = runSkillGenClaude(projectRoot, prompt, opts);
+  if (res.text === null) {
+    // Distinguish a real timeout (the common large-repo case) from claude being unavailable, so the
+    // user gets an actionable reason instead of the old catch-all.
+    const reason =
+      res.status === "timeout"
+        ? `LLM skill generation timed out after ${Math.round(skillsTimeoutMs() / 1000)}s — raise AGENT_SMITH_SKILLS_TIMEOUT_MS (ms) for large repos, then re-run with --regen-skills`
+        : "LLM skill generation failed or claude unavailable";
+    return { ran: false, reason };
   }
+  const out = res.text;
+  recordSkillGenUsage(projectRoot, res.sessionId);
   const parsed = parseSkillsReport(out);
   const report = parsed ? crossCheckReport(parsed, projectRoot) : undefined;
   // A11: record the prompt hash so the caller can stamp it into the marker for reproducibility.

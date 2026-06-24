@@ -19,6 +19,8 @@ export interface AgentCallDTO {
   finishedAt: string | null;
   origin: RunOrigin;
   subtaskKey?: string;
+  /** Per-tool call counts for this agent (incl. `mcp__*`), when known. */
+  tools?: Record<string, number>;
 }
 
 export interface PhaseDTO {

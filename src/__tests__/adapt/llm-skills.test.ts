@@ -16,7 +16,7 @@ vi.mock("../../analyze/claude-runner.js", () => ({
   },
 }));
 
-import { generateSkills, GENERATED_SKILLS, buildMasterSkillPrompt, skillsTimeoutMs } from "../../adapt/llm-skills.js";
+import { generateSkills, GENERATED_SKILLS, buildMasterSkillPrompt, skillsTimeoutMs, mcpGroundingAllowlist } from "../../adapt/llm-skills.js";
 import { writeMarker, markerPath } from "../../adapt/skill-gen-marker.js";
 
 function scaffoldStubs(root: string): void {
@@ -142,6 +142,25 @@ describe("generateSkills", () => {
     expect(opts.suppressHooks).toBe(true);
   });
 
+  it("permits code-intel/doc MCP tools (not browser) when useProjectMcp", () => {
+    scaffoldStubs(tmp);
+    fs.writeJsonSync(path.join(tmp, ".mcp.json"), { mcpServers: { gitnexus: {}, serena: {}, playwright: {} } });
+    runClaudeMock.mockReturnValue("done");
+    generateSkills(tmp, { useProjectMcp: true });
+    const opts = runClaudeMock.mock.calls[0][1] as { allowedTools: string[] };
+    expect(opts.allowedTools).toEqual(expect.arrayContaining(["mcp__gitnexus", "mcp__serena"]));
+    expect(opts.allowedTools).not.toContain("mcp__playwright");
+  });
+
+  it("adds no MCP tools when useProjectMcp is unset", () => {
+    scaffoldStubs(tmp);
+    fs.writeJsonSync(path.join(tmp, ".mcp.json"), { mcpServers: { gitnexus: {} } });
+    runClaudeMock.mockReturnValue("done");
+    generateSkills(tmp);
+    const opts = runClaudeMock.mock.calls[0][1] as { allowedTools: string[] };
+    expect(opts.allowedTools.some((t) => t.startsWith("mcp__"))).toBe(false);
+  });
+
   it("does not pass an mcpConfigPath when useProjectMcp is unset — P3", () => {
     scaffoldStubs(tmp);
     runClaudeMock.mockReturnValue("done");
@@ -155,6 +174,29 @@ describe("generateSkills", () => {
     runClaudeMock.mockReturnValue("done");
     generateSkills(tmp);
     expect(fs.existsSync(markerPath(tmp))).toBe(false);
+  });
+});
+
+describe("mcpGroundingAllowlist", () => {
+  let dir: string;
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), "mcpallow-")); });
+  afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
+
+  it("includes code-intelligence + documentation servers, excludes browser/quality", () => {
+    fs.writeJsonSync(path.join(dir, ".mcp.json"), {
+      mcpServers: { gitnexus: {}, serena: {}, "git-memory": {}, obsidian: {}, playwright: {}, "chrome-devtools": {}, sentrux: {} },
+    });
+    const a = mcpGroundingAllowlist(dir);
+    expect(a).toEqual(expect.arrayContaining(["mcp__gitnexus", "mcp__serena", "mcp__git-memory", "mcp__obsidian"]));
+    expect(a).not.toContain("mcp__playwright");
+    expect(a).not.toContain("mcp__chrome-devtools");
+    expect(a).not.toContain("mcp__sentrux"); // quality category
+  });
+
+  it("returns [] when there is no .mcp.json or it is unparseable", () => {
+    expect(mcpGroundingAllowlist(dir)).toEqual([]);
+    fs.writeFileSync(path.join(dir, ".mcp.json"), "{ not json");
+    expect(mcpGroundingAllowlist(dir)).toEqual([]);
   });
 });
 
@@ -185,6 +227,9 @@ describe("buildMasterSkillPrompt", () => {
     expect(p).toMatch(/Task tool/i);
     expect(p).toMatch(/subagent/i);
     for (const s of GENERATED_SKILLS) expect(p).toContain(s);
+    // Must steer the model to PREFER MCP tools when grabbing code/docs.
+    expect(p).toMatch(/PREFER MCP tools|MCP-first/i);
+    expect(p).toMatch(/gitnexus[\s\S]*serena/i);
     // Must warn against leaving wrong-stack rules / unresolved template vars.
     expect(p).toMatch(/NEVER leave a rule that does not apply/i);
     expect(p).toMatch(/\{\{TEMPLATE_VARS\}\}|unresolved braces/i);

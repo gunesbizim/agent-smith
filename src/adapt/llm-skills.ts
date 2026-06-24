@@ -7,7 +7,37 @@ import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import fs from "fs-extra";
 import { runClaudeDetailed } from "../analyze/claude-runner.js";
+import { getMCPServer } from "../install/registry.js";
+import { collectSkillGenUsage, writeSkillGenRun } from "./skillgen-telemetry.js";
 import { readMarker } from "./skill-gen-marker.js";
+
+// MCP categories whose tools help GROUND skill authoring (reading code + docs). Browser/quality/pm/
+// memory servers are excluded so generation doesn't, e.g., launch a browser to author a skill.
+const GROUNDING_MCP_CATEGORIES = new Set(["code-intelligence", "documentation"]);
+
+/**
+ * Build the MCP-tool allowlist for skill generation from the project's `.mcp.json`. Each configured
+ * code-intelligence / documentation server contributes an `mcp__<server>` entry (allow-all-from-
+ * server) so the model may prefer gitnexus/serena/git-memory/docs tools when grabbing code or docs.
+ * Returns [] when the file is absent or has no such servers — generation still works on file tools.
+ */
+export function mcpGroundingAllowlist(projectRoot: string): string[] {
+  const mcpPath = path.join(projectRoot, ".mcp.json");
+  if (!fs.existsSync(mcpPath)) return [];
+  let servers: string[];
+  try {
+    const cfg = fs.readJsonSync(mcpPath) as { mcpServers?: Record<string, unknown> };
+    servers = Object.keys(cfg.mcpServers ?? {});
+  } catch {
+    return [];
+  }
+  return servers
+    .filter((name) => {
+      const def = getMCPServer(name);
+      return def ? GROUNDING_MCP_CATEGORIES.has(def.category) : false;
+    })
+    .map((name) => `mcp__${name}`);
+}
 
 /** Stable short hash of the generator prompt (A11) — recorded per run for reproducibility. */
 export function hashPrompt(prompt: string): string {
@@ -251,12 +281,17 @@ export function generateSkills(projectRoot: string, opts: GenerateSkillsOptions 
   // project's hooks so the model's Write calls aren't blocked by the sentrux/git PreToolUse
   // gates. The .mcp.json path is guarded by runClaude (falls back to zero-MCP if absent).
   const timeoutMs = skillsTimeoutMs();
+  // Prefer code-intelligence / documentation MCP tools when grabbing code or docs (the prompt drives
+  // the preference; this allowlist makes them callable). Only added when the project configures them.
+  const mcpAllow = opts.useProjectMcp ? mcpGroundingAllowlist(projectRoot) : [];
   const res = runClaudeDetailed(prompt, {
     cwd: projectRoot,
-    allowedTools: ["Read", "Glob", "Grep", "Write", "Task"],
+    allowedTools: ["Read", "Glob", "Grep", "Write", "Task", ...mcpAllow],
     timeoutMs,
     mcpConfigPath: opts.useProjectMcp ? path.join(projectRoot, ".mcp.json") : undefined,
     suppressHooks: opts.suppressHooks,
+    // JSON output yields the session id so we can locate the transcript and surface tool/MCP usage.
+    outputFormat: "json",
   });
   if (res.text === null) {
     // Distinguish a real timeout (the common large-repo case) from claude being unavailable, so the
@@ -268,6 +303,15 @@ export function generateSkills(projectRoot: string, opts: GenerateSkillsOptions 
     return { ran: false, reason };
   }
   const out = res.text;
+  // Surface generation tool usage (incl. MCP) in the dashboard — best-effort, must never fail init.
+  try {
+    if (res.sessionId) {
+      const usage = collectSkillGenUsage(res.sessionId);
+      if (usage) writeSkillGenRun(projectRoot, usage);
+    }
+  } catch {
+    /* telemetry is best-effort */
+  }
   const parsed = parseSkillsReport(out);
   const report = parsed ? crossCheckReport(parsed, projectRoot) : undefined;
   // A11: record the prompt hash so the caller can stamp it into the marker for reproducibility.

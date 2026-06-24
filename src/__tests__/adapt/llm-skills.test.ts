@@ -16,7 +16,7 @@ vi.mock("../../analyze/claude-runner.js", () => ({
   },
 }));
 
-import { generateSkills, GENERATED_SKILLS, buildMasterSkillPrompt, skillsTimeoutMs, mcpGroundingAllowlist } from "../../adapt/llm-skills.js";
+import { generateSkills, GENERATED_SKILLS, buildMasterSkillPrompt, skillsTimeoutMs, buildGroundingMcp } from "../../adapt/llm-skills.js";
 import { writeMarker, markerPath } from "../../adapt/skill-gen-marker.js";
 
 function scaffoldStubs(root: string): void {
@@ -133,18 +133,21 @@ describe("generateSkills", () => {
     expect(runClaudeMock).toHaveBeenCalledOnce();
   });
 
-  it("passes the project .mcp.json path and suppressHooks when useProjectMcp — P3", () => {
+  it("boots a temp grounding MCP config + sets suppressHooks when code-intel servers are configured", () => {
     scaffoldStubs(tmp);
+    fs.outputJsonSync(path.join(tmp, ".claude", "settings.json"), { mcpServers: { gitnexus: {} } });
     runClaudeMock.mockReturnValue("done");
     generateSkills(tmp, { useProjectMcp: true, suppressHooks: true });
-    const opts = runClaudeMock.mock.calls[0][1];
-    expect(opts.mcpConfigPath).toBe(path.join(tmp, ".mcp.json"));
+    const opts = runClaudeMock.mock.calls[0][1] as { mcpConfigPath?: string; suppressHooks?: boolean };
+    expect(typeof opts.mcpConfigPath).toBe("string"); // a temp strict config, not the raw .mcp.json
+    expect(opts.mcpConfigPath).not.toBe(path.join(tmp, ".mcp.json"));
     expect(opts.suppressHooks).toBe(true);
   });
 
-  it("permits code-intel/doc MCP tools (not browser) when useProjectMcp", () => {
+  it("permits code-intel/doc MCP tools from BOTH .mcp.json and settings.json (not browser)", () => {
     scaffoldStubs(tmp);
-    fs.writeJsonSync(path.join(tmp, ".mcp.json"), { mcpServers: { gitnexus: {}, serena: {}, playwright: {} } });
+    fs.writeJsonSync(path.join(tmp, ".mcp.json"), { mcpServers: { playwright: {} } });
+    fs.outputJsonSync(path.join(tmp, ".claude", "settings.json"), { mcpServers: { gitnexus: {}, serena: {} } });
     runClaudeMock.mockReturnValue("done");
     generateSkills(tmp, { useProjectMcp: true });
     const opts = runClaudeMock.mock.calls[0][1] as { allowedTools: string[] };
@@ -177,26 +180,26 @@ describe("generateSkills", () => {
   });
 });
 
-describe("mcpGroundingAllowlist", () => {
+describe("buildGroundingMcp", () => {
   let dir: string;
-  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), "mcpallow-")); });
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), "grounding-")); });
   afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
-  it("includes code-intelligence + documentation servers, excludes browser/quality", () => {
-    fs.writeJsonSync(path.join(dir, ".mcp.json"), {
-      mcpServers: { gitnexus: {}, serena: {}, "git-memory": {}, obsidian: {}, playwright: {}, "chrome-devtools": {}, sentrux: {} },
-    });
-    const a = mcpGroundingAllowlist(dir);
-    expect(a).toEqual(expect.arrayContaining(["mcp__gitnexus", "mcp__serena", "mcp__git-memory", "mcp__obsidian"]));
-    expect(a).not.toContain("mcp__playwright");
-    expect(a).not.toContain("mcp__chrome-devtools");
-    expect(a).not.toContain("mcp__sentrux"); // quality category
+  it("merges code-intel/doc servers from .mcp.json AND .claude/settings.json, excludes browser/quality", () => {
+    // Mirrors how agent-smith configures: browser servers in .mcp.json, code-intel in settings.json.
+    fs.writeJsonSync(path.join(dir, ".mcp.json"), { mcpServers: { playwright: {}, "chrome-devtools": {}, obsidian: { command: "x" } } });
+    fs.outputJsonSync(path.join(dir, ".claude", "settings.json"), { mcpServers: { gitnexus: { command: "g" }, serena: {}, "git-memory": {}, sentrux: {} } });
+    const g = buildGroundingMcp(dir);
+    expect(g.allow).toEqual(expect.arrayContaining(["mcp__gitnexus", "mcp__serena", "mcp__git-memory", "mcp__obsidian"]));
+    expect(g.allow).not.toContain("mcp__playwright");
+    expect(g.allow).not.toContain("mcp__chrome-devtools");
+    expect(g.allow).not.toContain("mcp__sentrux"); // quality category
+    expect(Object.keys(g.servers)).toEqual(expect.arrayContaining(["gitnexus", "serena", "git-memory", "obsidian"]));
+    expect(g.servers.gitnexus).toEqual({ command: "g" }); // carries the real config through
   });
 
-  it("returns [] when there is no .mcp.json or it is unparseable", () => {
-    expect(mcpGroundingAllowlist(dir)).toEqual([]);
-    fs.writeFileSync(path.join(dir, ".mcp.json"), "{ not json");
-    expect(mcpGroundingAllowlist(dir)).toEqual([]);
+  it("returns empty when nothing is configured", () => {
+    expect(buildGroundingMcp(dir)).toEqual({ servers: {}, allow: [] });
   });
 });
 

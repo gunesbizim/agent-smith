@@ -72,7 +72,7 @@ export function collectSkillGenUsage(sessionId: string, homeDir: string = os.hom
     const { model, tools } = parseTranscriptTools(p);
     calls.push({ label: "orchestrator", model, tools });
   }
-  for (const s of subs.sort()) {
+  for (const s of subs.sort((a, b) => a.localeCompare(b))) {
     const { model, tools } = parseTranscriptTools(s);
     calls.push({ label: path.basename(s, ".jsonl"), model, tools });
   }

@@ -71,10 +71,14 @@ export function decideTddGate({ redProof, greenProof, fingerprint }) {
 }
 
 export function treeFingerprint(cwd) {
+  // Deterministic for a given tree state: hash the stash commit's TREE (content-addressed, no
+  // timestamp), not the stash COMMIT sha. Must match src/engine/fingerprint.ts exactly so the
+  // engine's green-proof and this gate compare reliably on an unchanged tree.
   const head = git(["rev-parse", "HEAD"], cwd);
-  const snapshot = git(["stash", "create"], cwd);
+  const stash = git(["stash", "create"], cwd);
+  const tree = stash ? git(["rev-parse", `${stash}^{tree}`], cwd) : git(["rev-parse", "HEAD^{tree}"], cwd);
   const untracked = git(["ls-files", "--others", "--exclude-standard"], cwd);
-  return crypto.createHash("sha256").update(`${head}\n${snapshot}\n${untracked}`).digest("hex");
+  return crypto.createHash("sha256").update(`${head}\n${tree}\n${untracked}`).digest("hex");
 }
 
 function git(args, cwd) {

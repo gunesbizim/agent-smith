@@ -47,6 +47,8 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
   const permissionGuardHook = path.join(hooksDir, "pre-tool-permission-guard.js");
   const gitGuardHook = path.join(hooksDir, "pre-tool-git-guard.js");
   const sentruxGateHook = path.join(hooksDir, "pre-tool-sentrux-gate.js");
+  const tddGateHook = path.join(hooksDir, "pre-tool-tdd-gate.js");
+  const agentTelemetryHook = path.join(hooksDir, "post-tool-agent-telemetry.js");
   const changeDetectorHook = path.join(hooksDir, "stop-change-detector.js");
 
   return {
@@ -78,6 +80,14 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
             statusMessage: "Agent Smith — enforcing git conventions...",
           },
           {
+            // Runs BEFORE the sentrux gate: a red suite is the cheaper, harder failure to catch.
+            // Fails open when no engine run is active, so manual (non-engine) commits are unaffected.
+            type: "command",
+            command: `node "${tddGateHook}"`,
+            timeout: 8000,
+            statusMessage: "Agent Smith — enforcing TDD gate (tests green)...",
+          },
+          {
             type: "command",
             command: `node "${sentruxGateHook}"`,
             timeout: 15000,
@@ -99,6 +109,18 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
       },
     ],
     PostToolUse: [
+      {
+        // Capture every subagent dispatch (the `Agent` tool) so planning/coding done in a plain
+        // Claude Code session shows up in the dashboard alongside engine runs.
+        matcher: "Agent",
+        hooks: [
+          {
+            type: "command",
+            command: `node "${agentTelemetryHook}"`,
+            statusMessage: "Agent Smith — recording agent-call telemetry...",
+          },
+        ],
+      },
       {
         matcher: "mcp__plugin_mempalace_mempalace__|mcp__serena__write_memory|mempalace_add_drawer|mempalace_diary_write|mempalace_kg_add|claude-memory",
         hooks: [

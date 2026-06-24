@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
 import http from "node:http";
-import { createDashboardServer } from "../../dashboard/server.js";
+import { createDashboardServer, startDashboard } from "../../dashboard/server.js";
 import type { EventSource } from "../../dashboard/event-source.js";
 import type { DashboardSnapshot } from "../../dashboard/types.js";
 
@@ -73,5 +73,30 @@ describe("dashboard server", () => {
     const base = await listen(createDashboardServer(fakeSource(), { htmlProvider: () => "x" }));
     expect((await fetch(base + "/nope")).status).toBe(404);
     expect((await fetch(base + "/api/runs", { method: "POST" })).status).toBe(405);
+  });
+
+  it("pushes a follow-up update frame on the poll interval", async () => {
+    const base = await listen(createDashboardServer(fakeSource(), { htmlProvider: () => "x", pollMs: 20 }));
+    const res = await fetch(base + "/api/events");
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (let i = 0; i < 20 && !buf.includes("event: update"); i++) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value);
+    }
+    expect(buf).toContain("event: snapshot");
+    expect(buf).toContain("event: update");
+    await reader.cancel();
+  });
+
+  it("startDashboard binds a port and serves /api/runs", async () => {
+    const started = await startDashboard(fakeSource(), 0, { htmlProvider: () => "x" });
+    server = started.server;
+    expect(started.port).toBeGreaterThan(0);
+    expect(started.url).toContain("127.0.0.1");
+    const res = await fetch(started.url + "/api/runs");
+    expect(res.status).toBe(200);
   });
 });

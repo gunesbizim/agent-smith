@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import fs from "fs-extra";
-import { runClaude } from "../analyze/claude-runner.js";
+import { runClaudeDetailed } from "../analyze/claude-runner.js";
 import { readMarker } from "./skill-gen-marker.js";
 
 /** Stable short hash of the generator prompt (A11) — recorded per run for reproducibility. */
@@ -30,7 +30,16 @@ export const GENERATED_SKILLS = [
   "pr-critic-dx",
 ];
 
-const SKILLS_TIMEOUT_MS = 600_000; // skill authoring fans out subagents — allow several minutes
+// Skill authoring fans out subagents (Task) to ground each skill in the repo, which on a large
+// monorepo can take well over 10 minutes. The old hardcoded 600s cap SIGTERM'd those runs, surfacing
+// as the misleading "claude unavailable" fallback. Default to 20 min and let big repos raise it via
+// AGENT_SMITH_SKILLS_TIMEOUT_MS (milliseconds).
+const DEFAULT_SKILLS_TIMEOUT_MS = 1_200_000;
+export function skillsTimeoutMs(): number {
+  const raw = process.env.AGENT_SMITH_SKILLS_TIMEOUT_MS;
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_SKILLS_TIMEOUT_MS;
+}
 
 /** Thrown when an externalized prompt template file cannot be found/read (P1). */
 export class SkillPromptError extends Error {
@@ -241,16 +250,24 @@ export function generateSkills(projectRoot: string, opts: GenerateSkillsOptions 
   // P2/P3: when generating against the live project, boot its MCP servers and suppress the
   // project's hooks so the model's Write calls aren't blocked by the sentrux/git PreToolUse
   // gates. The .mcp.json path is guarded by runClaude (falls back to zero-MCP if absent).
-  const out = runClaude(prompt, {
+  const timeoutMs = skillsTimeoutMs();
+  const res = runClaudeDetailed(prompt, {
     cwd: projectRoot,
     allowedTools: ["Read", "Glob", "Grep", "Write", "Task"],
-    timeoutMs: SKILLS_TIMEOUT_MS,
+    timeoutMs,
     mcpConfigPath: opts.useProjectMcp ? path.join(projectRoot, ".mcp.json") : undefined,
     suppressHooks: opts.suppressHooks,
   });
-  if (out === null) {
-    return { ran: false, reason: "LLM skill generation failed or claude unavailable" };
+  if (res.text === null) {
+    // Distinguish a real timeout (the common large-repo case) from claude being unavailable, so the
+    // user gets an actionable reason instead of the old catch-all.
+    const reason =
+      res.status === "timeout"
+        ? `LLM skill generation timed out after ${Math.round(timeoutMs / 1000)}s — raise AGENT_SMITH_SKILLS_TIMEOUT_MS (ms) for large repos, then re-run with --regen-skills`
+        : "LLM skill generation failed or claude unavailable";
+    return { ran: false, reason };
   }
+  const out = res.text;
   const parsed = parseSkillsReport(out);
   const report = parsed ? crossCheckReport(parsed, projectRoot) : undefined;
   // A11: record the prompt hash so the caller can stamp it into the marker for reproducibility.

@@ -4,12 +4,19 @@ import path from "node:path";
 import fs from "fs-extra";
 
 const runClaudeMock = vi.fn();
+// generateSkills now calls runClaudeDetailed; the mock wraps the legacy string/null return into a
+// ClaudeRunResult, and passes through a full result object so tests can force status "timeout".
 vi.mock("../../analyze/claude-runner.js", () => ({
   isClaudeAvailable: () => true,
   runClaude: (...args: unknown[]) => runClaudeMock(...args),
+  runClaudeDetailed: (...args: unknown[]) => {
+    const r = runClaudeMock(...args);
+    if (r && typeof r === "object" && "status" in r) return r;
+    return { text: r ?? null, status: r === null || r === undefined ? "error" : "ok", durationMs: 1 };
+  },
 }));
 
-import { generateSkills, GENERATED_SKILLS, buildMasterSkillPrompt } from "../../adapt/llm-skills.js";
+import { generateSkills, GENERATED_SKILLS, buildMasterSkillPrompt, skillsTimeoutMs } from "../../adapt/llm-skills.js";
 import { writeMarker, markerPath } from "../../adapt/skill-gen-marker.js";
 
 function scaffoldStubs(root: string): void {
@@ -97,6 +104,15 @@ describe("generateSkills", () => {
     expect(r.reason).toMatch(/failed|unavailable/i);
   });
 
+  it("reports an actionable timeout reason (not 'unavailable') when the run times out", () => {
+    scaffoldStubs(tmp);
+    runClaudeMock.mockReturnValue({ text: null, status: "timeout", durationMs: 1 });
+    const r = generateSkills(tmp);
+    expect(r.ran).toBe(false);
+    expect(r.reason).toMatch(/timed out/i);
+    expect(r.reason).toMatch(/AGENT_SMITH_SKILLS_TIMEOUT_MS/);
+  });
+
   // ---- P3: first-run gate + MCP/hook wiring ----
 
   it("skips generation when the marker is present and regen is not set — P3", () => {
@@ -139,6 +155,26 @@ describe("generateSkills", () => {
     runClaudeMock.mockReturnValue("done");
     generateSkills(tmp);
     expect(fs.existsSync(markerPath(tmp))).toBe(false);
+  });
+});
+
+describe("skillsTimeoutMs", () => {
+  const orig = process.env.AGENT_SMITH_SKILLS_TIMEOUT_MS;
+  afterEach(() => {
+    if (orig === undefined) delete process.env.AGENT_SMITH_SKILLS_TIMEOUT_MS;
+    else process.env.AGENT_SMITH_SKILLS_TIMEOUT_MS = orig;
+  });
+  it("defaults to 20 minutes", () => {
+    delete process.env.AGENT_SMITH_SKILLS_TIMEOUT_MS;
+    expect(skillsTimeoutMs()).toBe(1_200_000);
+  });
+  it("honors a valid override and ignores garbage/non-positive values", () => {
+    process.env.AGENT_SMITH_SKILLS_TIMEOUT_MS = "2400000";
+    expect(skillsTimeoutMs()).toBe(2_400_000);
+    process.env.AGENT_SMITH_SKILLS_TIMEOUT_MS = "abc";
+    expect(skillsTimeoutMs()).toBe(1_200_000);
+    process.env.AGENT_SMITH_SKILLS_TIMEOUT_MS = "0";
+    expect(skillsTimeoutMs()).toBe(1_200_000);
   });
 });
 

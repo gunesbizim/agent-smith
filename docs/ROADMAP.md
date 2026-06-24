@@ -3,34 +3,32 @@
 Agent-smith is **human-gated, not autonomous**. Most of the scorecard (Phases 0–4 and the
 buildable scopes of Phase 5) ships as artifacts the existing Claude Code runtime executes — no
 execution engine required. The items below are deliberately **deferred**: they depend on a real
-execution engine that does not exist yet, and shipping a half-built one would re-introduce exactly
-the dishonesty that [B9] removed (the `ticket`/`pipeline` commands are labelled *experimental —
-orchestration not yet wired*).
+execution engine. As of the TDD-first runtime engine, **A1 has shipped** as `agent-smith run`
+(the headless-Claude conductor). The legacy `ticket`/`pipeline` commands remain *previews* (they
+print the planned phases via the stub orchestrator and do not execute) and now point users to
+`agent-smith run` for real, human-gated execution — so the [B9] honesty guarantee still holds.
 
-> **Hard prerequisite.** `src/pipeline/orchestrator.ts` `executePhase` returns a hardcoded
-> `{ success: true }` — it logs phases but executes nothing. A1 must build *both* the engine and
-> the work it records. Per its plan, **do not start until the team commits to agent-smith owning
-> execution** (the "different product" decision). It is multi-week, high-risk, and not next-sprint.
+## A1 — Event-sourced workflow engine (foundation) — ✅ Shipped
 
-## A1 — Event-sourced workflow engine (foundation)
+**Shipped** as the TDD-first runtime engine: `agent-smith run <ticket|task>` drives
+UNDERSTAND → RED → PLAN → CODE → REVIEW → PR as orchestrated headless-Claude calls (Opus plans,
+Sonnet codes; one call per subtask = fresh context). Every run is an append-only event log under
+`.agent-smith/runs/<id>/events.jsonl` (`run_started`, `agent_call_started/finished`, `test_run`,
+`gate_result`, `run_finished`, …), enabling resume (pure-reducer replay), audit, and the live
+dashboard. State/retry/verification live *between* calls in the conductor (`src/engine/`); the
+deterministic TDD-gate hook blocks any commit/push/PR until the previously-red tests are verified
+green on the current tree, and the sentrux gate still enforces no architecture degradation.
 
-Turn the stub orchestrator into a durable engine: every run is an append-only event log
-(`RUN_CREATED`, `PLAN_GENERATED`, `PATCH_APPLIED`, `TEST_EXECUTED`, `PR_OPENED`, …) under
-`.agent-smith/runs/<id>/events.jsonl`, enabling resume, replay, audit, and a timeline view.
+The stub `src/pipeline/orchestrator.ts` remains only to back the legacy `ticket`/`pipeline`
+previews. See `stuff/plans/tdd-runtime-engine.md` and `stuff/plans/A1-event-sourcing.md`.
 
-**Realistic bridge (first increment):** don't build Temporal — reuse the seam that already
-exists. `runClaude` (`claude-runner.ts`) shells out to headless Claude; the first real engine is
-**orchestrated repeated headless-Claude calls** (plan → implement → test → review), with
-agent-smith owning state/retry/verification *between* calls and appending an event per boundary.
-Gate: a real ticket producing an actual PR closes the B9 honesty gap for real.
+## A10 — Native observability (partially shipped on A1)
 
-See `stuff/plans/A1-event-sourcing.md`.
-
-## A10 — Native observability (gated on A1)
-
-Spans/snapshots/replay built on A1's event log (each phase = a span). Token timelines already
-come from the bundled `claude-tokenstein` MCP — integrate, don't rebuild. OTel-shaped output for
-standard observability stacks. See `stuff/plans/A10-observability.md`.
+The live agent-call dashboard (`agent-smith dashboard`) ships now on A1's event log — a local
+zero-dependency web UI tailing `runs/*/events.jsonl` over SSE, merging engine runs and
+interactive (hook-captured) calls, with a clean EventSource seam for a future remote/Azure API.
+Remaining: OTel-shaped export for standard observability stacks, and token timelines from the
+bundled `claude-tokenstein` MCP. See `stuff/plans/A10-observability.md`.
 
 ## Engine-gated scopes of already-landed plans
 

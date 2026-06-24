@@ -23,6 +23,7 @@ const COMMAND_TEMPLATES: Record<string, string> = {
   "as-ship.md": "templates/commands/as-ship.md",
   "as-caveman.md": "templates/commands/as-caveman.md",
   "as-insights.md": "templates/commands/as-insights.md",
+  "as-handoff.md": "templates/commands/as-handoff.md",
 };
 
 export async function scaffoldCommands(

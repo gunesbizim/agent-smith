@@ -26,6 +26,9 @@ const SKILL_TEMPLATES: Record<string, string> = {
   "pr-critic-dx/SKILL.md": "templates/skills/pr-critic-dx/SKILL.md",
   // A8 — post-PR verification skill (smoke / health / migrate-rollback checklist).
   "smoke-test/SKILL.md": "templates/skills/smoke-test/SKILL.md",
+  // handoff — at high context, write a structured HANDOFF.md and delegate the remaining
+  // subtasks to fresh-context subagents (one per subtask).
+  "handoff/SKILL.md": "templates/skills/handoff/SKILL.md",
 };
 
 // gitnexus helper skill stubs

@@ -40,6 +40,13 @@ export interface HookConfig {
       statusMessage?: string;
     }>;
   }>;
+  PreCompact?: Array<{
+    hooks: Array<{
+      type: "command";
+      command: string;
+      statusMessage?: string;
+    }>;
+  }>;
 }
 
 export function buildHookConfig(projectRoot: string, hooksDir: string): HookConfig {
@@ -50,6 +57,7 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
   const tddGateHook = path.join(hooksDir, "pre-tool-tdd-gate.js");
   const agentTelemetryHook = path.join(hooksDir, "post-tool-agent-telemetry.js");
   const changeDetectorHook = path.join(hooksDir, "stop-change-detector.js");
+  const precompactHandoffHook = path.join(hooksDir, "pre-compact-handoff.js");
 
   return {
     SessionStart: [
@@ -139,6 +147,20 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
             type: "command",
             command: `node "${changeDetectorHook}"`,
             statusMessage: "Agent Smith — checking for uncommitted changes...",
+          },
+        ],
+      },
+    ],
+    PreCompact: [
+      {
+        hooks: [
+          {
+            // Deterministic safety net: snapshot a handoff before compaction (the moment context is
+            // most at risk). Fail-open — never blocks compaction. The `/as-handoff` skill is the
+            // richer, on-demand path.
+            type: "command",
+            command: `node "${precompactHandoffHook}"`,
+            statusMessage: "Agent Smith — snapshotting handoff before compaction...",
           },
         ],
       },

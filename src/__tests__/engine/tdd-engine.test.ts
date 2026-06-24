@@ -5,7 +5,7 @@ import fs from "fs-extra";
 import { runEngine, type TddEngineDeps, type TddEngineInput } from "../../engine/tdd-engine.js";
 import type { AgentCallFn } from "../../engine/agent-call.js";
 import { readEvents } from "../../engine/event-store.js";
-import { artifactPath } from "../../engine/run-dir.js";
+import { artifactPath, currentPointerPath } from "../../engine/run-dir.js";
 import { extractJson } from "../../engine/parse.js";
 
 let root: string;
@@ -118,5 +118,39 @@ describe("runEngine (TDD conductor)", () => {
     const { deps } = makeHarness();
     const res = await runEngine({ ...BASE_INPUT, testCommand: "none" }, { ...deps, root });
     expect(res.state.status).toBe("completed");
+  });
+
+  it("clears the `current` pointer after a completed run, keeps it while paused", async () => {
+    const { deps } = makeHarness();
+    const done = await runEngine(BASE_INPUT, { ...deps, root });
+    expect(done.state.status).toBe("completed");
+    expect(fs.existsSync(currentPointerPath(root))).toBe(false);
+
+    const { deps: deps2 } = makeHarness();
+    const paused = await runEngine({ ...BASE_INPUT, approvalGate: "plan" }, { ...deps2, root, confirm: async () => false });
+    expect(paused.state.status).toBe("paused");
+    expect(fs.existsSync(currentPointerPath(root))).toBe(true);
+  });
+
+  it("fails CODE when the suite exits 0 but the new tests are not actually passing", async () => {
+    // Final suite exits 0, but the new test ids never appear in the output (skipped/renamed) → CODE
+    // must reject it rather than stamping a green-proof on unverified tests.
+    const state = { implemented: false };
+    const callAgent: import("../../engine/agent-call.js").AgentCallFn = async (p) => {
+      let text = "{}";
+      if (p.phase === "understand") text = JSON.stringify({ scenarios: "s", testPlan: { unit: [{ id: IDS[0] }], feature: [{ id: IDS[1] }] } });
+      else if (p.phase === "plan") text = JSON.stringify({ subtasks: [{ key: "T1", summary: "impl", targetTests: IDS }] });
+      else if (p.phase === "code") { state.implemented = true; text = JSON.stringify({ filesChanged: ["x.py"] }); }
+      return { callId: p.phase, text, status: "ok", durationMs: 1 };
+    };
+    const runTests = () =>
+      state.implemented
+        ? { exitCode: 0, stdout: "everything passed", durationMs: 1 } // exit 0 but no per-test ids
+        : { exitCode: 1, stdout: IDS.map((id) => `${id} FAILED [100%]`).join("\n"), durationMs: 1 };
+
+    const res = await runEngine({ ...BASE_INPUT, maxFixAttempts: 1 }, { root, callAgent, runTests, runGate: () => ({ degraded: false, output: "ok" }) });
+    expect(res.state.status).toBe("failed");
+    expect(res.state.phasesCompleted).toEqual(["understand", "red", "plan"]);
+    expect(fs.existsSync(artifactPath(root, res.runId, "green-proof.json"))).toBe(false);
   });
 });

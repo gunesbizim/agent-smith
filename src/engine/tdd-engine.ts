@@ -141,7 +141,18 @@ export async function runEngine(input: TddEngineInput, deps: TddEngineDeps): Pro
 }
 
 function finish(root: string, runId: string): TddEngineResult {
-  return { runId, state: projectRunState(readEvents(root, runId)) };
+  const state = projectRunState(readEvents(root, runId));
+  // Retire the `current` pointer on terminal states so a finished run does not keep the TDD-gate hook
+  // gating every later unrelated commit. Keep it for `paused` so `--resume` still finds the run.
+  if (state.status !== "paused") {
+    try {
+      const p = currentPointerPath(root);
+      if (fs.existsSync(p) && fs.readFileSync(p, "utf-8").trim() === runId) fs.removeSync(p);
+    } catch {
+      /* best-effort */
+    }
+  }
+  return { runId, state };
 }
 
 function modelForPhase(phase: Phase, input: TddEngineInput): string {
@@ -329,18 +340,29 @@ async function codePhase(ctx: PhaseCtx): Promise<PhaseOutcome> {
     const run = ctx.runTests(ctx.input.testCommand, ctx.input.testCwd);
     appendEvent(ctx.root, ctx.runId, { type: "test_run", command: ctx.input.testCommand, exitCode: run.exitCode, passed: run.exitCode === 0, durationMs: run.durationMs });
     if (run.exitCode !== 0) return { success: false, summary: "code: full suite not green after all subtasks" };
+
+    // Verify the green-proof against the ACTUAL final run, not the planned id list: every previously-red
+    // test must be present AND passing. A suite that exits 0 because the new tests were skipped/renamed
+    // must not produce a valid green-proof (that would let the TDD gate pass on unverified tests).
+    const ids = newTestIds(ctx);
+    const byId = new Map(parseTestRun(run.stdout, run.exitCode, ctx.input.testHint).tests.map((t) => [t.id, t]));
+    const notGreen = ids.filter((id) => byId.get(id)?.status !== "pass");
+    if (notGreen.length > 0) {
+      return { success: false, summary: `code: suite exited 0 but new test(s) are not passing: ${notGreen.join(", ")}` };
+    }
+    writeGreenProof(ctx, ids);
   }
-  // Stamp the green-proof the deterministic TDD-gate hook checks before allowing a commit/push/PR.
-  writeGreenProof(ctx);
   return { success: true, summary: `Implemented ${subtasks.length} subtask(s); suite green` };
 }
 
-function writeGreenProof(ctx: PhaseCtx): void {
+// Stamp the green-proof the deterministic TDD-gate hook checks before allowing a commit/push/PR.
+// `passing` is the set of previously-red ids confirmed passing in the final run (verified by caller).
+function writeGreenProof(ctx: PhaseCtx, passing: string[]): void {
   try {
     write(
       ctx,
       "green-proof.json",
-      JSON.stringify({ fingerprint: treeFingerprint(ctx.root), passing: newTestIds(ctx), capturedAt: ctx.now().toISOString(), valid: true }, null, 2),
+      JSON.stringify({ fingerprint: treeFingerprint(ctx.root), passing, capturedAt: ctx.now().toISOString(), valid: true }, null, 2),
     );
   } catch {
     /* best-effort; if absent the gate denies and asks for a verified test run */
@@ -408,12 +430,15 @@ function defaultRunTests(command: string, cwd?: string): TestRunResult {
 
 function defaultRunGate(cwd: string): { degraded: boolean; output: string } {
   try {
+    // sentrux exits 0 even when it reports DEGRADED, so the verdict is read from stdout (same as the
+    // sentrux-gate hook): degradation only when it prints DEGRADED.
     const output = execFileSync("sentrux", ["gate", "."], { cwd, encoding: "utf-8", timeout: 120_000 }); // NOSONAR — fixed binary
-    return { degraded: /degrad|regress|worse|blocked/i.test(output) && !/no change|improv|pass(ed)?/i.test(output), output };
+    return { degraded: /DEGRADED/i.test(output), output };
   } catch (err) {
     const e = err as { stdout?: string; code?: string };
+    // Genuinely absent → can't gate, don't wedge the engine (fail-open). Any OTHER failure (crash,
+    // timeout, non-zero exit) → fail-CLOSED: treat as degraded rather than silently passing review.
     if (e.code === "ENOENT") return { degraded: false, output: "sentrux not installed — gate skipped (fail-open)" };
-    const out = e.stdout ?? "";
-    return { degraded: /degrad|regress|worse|blocked/i.test(out), output: out };
+    return { degraded: true, output: e.stdout || "sentrux gate errored — blocking review (fail-closed)" };
   }
 }

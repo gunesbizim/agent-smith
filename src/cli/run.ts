@@ -7,6 +7,7 @@ import ora from "ora";
 import fs from "fs-extra";
 import type { ApprovalGate } from "../shared/types.js";
 import { fetchJiraTicket, looksLikeTicketId, mapWorkflowToBranch } from "../jira/ticket-parser.js";
+import { isClaudeAvailable } from "../analyze/claude-runner.js";
 import { runEngine } from "../engine/tdd-engine.js";
 
 interface RunOptions {
@@ -26,8 +27,22 @@ export async function runCommand(input: string, opts: RunOptions): Promise<void>
 
   console.log(chalk.bold.cyan(`\n⚒ Agent Smith — TDD engine\n`));
 
+  // Preflight: the engine drives the `claude` CLI; without it every phase fails opaquely.
+  if (!isClaudeAvailable()) {
+    console.error(chalk.red("✗ The `claude` CLI was not found on PATH. Install it (and check `claude --version`) before running the engine."));
+    process.exitCode = 1;
+    return;
+  }
+
   const { ticketId, task, branch } = await resolveInput(input, root);
   const testCommand = resolveTestCommand(root, opts);
+
+  if (testCommand === "none") {
+    console.log(
+      chalk.yellow.bold("⚠ No test command found — the RED gate is DISABLED, so this run is NOT test-driven.") +
+        chalk.yellow("\n  Pass --test-cmd <cmd> or set testCommand in .claude/agent-smith/config.json to enable TDD.\n"),
+    );
+  }
 
   console.log(chalk.gray("  Phases: ") + chalk.white("understand → red → plan → code → review → pr"));
   console.log(chalk.gray("  Models: ") + chalk.white(`${opts.modelPlan ?? "opus"} (plan/think) · ${opts.modelCode ?? "sonnet"} (code)`));

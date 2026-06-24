@@ -127,7 +127,7 @@ function pytestStatus(s: string): TestStatus {
 // errors surface as "Failed to load" / "transform error" / "Cannot find module".
 function parseVitestJest(stdout: string): { tests: TestResult[]; collectionError: boolean } {
   const tests: TestResult[] = [];
-  const re = /^\s*([✓×✗❯])\s+(.+?)(?:\s+\d+ms)?\s*$/gm;
+  const re = /^\s*([✓×✗❯])\s+(.+?)(?:\s+\d+(?:\.\d+)?\s*m?s)?\s*$/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(stdout)) !== null) {
     const mark = m[1];
@@ -186,6 +186,10 @@ export function buildRedProof(args: {
   const parsed = parseTestRun(args.stdout, args.exitCode, args.hint);
   const byId = new Map(parsed.tests.map((t) => [t.id, t]));
   const newTests: TestResult[] = args.newTestIds.map((id) => byId.get(id) ?? { id, status: "error" as TestStatus });
+  // Tests the engine authored but that never appeared in the run output. Silently coercing these to
+  // "error" (and thus counting them as failing) would let a suite that never RAN the new tests still
+  // "prove RED" — the exact false negative this module exists to prevent. So a missing id is fatal.
+  const missing = args.newTestIds.filter((id) => !byId.has(id));
 
   let valid = true;
   let reason: string | undefined;
@@ -195,6 +199,9 @@ export function buildRedProof(args: {
   } else if (parsed.idless && args.newTestIds.length > 0) {
     valid = false;
     reason = "could not extract per-test results; red proof is unverifiable for this runner";
+  } else if (missing.length > 0) {
+    valid = false;
+    reason = `new test(s) not observed in run output (id mismatch or not executed): ${missing.join(", ")}`;
   } else {
     const passing = newTests.filter((t) => t.status === "pass").map((t) => t.id);
     if (passing.length > 0) {
@@ -224,8 +231,9 @@ export function diffAgainstFresh(redProof: RedProof, freshStdout: string, freshE
   const missing: string[] = [];
   for (const t of redProof.newTests) {
     const f = byId.get(t.id);
+    // A skipped test asserts nothing — it must NOT count as green (else `it.skip` satisfies the gate).
     if (!f) missing.push(t.id);
-    else if (f.status === "pass" || f.status === "skip") nowGreen.push(t.id);
+    else if (f.status === "pass") nowGreen.push(t.id);
     else stillFailing.push(t.id);
   }
   return { stillFailing, nowGreen, missing };

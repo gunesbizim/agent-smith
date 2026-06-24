@@ -82,6 +82,13 @@ describe("buildRedProof", () => {
     expect(proof.valid).toBe(false);
     expect(proof.reason).toMatch(/unverifiable/);
   });
+
+  it("is INVALID when a new test id never appears in the output (id mismatch / not executed)", () => {
+    // The suite ran SOMETHING failing, but not the test the engine claims to have authored.
+    const proof = buildRedProof({ command: "pytest", stdout: PYTEST_RED, exitCode: 1, newTestIds: ["tests/test_export.py::test_does_not_exist"], hint: "pytest", capturedAt: "t" });
+    expect(proof.valid).toBe(false);
+    expect(proof.reason).toMatch(/not observed/);
+  });
 });
 
 describe("diffAgainstFresh", () => {
@@ -96,5 +103,13 @@ describe("diffAgainstFresh", () => {
 
     const gone = diffAgainstFresh(proof, "unrelated output", 0);
     expect(gone.missing).toEqual(["tests/test_export.py::test_csv_rows"]);
+  });
+
+  it("does NOT count a skipped test as green (skip is not a pass)", () => {
+    const proof = buildRedProof({ command: "pytest", stdout: PYTEST_RED, exitCode: 1, newTestIds: ["tests/test_export.py::test_csv_rows"], hint: "pytest", capturedAt: "t" });
+    const skipped = "tests/test_export.py::test_csv_rows SKIPPED                               [100%]";
+    const diff = diffAgainstFresh(proof, skipped, 0);
+    expect(diff.nowGreen).toEqual([]);
+    expect(diff.stillFailing).toEqual(["tests/test_export.py::test_csv_rows"]);
   });
 });

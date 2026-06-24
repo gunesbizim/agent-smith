@@ -47,6 +47,13 @@ export interface HookConfig {
       statusMessage?: string;
     }>;
   }>;
+  UserPromptSubmit?: Array<{
+    hooks: Array<{
+      type: "command";
+      command: string;
+      statusMessage?: string;
+    }>;
+  }>;
 }
 
 export function buildHookConfig(projectRoot: string, hooksDir: string): HookConfig {
@@ -58,8 +65,21 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
   const agentTelemetryHook = path.join(hooksDir, "post-tool-agent-telemetry.js");
   const changeDetectorHook = path.join(hooksDir, "stop-change-detector.js");
   const precompactHandoffHook = path.join(hooksDir, "pre-compact-handoff.js");
+  const handoffNudgeHook = path.join(hooksDir, "user-prompt-handoff-nudge.js");
 
   return {
+    UserPromptSubmit: [
+      {
+        hooks: [
+          {
+            // At ~60% context, inject a one-time suggestion to run /as-handoff. Fail-open; suggest only.
+            type: "command",
+            command: `node "${handoffNudgeHook}"`,
+            statusMessage: "Agent Smith — checking context pressure...",
+          },
+        ],
+      },
+    ],
     SessionStart: [
       {
         hooks: [

@@ -31,6 +31,10 @@ See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especi
 - Existing test files already found
 - Known gaps or risk areas (permissions, audit, encryption)
 
+### RED-first mandate (non-negotiable)
+
+Write each test BEFORE the implementation it covers and run it to confirm it FAILS for the right reason (not a collection or import error) before writing the code. A test that passes before the implementation exists proves nothing. Do not write tests after the fact.
+
 ---
 
 ## Step 1 — GitNexus code analysis (before writing tests)

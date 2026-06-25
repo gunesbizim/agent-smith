@@ -28,6 +28,10 @@ git diff origin/main...HEAD --name-only
 - Frontend user guide → spawn an Agent with:
   > Read `.claude/skills/docs-frontend/SKILL.md` and execute it exactly. `$ARGUMENTS` = `<latest | all | view name>`. Drive app with Playwright per role, capture screenshots, write Obsidian guide.
 
+### Subagent model routing
+
+**When you spawn a subagent:** exploration of what to document (detecting changed paths, understanding architecture) → a FRESH **Opus** subagent (`model: opus`). Mechanical execution — generating annotations, writing the Obsidian note, driving Playwright — → a FRESH **Sonnet** subagent (`model: sonnet`). Every subagent starts fresh (no shared context). This mirrors the engine's phase→model map (`src/engine/tdd-engine.ts`): Opus thinks, Sonnet codes.
+
 ## Step 3 — Relay results
 
 ```

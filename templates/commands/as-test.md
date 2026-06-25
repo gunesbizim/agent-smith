@@ -24,6 +24,10 @@ the file-type examples below are illustrative, not exhaustive.
 - Frontend → spawn an Agent with:
   > Read `.claude/skills/test-frontend/SKILL.md` and execute it exactly. `$ARGUMENTS` = `<target + context>`. Write tests, run them, return results.
 
+### Subagent model routing
+
+**When you spawn a subagent:** exploration, debugging, planning, or architecture analysis → a FRESH **Opus** subagent (`model: opus`). Implementation, code-writing, or mechanical execution of an already-planned task — including writing and running tests — → a FRESH **Sonnet** subagent (`model: sonnet`). Every subagent starts fresh (no shared context). This mirrors the engine's phase→model map (`src/engine/tdd-engine.ts`): Opus thinks, Sonnet codes.
+
 ## Step 3 — Relay results
 
 ```

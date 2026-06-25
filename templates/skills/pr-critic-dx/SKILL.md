@@ -25,13 +25,20 @@ confidence rather than staying silent.
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
 2. For each changed area, ask: *how does this fail from a developer experience standpoint?* Look at the real
    call sites and data flow, not just the diff hunk.
-3. For every finding, produce: `{ severity: blocker|suggestion, file, line, problem, fix }`.
-   - **blocker** — a concrete developer experience defect that should stop the merge.
-   - **suggestion** — a developer experience improvement that does not block on its own.
-4. Verify a claimed defect against the real code before reporting it — no speculative findings
-   you could not point a reviewer at.
+3. For every finding, produce:
+   `{ severity: critical|high|medium|low, file, line, problem, fix, falsePositive: boolean, fpReason?: string }`.
+   - **critical** — data loss, security hole, breaks prod, corrupts state.
+   - **high** — real bug or regression a user/dev will hit.
+   - **medium** — should fix, not blocking (smell, missing edge case).
+   - **low** — nit / style / cosmetic.
+4. **False-positive check (mandatory for every finding):** before reporting, read the actual
+   lines and call sites in the current code to confirm the issue is real. If you cannot reproduce
+   the defect from the actual code as it stands, set `falsePositive: true` and populate
+   `fpReason` — do NOT escalate that finding. Only findings with `falsePositive: false` are
+   reported to the orchestrator as actionable.
 
 ## Output
 
-Return ONLY your findings as a list of `{severity, file, line, problem, fix}` objects (plus a
-one-line "developer experience verdict"). Do NOT synthesize across lenses — that is the orchestrator's job.
+Return ONLY your findings as a list of
+`{severity, file, line, problem, fix, falsePositive, fpReason?}` objects (plus a one-line
+"developer experience verdict"). Do NOT synthesize across lenses — that is the orchestrator's job.

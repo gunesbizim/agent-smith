@@ -79,18 +79,29 @@ as parallel subagents on the same diff:
 
 Spawn one Agent per critic:
 > Read `.claude/skills/pr-critic-<lens>/SKILL.md` and execute it exactly on the branch diff.
-> `$ARGUMENTS` = `<scope>`. Return ONLY your `{severity, file, line, problem, fix}` findings.
+> `$ARGUMENTS` = `<scope>`. Return ONLY your `{severity, file, line, problem, fix, falsePositive, fpReason?}` findings.
 
 ### Synthesis (consensus, not raw dump)
 
 After the critics return, a synthesis pass consolidates — do NOT dump every critic verbatim:
-1. **Dedup** findings that point at the same file/line across lenses.
-2. **Rank** by severity; a finding is **consensus** when ≥2 lenses independently flag the same
-   issue — surface those first.
-3. **Blockers vs suggestions**: only `blocker`-severity findings affect the verdict; `suggestion`
-   findings are listed under Suggestions and never block a merge on their own.
-4. A single critic's lone, low-confidence finding is a suggestion, not a blocker — this prevents
-   one noisy lens from blocking the merge.
+
+**Step A — False-positive triage (first, always):**
+Drop every finding where `falsePositive: true`. Collect them under a **"Dropped as false positive"**
+section with each finding's `fpReason` so the human can audit the triage. These dropped findings
+are NOT counted toward the verdict, NOT auto-fixed, and NOT listed in any action section.
+
+**Step B — Severity-driven action on confirmed findings:**
+1. **Dedup** confirmed findings that point at the same file/line across lenses.
+2. **Rank** by severity; a finding is **high-confidence-real** when ≥2 lenses independently flag
+   the same issue — surface those first.
+3. **critical and high** severity confirmed findings → **auto-fix** (you are confident; apply
+   the fix directly). These block the PR verdict.
+4. **medium and low** severity confirmed findings → do NOT fix; list them as non-blocking under
+   **"Left for follow-up"** in the output. They do NOT affect the PR verdict.
+5. **Uncertain** findings (confirmed real but fix unclear) → escalate to the human with the
+   specific question; do not auto-fix and do not block on them.
+6. A single critic's lone finding with no cross-lens corroboration is treated as **medium** at
+   most — this prevents one noisy lens from blocking the merge.
 
 ## Step 4 — Merged output
 
@@ -98,7 +109,7 @@ After the critics return, a synthesis pass consolidates — do NOT dump every cr
 ## PR Review — <branch or PR number>
 
 ### Verdict
-mergeable / needs changes / blocked   (worst of: side verdicts + critic-panel blockers)
+mergeable / needs changes / blocked   (worst of: side verdicts + confirmed critical/high findings from critic panel; medium/low never block)
 
 ### Backend report
 <verbatim from the backend subagent, or "no backend changes">
@@ -107,7 +118,10 @@ mergeable / needs changes / blocked   (worst of: side verdicts + critic-panel bl
 <verbatim from the frontend subagent, or "no frontend changes">
 
 ### Critic panel (synthesized)
-<consensus blockers first (≥2 lenses), then per-lens blockers; suggestions listed separately>
+<triage: dropped-as-false-positive findings with reasons>
+<auto-fixed: critical/high confirmed findings that were applied>
+<left for follow-up: medium/low confirmed findings, non-blocking>
+<escalated-to-human: uncertain findings>
 
 ### Cross-cutting findings
 <contract drift, commit hygiene, coupling issues>

@@ -83,6 +83,23 @@ Score > 0.7 = highly relevant — the diff may be reverting a deliberate fix.
 
 ---
 
+## Severity scale (use for every finding)
+
+Assign one of the four levels to every finding before placing it in an output section:
+
+| Severity | Meaning | Output section |
+|---|---|---|
+| **critical** | data loss / security hole / breaks prod / corrupts state | Blockers |
+| **high** | real bug or regression a user/dev will hit | Blockers or Required changes |
+| **medium** | should fix, not blocking (smell, missing edge case) | Required changes |
+| **low** | nit / style / cosmetic | Suggestions |
+
+**False-positive check (mandatory for every finding):** before placing a finding in any section,
+read the actual lines and call sites in the current code to confirm the issue is real. If you
+cannot reproduce the defect from the actual code as it stands, mark it as a false positive
+(`falsePositive: true, fpReason: "<why>"`) and list it under a **Dropped as false positive**
+section — do NOT escalate it. Only confirmed findings are reported.
+
 ## Checklist — work through every section
 
 > The criteria below are framework-agnostic; the wording assumes a layered web backend. Apply

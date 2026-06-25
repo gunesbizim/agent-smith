@@ -77,9 +77,14 @@ export function evaluateCommand(command: string, policy: RolePolicy): { decision
  * become `Bash(<rule>:*)` deny rules the runtime enforces directly (belt-and-braces with the hook).
  */
 export function renderPermissionsBlock(policy: RolePolicy): { allow: string[]; deny: string[] } {
+  // Claude Code's `Bash(<pattern>)` syntax can't represent a rule containing parentheses — the
+  // parser reads the inner `(` as an empty-argument pattern and rejects the whole rule (e.g. the
+  // fork bomb `:(){ :|:& };:`). Skip those here; they remain fully enforced by the PreToolUse
+  // guard, which substring-matches against the same rules in permissions.json.
+  const settingsExpressible = (rule: string) => !rule.includes("(");
   return {
-    allow: policy.allowlistMode ? policy.shell.allowed.map((c) => `Bash(${c})`) : [],
-    deny: policy.shell.denied.map((c) => `Bash(${c}:*)`),
+    allow: policy.allowlistMode ? policy.shell.allowed.filter(settingsExpressible).map((c) => `Bash(${c})`) : [],
+    deny: policy.shell.denied.filter(settingsExpressible).map((c) => `Bash(${c}:*)`),
   };
 }
 

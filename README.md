@@ -140,7 +140,7 @@ After the interview finishes, `init` **installs the MCP server binaries programm
 
 ### 4. Operate — do the work, with a human in the loop
 
-Now you (and the assistant) use the installed `/as-*` commands and skills. There's also a **planned semi-autonomous ticket-to-PR pipeline** — it is designed to take a Jira ticket through plan → implement → test → review → docs → PR, **pausing at gates for human approval**. It is human-gated by design, not fully autonomous. **Status: experimental — the `ticket`/`pipeline` commands currently preview the planned phase sequence but do not yet execute it (the orchestration engine is on the roadmap, item A1).**
+Now you (and the assistant) use the installed `/as-*` commands and skills. There's also a **semi-autonomous ticket-to-PR pipeline** designed to take a ticket through branch → plan → implement → test → review → docs → PR → CI, **pausing at gates for human approval** — human-gated by design, not fully autonomous. **Status: partial.** Its deterministic back half is real and unit-tested — branch hygiene (`decideBranch`, always forking a fresh branch from updated `main`) and the CI/Sonar green-wait (`evaluateCi`, which never reports green until every check passes) — while the middle phases (plan/implement/test/review/docs) are still stubs pending engine integration, and the `ticket`/`pipeline` CLI commands still only preview the sequence.
 
 > Code: `src/cli/*`, `src/pipeline/*`.
 
@@ -328,7 +328,7 @@ Once set up, drive the work from inside Claude Code with the `/as-*` slash comma
 | `/as-backend <task>` | Implement a backend task as a senior backend engineer, against your detected stack | `/as-backend "add a /health endpoint"` |
 | `/as-frontend <task>` | Implement a frontend / full-stack task | `/as-frontend "add a dark-mode toggle"` |
 | `/as-test <target>` | Write or extend tests; dispatches test-backend / test-frontend in fresh subagents | `/as-test "OrderService.charge"` |
-| `/as-pr-review [PR# \| path]` | Review changes through an adversarial critic panel (security, performance, simplicity, maintainability, DX) | `/as-pr-review 42` |
+| `/as-pr-review [PR# \| path]` | Review through an adversarial critic panel (security, performance, simplicity, maintainability, DX) with graded severity (critical/high/medium/low) + a false-positive gate per finding; drops FPs, auto-fixes confirmed critical/high, leaves low for follow-up | `/as-pr-review 42` |
 | `/as-documentation [latest\|all\|path]` | Detect what changed and regenerate the matching docs | `/as-documentation latest` |
 | `/as-git [hint]` | Commit current work and push, following your commit conventions | `/as-git "PROJ-123"` |
 | `/as-ship [hint]` | The gated path from finished work to a green PR: commit → PR → review → drive CI green | `/as-ship` |
@@ -336,13 +336,13 @@ Once set up, drive the work from inside Claude Code with the `/as-*` slash comma
 | `/as-handoff` | Write a structured `HANDOFF.md` and hand the remaining work to fresh-context subagents | `/as-handoff` |
 | `/as-caveman` | Switch to ultra-compressed communication to save tokens | `/as-caveman` |
 
-Commands invoked with no argument (`/as-backend`, `/as-test`) ask you for the task. The orchestrator commands (`/as-test`, `/as-pr-review`, `/as-documentation`) classify the target and fan out to specialized skills, each in a fresh subagent.
+Commands invoked with no argument (`/as-backend`, `/as-test`) ask you for the task. The orchestrator commands (`/as-test`, `/as-pr-review`, `/as-documentation`) classify the target and fan out to specialized skills, each in a fresh subagent. Subagent **model routing** follows the engine's policy: exploration / planning / review work goes to a fresh **Opus** subagent, implementation / execution to a fresh **Sonnet** one (Opus thinks, Sonnet codes).
 
 ### Skills
 
 Skills are detailed playbooks the assistant follows automatically when a task matches — you rarely invoke them by name. After `init` your repo has:
 
-- **Worker skills**, rewritten to match your code: `pr-review-backend` / `pr-review-frontend`, `test-backend` / `test-frontend`, `docs-backend` / `docs-frontend`.
+- **Worker skills**, rewritten to match your code: `pr-review-backend` / `pr-review-frontend`, `test-backend` / `test-frontend`, `docs-backend` / `docs-frontend`. The implementation commands (`/as-backend`, `/as-frontend`) follow an explore → triage → TDD-plan → **RED-first** implement loop, and the `test-*` skills require a failing test before the code it covers.
 - **smith-mode** — the execution discipline (stage map → delegate → failable verification → self-critique) applied to any task spanning multiple files, sources, or sessions.
 - **handoff** — captures a session-continuity snapshot and hands work to fresh subagents when the context window gets crowded.
 
@@ -350,7 +350,7 @@ Skills are detailed playbooks the assistant follows automatically when a task ma
 
 Three layers keep the assistant from making a mess — you stay in charge of the big, risky steps:
 
-- **Sentrux quality gate** — before a commit, it checks your architecture didn't regress against the saved baseline. Run it yourself anytime with `sentrux gate .`; it blocks changes that add dependency cycles, "god files," or coupling beyond the ratcheted baseline.
+- **Sentrux quality gate** — before a commit, it checks your architecture didn't regress against the saved baseline. Run it yourself anytime with `sentrux gate .`; it blocks changes that add dependency cycles, "god files," or coupling beyond the ratcheted baseline. In `/as-ship` and `/as-pr-review`, a regression first enters a **bounded remediation loop** (try a targeted, behaviour-preserving fix → re-gate) and only escalates to you if it can't be recovered — tests/typecheck/lint/secret-scan failures still hard-stop immediately.
 - **Blocked-command deny list** — dangerous shell commands (`rm -rf`, `git push --force`, fork bombs, …) are denied both by rules in `settings.json` and by a zero-token PreToolUse hook. It **fails open** if the policy file is missing, so it can't freeze your session.
 - **TDD gate** — while an engine run is active, commits and pushes are denied unless the tests proven red are verified green on the current working tree.
 
@@ -382,7 +382,7 @@ agent-smith ticket <id> [--auto]   # fetch a Jira ticket and run the gated pipel
 agent-smith pipeline               # run on the current branch's changes
 ```
 
-**Status: experimental** — these currently *preview* the planned phase sequence (plan → implement → test → review → docs → PR) but do not yet execute it. The orchestration engine is roadmap item A1.
+**Status: partial.** The phase sequence is now `branch → plan → implement → test → review → docs → PR → CI`. The deterministic back-half phases are implemented as pure, unit-tested helpers driven by an injectable runner — `branch` (fresh branch from updated `main`), `pr` (push + open PR), and `ci` (poll `gh pr checks` / Sonar, never green until all pass). The middle phases (plan/implement/test/review/docs) remain stubs pending engine integration, and the `ticket`/`pipeline` CLI commands still only preview the sequence (they don't yet invoke the orchestrator).
 
 ### Troubleshooting
 

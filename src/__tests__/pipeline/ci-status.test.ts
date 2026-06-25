@@ -69,6 +69,18 @@ describe("parseGhChecks", () => {
     expect(result[0]).not.toHaveProperty("link");
     expect(result[0]).not.toHaveProperty("workflow");
   });
+
+  it('throws when an array element is null: "[null]"', () => {
+    expect(() => parseGhChecks("[null]")).toThrow(
+      /Expected each check to be an object/,
+    );
+  });
+
+  it('throws when an array element is a string: "[\\"x\\"]"', () => {
+    expect(() => parseGhChecks('["x"]')).toThrow(
+      /Expected each check to be an object/,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -130,11 +142,20 @@ describe("evaluateCi", () => {
     expect(result.pending).toHaveLength(0);
   });
 
-  it('empty array → status "green", sonar.present false, sonar.green null', () => {
+  it('empty array → status "pending" (checks not registered yet), sonar.present false, sonar.green null', () => {
     const result = evaluateCi([]);
-    expect(result.status).toBe("green");
+    expect(result.status).toBe("pending");
     expect(result.sonar.present).toBe(false);
     expect(result.sonar.green).toBeNull();
+  });
+
+  it('unknown/empty bucket → status "pending" (not green)', () => {
+    const checks: CiCheck[] = [
+      makeCheck({ name: "build", bucket: "pass" }),
+      makeCheck({ name: "mystery", bucket: "unknown-bucket" }),
+    ];
+    const result = evaluateCi(checks);
+    expect(result.status).toBe("pending");
   });
 
   it('"cancel" bucket treated as failed', () => {

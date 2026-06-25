@@ -1,4 +1,4 @@
-// Pipeline orchestrator — full autonomous ticket-to-PR flow
+// Pipeline orchestrator. branch/pr/ci phases are real (via injected PipelineDeps); plan/implement/test/review/docs are stubs pending engine integration (see stuff/plans/P5-pipeline-spike-findings.md). Not yet wired to a CLI command.
 import type { PipelineContext, PipelinePhase, PhaseResult, ApprovalGate } from "../shared/types.js";
 import { decideBranch } from "./branch.js";
 import { parseGhChecks, evaluateCi } from "./ci-status.js";
@@ -70,12 +70,7 @@ async function executeBranchPhase(ctx: PipelineContext, deps: PipelineDeps): Pro
   const d = decideBranch({
     currentBranch: ctx.branch,
     continueHint: ctx.ticketId ?? "",
-    proposedName:
-      ctx.branch && ctx.branch !== "main"
-        ? ctx.branch
-        : ctx.ticketId
-          ? `feat/${ctx.ticketId}`
-          : "",
+    proposedName: ctx.ticketId ? `feat/${ctx.ticketId}` : "",
   });
 
   for (const step of d.steps) {
@@ -201,10 +196,12 @@ async function executeCiPhase(ctx: PipelineContext, deps: PipelineDeps): Promise
     const evalResult = evaluateCi(parseGhChecks(raw));
 
     if (evalResult.status === "green") {
+      const s = evalResult.sonar;
+      const summary = s.present ? "All CI + Sonar green" : "All CI green (no Sonar check found)";
       return {
         phase: "ci",
         success: true,
-        summary: "All CI + Sonar green",
+        summary,
         filesChanged: [],
         errors: [],
         warnings: [],

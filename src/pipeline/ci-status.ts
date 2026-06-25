@@ -13,7 +13,7 @@ export type CiStatus = "green" | "pending" | "failed";
 export interface CiEvaluation {
   status: CiStatus;
   failed: CiCheck[];         // bucket "fail" or "cancel"
-  pending: CiCheck[];        // bucket "pending"
+  pending: CiCheck[];        // bucket "pending" or any bucket not in the green allowlist {"pass","skipping"}
   sonar: { present: boolean; green: boolean | null };  // checks whose name/workflow matches /sonar/i
 }
 
@@ -34,29 +34,41 @@ export function parseGhChecks(json: string): CiCheck[] {
     throw new Error("Expected a JSON array of checks");
   }
 
-  return parsed.map((e: Record<string, unknown>) => {
+  return parsed.map((e: unknown) => {
+    if (e === null || typeof e !== "object" || Array.isArray(e)) {
+      throw new Error("Expected each check to be an object");
+    }
+    const obj = e as Record<string, unknown>;
     const check: CiCheck = {
-      name: String(e.name ?? ""),
-      bucket: String(e.bucket ?? ""),
+      name: String(obj.name ?? ""),
+      bucket: String(obj.bucket ?? ""),
     };
-    if (e.state !== undefined) check.state = String(e.state);
-    if (e.link !== undefined) check.link = String(e.link);
-    if (e.workflow !== undefined) check.workflow = String(e.workflow);
+    if (obj.state !== undefined) check.state = String(obj.state);
+    if (obj.link !== undefined) check.link = String(obj.link);
+    if (obj.workflow !== undefined) check.workflow = String(obj.workflow);
     return check;
   });
 }
 
+const GREEN_ALLOWLIST = new Set(["pass", "skipping"]);
+
 // Evaluate normalized checks into an overall status.
+// Allowlist model: green requires checks.length > 0 AND every bucket in {"pass","skipping"}.
+// Unknown/empty buckets count as pending, not green.
+// Empty array → pending (checks haven't registered yet).
 export function evaluateCi(checks: CiCheck[]): CiEvaluation {
   const failed = checks.filter(
     (c) => c.bucket === "fail" || c.bucket === "cancel",
   );
-  const pending = checks.filter((c) => c.bucket === "pending");
+  // pending = explicit "pending" bucket OR any bucket not in green allowlist and not failed
+  const pending = checks.filter(
+    (c) => c.bucket !== "fail" && c.bucket !== "cancel" && !GREEN_ALLOWLIST.has(c.bucket),
+  );
 
   let status: CiStatus;
   if (failed.length > 0) {
     status = "failed";
-  } else if (pending.length > 0) {
+  } else if (checks.length === 0 || pending.length > 0) {
     status = "pending";
   } else {
     status = "green";

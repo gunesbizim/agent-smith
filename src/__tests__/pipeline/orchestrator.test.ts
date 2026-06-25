@@ -175,6 +175,64 @@ describe("ci phase — poll re-try loop", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Review phase — qualitySignal
+// ---------------------------------------------------------------------------
+
+describe("review phase — qualitySignal", () => {
+  it("review PhaseResult has qualitySignal with before/after/bottleneck fields", async () => {
+    const ctx = makeContext({ branch: "feat/PROJ-42-test" });
+    const deps = makeDeps((cmd) => {
+      if (cmd.includes("gh pr create")) return "https://github.com/owner/repo/pull/99";
+      if (cmd.includes("gh pr checks")) return GREEN_CHECKS_JSON;
+      return "";
+    });
+
+    const result = await runPipeline(ctx, deps);
+
+    const reviewResult = result.phaseResults.get("review");
+    expect(reviewResult).toBeDefined();
+    expect(reviewResult!.qualitySignal).toBeDefined();
+    expect(reviewResult!.qualitySignal).toHaveProperty("before");
+    expect(reviewResult!.qualitySignal).toHaveProperty("after");
+    expect(reviewResult!.qualitySignal).toHaveProperty("bottleneck");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Resume — phasesCompleted skip
+// ---------------------------------------------------------------------------
+
+describe("resume from phasesCompleted", () => {
+  it("with phasesCompleted=['branch','plan'], runPipeline starts at 'implement' and does NOT re-run branch/plan", async () => {
+    const ctx = makeContext({
+      branch: "feat/PROJ-42-test",
+      phasesCompleted: ["branch", "plan"],
+    });
+    const executedPhases: string[] = [];
+    const deps: PipelineDeps = {
+      run: vi.fn((cmd: string) => {
+        if (cmd.includes("gh pr create")) return "https://github.com/owner/repo/pull/100";
+        if (cmd.includes("gh pr checks")) return GREEN_CHECKS_JSON;
+        return "";
+      }),
+      sleep: vi.fn(() => Promise.resolve()),
+      maxCiPolls: 2,
+    };
+
+    // Capture which phases get phaseResults written by checking what's in the map
+    const result = await runPipeline(ctx, deps);
+
+    // "implement" must have been executed (phaseResults contains it)
+    expect(result.phaseResults.has("implement")).toBe(true);
+
+    // "branch" and "plan" must NOT have been re-executed (phaseResults doesn't
+    // gain new entries for already-completed phases; they stay out of phaseResults)
+    expect(result.phaseResults.has("branch")).toBe(false);
+    expect(result.phaseResults.has("plan")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Full pipeline integration test
 // ---------------------------------------------------------------------------
 

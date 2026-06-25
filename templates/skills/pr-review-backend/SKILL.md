@@ -176,6 +176,9 @@ Should fix (arch violations, missing codes, test gaps).
 ## Suggestions
 Non-blocking improvements.
 
+## Dropped as false positive
+Findings confirmed as false positives, with reason (fpReason) for each — listed here for human audit; not counted toward verdict, not auto-fixed.
+
 ## Approved sections
 What looks correct.
 ```

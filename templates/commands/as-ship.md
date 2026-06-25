@@ -78,7 +78,7 @@ sentrux gate .
 
 Tests-red, typecheck errors, lint errors, or a secret-scan hit → **stop immediately**, report the failing gate and output. Do not commit.
 
-`sentrux gate .` regression → enter a **bounded remediation loop (max 3 rounds)** before escalating:
+`sentrux gate .` regression → enter a **bounded remediation loop (max 3 rounds — a fixed budget independent of the CI/review fix budget)** before escalating:
 
 1. Identify the degraded metric(s) from the gate output (quality score down, coupling up, new cycle, new god-file, new complex function).
 2. Attempt a targeted, behavior-preserving fix for that specific metric (e.g. break the new cycle, split the god-file responsibility, reduce coupling of the offending edge). Re-run the relevant tests to confirm behavior is preserved.

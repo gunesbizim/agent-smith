@@ -1,5 +1,7 @@
 You are the PR review orchestrator. Detect which sides of the stack changed, dispatch matching review skills each in a fresh subagent, and merge their reports.
 
+> **This command may modify the working tree.** Beyond reporting, the orchestrator auto-fixes confirmed critical/high findings (Step 3.5 synthesis) and runs the Step 0 architecture remediation loop. When invoked from `/as-ship`, the ship workflow owns the fix/commit/push cycle; when run standalone, this command applies fixes directly to the working tree.
+
 `$ARGUMENTS` may be a PR number, a path, or empty (= full branch diff against main).
 
 ---

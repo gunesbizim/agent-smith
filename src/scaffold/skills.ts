@@ -96,22 +96,22 @@ export async function scaffoldSkills(
     await writeWorkerSkill(skillsDir, targetDir, relPath, templatePath, vars, dryRun);
   }
 
-  // fable-mode execution-discipline skill — copied verbatim (no template vars). Shipped to
+  // smith-mode execution-discipline skill — copied verbatim (no template vars). Shipped to
   // every project so staged execution discipline is available and the SessionStart hook can
   // surface it each session.
   if (!dryRun) {
-    const fableSrc = path.join(getPackageRoot(), "templates", "skills", "fable-mode");
-    const fableDest = path.join(skillsDir, "fable-mode");
+    const smithSrc = path.join(getPackageRoot(), "templates", "skills", "smith-mode");
+    const smithDest = path.join(skillsDir, "smith-mode");
     try {
-      if (fs.existsSync(fableSrc)) {
-        fs.ensureDirSync(fableDest);
-        fs.copySync(fableSrc, fableDest, { overwrite: true });
+      if (fs.existsSync(smithSrc)) {
+        fs.ensureDirSync(smithDest);
+        fs.copySync(smithSrc, smithDest, { overwrite: true });
       }
     } catch {
       // best-effort — a missing template dir should not abort the whole init
     }
   } else {
-    console.log(`  Would copy fable-mode skill to: ${path.join(skillsDir, "fable-mode")}`);
+    console.log(`  Would copy smith-mode skill to: ${path.join(skillsDir, "smith-mode")}`);
   }
 
   // gitnexus helper skills

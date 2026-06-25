@@ -38,6 +38,6 @@ A subagent reporting success is a claim, not proof — quote the actual verifica
 
 ---
 
-## Execution discipline (fable-mode)
+## Execution discipline (smith-mode)
 
-This is a multi-step, multi-agent task, so follow the **fable-mode** skill (`.claude/skills/fable-mode/SKILL.md`): write a numbered stage map before acting, delegate independent stages to subagents where the runtime supports it, verify each stage with a check that can actually fail — a file that provably exists in the expected shape, a test that runs, an output diffed against spec — not "it looks right", and do a skeptical self-review naming at least one weakness before delivery.
+This is a multi-step, multi-agent task, so follow the **smith-mode** skill (`.claude/skills/smith-mode/SKILL.md`): write a numbered stage map before acting, delegate independent stages to subagents where the runtime supports it, verify each stage with a check that can actually fail — a file that provably exists in the expected shape, a test that runs, an output diffed against spec — not "it looks right", and do a skeptical self-review naming at least one weakness before delivery.

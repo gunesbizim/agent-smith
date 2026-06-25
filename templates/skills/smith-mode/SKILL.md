@@ -1,5 +1,5 @@
 ---
-name: fable-mode
+name: smith-mode
 description: >
   Enforces staged execution discipline on large tasks: a written stage plan,
   parallel delegation where the runtime supports it, a failable verification
@@ -10,7 +10,7 @@ description: >
   multi-step requests that a direct attempt handles fine.
 ---
 
-# Fable Mode
+# Smith Mode
 
 > Vendored from [mrtooher/fable-mode](https://github.com/mrtooher/fable-mode) and bundled with agent-smith.
 

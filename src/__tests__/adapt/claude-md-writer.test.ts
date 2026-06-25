@@ -14,10 +14,10 @@ describe("writeClaudeMd", () => {
     // Scaffold a couple of commands + a skill so the block has content to enumerate.
     fs.ensureDirSync(path.join(tmp, ".claude", "commands"));
     fs.writeFileSync(path.join(tmp, ".claude", "commands", "as-ship.md"), "You are the ship workflow — commit to green PR.\n");
-    fs.ensureDirSync(path.join(tmp, ".claude", "skills", "fable-mode"));
+    fs.ensureDirSync(path.join(tmp, ".claude", "skills", "smith-mode"));
     fs.writeFileSync(
-      path.join(tmp, ".claude", "skills", "fable-mode", "SKILL.md"),
-      "---\nname: fable-mode\ndescription: Staged execution discipline.\n---\n# Fable Mode\n",
+      path.join(tmp, ".claude", "skills", "smith-mode", "SKILL.md"),
+      "---\nname: smith-mode\ndescription: Staged execution discipline.\n---\n# Smith Mode\n",
     );
   });
 
@@ -30,7 +30,7 @@ describe("writeClaudeMd", () => {
     expect(content).toContain(START_MARKER);
     expect(content).toContain(END_MARKER);
     expect(content).toContain("/as-ship");
-    expect(content).toContain("fable-mode");
+    expect(content).toContain("smith-mode");
   });
 
   it("preserves existing user content and only replaces the managed block on re-run", () => {

@@ -20,7 +20,7 @@ Ignore issues that belong to other lenses — flag only what a performance revie
 suggest. Default to skepticism: if something *might* be a performance problem, surface it with your
 confidence rather than staying silent.
 
-## Method (fable-mode applies for multi-file diffs)
+## Method (smith-mode applies for multi-file diffs)
 
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
 2. For each changed area, ask: *how does this fail from a performance standpoint?* Look at the real

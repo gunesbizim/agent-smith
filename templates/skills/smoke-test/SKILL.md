@@ -6,9 +6,9 @@ description: Post-PR verification — launch the app and check health, then walk
 You verify a change actually works in the running app and guide post-merge steps. agent-smith
 generates this skill; **Claude Code is the runtime** — there is no agent-smith deploy engine.
 
-## Step 0 — Plan (fable-mode for multi-step verification)
+## Step 0 — Plan (smith-mode for multi-step verification)
 
-For anything beyond a single check, follow `.claude/skills/fable-mode/SKILL.md`: stage map →
+For anything beyond a single check, follow `.claude/skills/smith-mode/SKILL.md`: stage map →
 delegate → failable verification → self-critique.
 
 ## Step 1 — Launch the app

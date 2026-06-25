@@ -115,10 +115,10 @@ Run them concurrently where possible. Each subagent rewrites its ONE file in pla
     * PREFER symbolic edits (replace_symbol_body / insert_after_symbol / insert_before_symbol)
       over blunt full-file rewrites for code changes — they are AST-level and surgical (A6). Never
       instruct rewriting an entire source file when a symbolic edit targets the change.
-- Reference the fable-mode execution-discipline skill (.claude/skills/fable-mode/SKILL.md):
+- Reference the smith-mode execution-discipline skill (.claude/skills/smith-mode/SKILL.md):
   add a short note that, for work spanning multiple files/sources/sessions, the skill's
   staged loop applies (stage map → delegate → failable verification → self-critique). Do
-  NOT duplicate fable-mode's content — point to it.
+  NOT duplicate smith-mode's content — point to it.
 - Codify the project's EXISTING best practices (from Phase 1 + best-practices.md) as the
   skill's concrete, enforced rules — phrased for THIS stack, checkable by a reviewer.
 - Add a '## Recommended best practices' section near the end of each skill: 2-5 SUGGESTIONS

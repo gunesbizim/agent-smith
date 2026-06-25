@@ -8,7 +8,7 @@ Today agent-smith only *scaffolds* Claude Code config; `src/pipeline/orchestrato
 (prints phases, executes nothing — roadmap A1). The user wants agent-smith converted into a real
 **runtime engine on top of the Claude Code CLI**, driving a **TDD-first** workflow, while keeping
 every existing `/as-*` command, skill, and hook working unchanged (additive). All current protocols
-hold: fable-mode discipline, semi-autonomous/human-gated framing, Conventional Commits, vault
+hold: smith-mode discipline, semi-autonomous/human-gated framing, Conventional Commits, vault
 doc-upkeep, **run `sentrux gate` on every PR and ratchet architecture upward, never degrade**.
 
 ## Decisions (locked with user 2026-06-23)

@@ -20,7 +20,7 @@ Ignore issues that belong to other lenses — flag only what a security reviewer
 suggest. Default to skepticism: if something *might* be a security problem, surface it with your
 confidence rather than staying silent.
 
-## Method (fable-mode applies for multi-file diffs)
+## Method (smith-mode applies for multi-file diffs)
 
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
 2. For each changed area, ask: *how does this fail from a security standpoint?* Look at the real

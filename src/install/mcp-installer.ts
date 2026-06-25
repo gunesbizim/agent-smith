@@ -6,6 +6,7 @@ import chalk from "chalk";
 import cliProgress from "cli-progress";
 import { MCP_REGISTRY, getMCPServer } from "./registry.js";
 import { detectionEnv } from "../shared/exec-env.js";
+import { needsShellForCli } from "../shared/platform-utils.js";
 import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall, MCPServerDefinition, DetectedProject } from "../shared/types.js";
 
 /** True when the detected project uses Vuetify on the frontend. */
@@ -118,15 +119,25 @@ export function runCommandAsync(command: string): Promise<void> {
   });
 }
 
-/** Async, non-blocking equivalent of "does this command succeed?" (exit 0).
+/** Build the PATH-presence probe for a command, per platform.
  *
  *  A bare single-token command (e.g. "serena", "gitnexus") is a PRESENCE check — testing it by
  *  *running* the tool is fragile (it may launch a server, hang, or exit non-zero with no args).
- *  Such tokens are normalized to `command -v <token>`, which only asks "is it on PATH?". Commands
- *  with arguments (e.g. "sentrux --version") are run as-is. */
+ *  Such tokens are reduced to a "is it on PATH?" probe. The probe runs through a shell
+ *  (`runCommandAsync` uses `shell: true`), so it MUST match that shell: POSIX `/bin/sh` has
+ *  `command -v`, but the Windows shell is **cmd.exe**, which has no `command -v` builtin — it uses
+ *  `where`. Using `command -v` on Windows made every presence check fail, so the installer never
+ *  recognized already-installed servers. Commands that already carry arguments (e.g.
+ *  "sentrux --version") are returned verbatim. Exported for unit testing. */
+export function presenceProbe(command: string, platform: NodeJS.Platform = process.platform): string {
+  const tok = command.trim();
+  if (!/^[\w@./+-]+$/.test(tok)) return tok; // has flags/args → run as given
+  return platform === "win32" ? `where ${tok}` : `command -v ${tok}`;
+}
+
+/** Async, non-blocking equivalent of "does this command succeed?" (exit 0). */
 export function commandSucceeds(command: string): Promise<boolean> {
-  const probe = /^[\w@./+-]+$/.test(command.trim()) ? `command -v ${command.trim()}` : command;
-  return runCommandAsync(probe).then(
+  return runCommandAsync(presenceProbe(command)).then(
     () => true,
     () => false,
   );
@@ -401,9 +412,11 @@ export function registerLocalMCPs(
 
     try {
       // Resolving the `claude` CLI via PATH is intentional — it's the user's
-      // installed Claude Code binary. Args are passed as an array (no shell).
+      // installed Claude Code binary. On Windows `claude` is a `.cmd` shim Node can't launch
+      // directly, so shell:true routes through cmd.exe (the args here are structured — server name,
+      // env pairs, and config paths — not arbitrary free text). On POSIX shell stays off.
       // The S4036 hotspot is excluded for this file in sonar-project.properties.
-      execFileSync("claude", addArgs, { stdio: "pipe" });
+      execFileSync("claude", addArgs, { stdio: "pipe", shell: needsShellForCli() });
       registered.push(server.name);
     } catch {
       skipped.push(server.name);

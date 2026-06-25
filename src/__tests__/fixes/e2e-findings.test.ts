@@ -13,7 +13,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 const ev = (manifests: EvidenceFile[]): StackEvidence => ({ rootPath: "/fx", manifests, ciFiles: [], gitnexus: null });
 
 describe("#1 — bin is executable (npx/npm exec can link it)", () => {
-  it("bin/agent-smith.js has the executable bit", () => {
+  // The POSIX executable bit doesn't exist on Windows (NTFS/git-on-Windows don't represent it, so
+  // `mode & 0o111` is always 0); npm links bins via .cmd/.ps1 shims there regardless. Skip on win32.
+  it.skipIf(process.platform === "win32")("bin/agent-smith.js has the executable bit", () => {
     const mode = fs.statSync(path.join(repoRoot, "bin", "agent-smith.js")).mode;
     expect(mode & 0o111, "bin/agent-smith.js must be executable (chmod +x)").not.toBe(0);
   });

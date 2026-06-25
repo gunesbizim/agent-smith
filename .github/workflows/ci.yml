@@ -49,6 +49,22 @@ jobs:
             vitest.config.ts
             src/__tests__/
 
+  test-windows:
+    name: Tests (Windows, Node 22)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+        # Runs the full suite on Windows so platform-specific install logic (presenceProbe → `where`,
+        # needsShellForCli, path handling, line endings) is actually exercised — the rest of CI is
+        # Linux-only, so Windows regressions were previously invisible.
+
   sonarcloud:
     name: SonarCloud Scan
     runs-on: ubuntu-24.04

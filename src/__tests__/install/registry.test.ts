@@ -173,6 +173,15 @@ describe("sentrux registry entry", () => {
     expect(typeof cmd.win32).toBe("string");
   });
 
+  it("win32 install avoids fragile nested cmd→PowerShell quoting (C3 fix)", () => {
+    const cmd = (getMCPServer("sentrux")!.installCommand as Record<string, string>).win32;
+    // The old form embedded escaped \"...\" quotes that cmd.exe mis-parses; the path has no spaces,
+    // so there must be no backslash-escaped quotes, and it should run non-interactively.
+    expect(cmd).not.toContain('\\"');
+    expect(cmd).toContain("-NoProfile");
+    expect(cmd).toContain("$env:LOCALAPPDATA");
+  });
+
   it("is returned by getMCPByCategory quality", () => {
     const quality = getMCPByCategory("quality");
     const names = quality.map((s) => s.name);

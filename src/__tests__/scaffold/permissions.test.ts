@@ -46,6 +46,14 @@ describe("permission policy (A9)", () => {
     const block = renderPermissionsBlock(defaultPolicy(project("go")));
     expect(block.deny).toContain("Bash(rm -rf:*)");
   });
+
+  it("omits rules that contain parentheses (invalid in Bash() patterns)", () => {
+    const block = renderPermissionsBlock(defaultPolicy(project("go")));
+    // The fork bomb `:(){ :|:& };:` cannot be expressed as a Bash() rule — Claude Code rejects
+    // the empty parens — so it must not appear in settings (the hook still enforces it).
+    expect(block.deny.some((r) => r.includes("(){"))).toBe(false);
+    expect(block.deny).not.toContain("Bash(:(){ :|:& };::*)");
+  });
 });
 
 describe("scaffoldPermissions (A9)", () => {
@@ -84,5 +92,9 @@ describe("pre-tool-permission-guard hook (A9, integration)", () => {
 
   it("allows a safe command (no permissionDecision = allow)", () => {
     expect(runHook("go test ./...").permissionDecision).toBeUndefined();
+  });
+
+  it("still denies the fork bomb even though it isn't in the settings block", () => {
+    expect(runHook(":(){ :|:& };:").permissionDecision).toBe("deny");
   });
 });

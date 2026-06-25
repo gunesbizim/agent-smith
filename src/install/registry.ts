@@ -124,7 +124,10 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     installCommand: {
       darwin: "brew install sentrux/tap/sentrux",
       linux: "curl -fsSL https://raw.githubusercontent.com/sentrux/sentrux/main/install.sh | sh",
-      win32: String.raw`powershell -Command "Invoke-WebRequest https://github.com/sentrux/sentrux/releases/latest/download/sentrux-windows-x86_64.exe -OutFile \"$env:LOCALAPPDATA\Microsoft\WindowsApps\sentrux.exe\""`,
+      // No inner quotes: %LOCALAPPDATA%\Microsoft\WindowsApps has no spaces, and that dir is on PATH
+      // by default on Windows 10+, so dropping sentrux.exe there makes `sentrux` resolvable. Nested
+      // cmd.exe→PowerShell quoting (the previous \"...\") is fragile, so it is avoided entirely.
+      win32: String.raw`powershell -NoProfile -Command "Invoke-WebRequest -UseBasicParsing -Uri https://github.com/sentrux/sentrux/releases/latest/download/sentrux-windows-x86_64.exe -OutFile $env:LOCALAPPDATA\Microsoft\WindowsApps\sentrux.exe"`,
     },
     checkCommand: "sentrux --version",
     requiredEnvVars: [],

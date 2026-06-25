@@ -11,11 +11,17 @@ import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
+import { needsShellForCli } from "../shared/platform-utils.js";
+
+// On Windows the `claude` CLI is a `.cmd` shim that Node can't launch directly, so the call must go
+// through cmd.exe (shell:true). On POSIX `claude` is a real executable and we keep shell:false so the
+// arbitrary `-p <prompt>` argv is passed verbatim with no shell quoting. See needsShellForCli.
+const CLI_SHELL = needsShellForCli();
 
 // Is the `claude` CLI available to shell out to?
 export function isClaudeAvailable(): boolean {
   try {
-    execFileSync("claude", ["--version"], { stdio: "ignore", timeout: 10_000 }); // NOSONAR — fixed binary, no shell, no user input
+    execFileSync("claude", ["--version"], { stdio: "ignore", timeout: 10_000, shell: CLI_SHELL }); // NOSONAR — fixed binary, args are a constant flag
     return true;
   } catch {
     return false;
@@ -110,11 +116,12 @@ export function runClaudeDetailed(prompt: string, opts: ClaudeRunOptions = {}): 
       args.push("--settings", '{"hooks":{}}');
     }
 
-    const out = execFileSync("claude", args, { // NOSONAR — fixed binary, no shell, no user input in argv
+    const out = execFileSync("claude", args, { // NOSONAR — fixed binary; argv from closed callers, shell only on win32 to launch the .cmd shim
       cwd,
       encoding: "utf-8",
       timeout: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       maxBuffer: opts.maxBuffer ?? DEFAULT_MAX_BUFFER,
+      shell: CLI_SHELL,
     });
 
     const durationMs = Date.now() - start;

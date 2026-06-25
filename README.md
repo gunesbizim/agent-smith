@@ -7,6 +7,35 @@
 
 ---
 
+## Contents
+
+- [Explain it like I'm five](#explain-it-like-im-five)
+- [The problem it solves](#the-problem-it-solves)
+- [What you get after running it](#what-you-get-after-running-it)
+- [Quick start](#quick-start)
+- [How it works (the four steps)](#how-it-works-the-four-steps)
+- [CLI commands](#cli-commands)
+- [MCP servers & dependencies](#mcp-servers--dependencies)
+- [fable-mode — execution discipline](#fable-mode--execution-discipline)
+- [Guardrails: the Sentrux quality gate](#guardrails-the-sentrux-quality-gate)
+- [Project layout](#project-layout)
+- [Development](#development)
+- [Usage guide](#usage-guide)
+  - [Prerequisites](#prerequisites)
+  - [Windows notes](#windows-notes)
+  - [Setting up a repository](#setting-up-a-repository)
+  - [Looking before you leap](#looking-before-you-leap)
+  - [Everyday commands](#everyday-commands)
+  - [Skills](#skills)
+  - [Guardrails in practice](#guardrails-in-practice)
+  - [Long sessions and handoff](#long-sessions-and-handoff)
+  - [Keeping your setup current](#keeping-your-setup-current)
+  - [The experimental pipeline](#the-experimental-pipeline)
+  - [Troubleshooting](#troubleshooting)
+- [License](#license)
+
+---
+
 ## Explain it like I'm five
 
 Imagine you get a brand-new robot helper. Out of the box, the robot is smart but it doesn't know **your** house — where the kitchen is, which cup is yours, that you never wear shoes inside.
@@ -41,7 +70,7 @@ One command turns a plain repository into a Claude-Code-ready workspace with:
 | **Slash commands** (`/as-backend`, `/as-test`, `/as-ship`, …) | One-word shortcuts for everyday jobs, pre-loaded with your stack |
 | **Skills** (review, test, docs writers — plus **fable-mode**) | Detailed playbooks the assistant follows for specific tasks |
 | **MCP servers** (gitnexus, git-memory, serena, …) | Give the assistant memory: code structure, git history, symbol search |
-| **Hooks** (session start, pre-tool, stop) | Automatic checks that run around the assistant's actions |
+| **Hooks** (session start, pre-tool, pre-compact, prompt-submit, stop) | Automatic checks around the assistant's actions — including a **handoff snapshot** saved before the context window fills, so long sessions can hand off cleanly |
 | **Sentrux quality gate** | A guardrail that blocks changes which make the architecture worse |
 | **A managed `CLAUDE.md` section** | A living cheat-sheet of every command and skill, refreshed on each run |
 
@@ -51,7 +80,7 @@ All of it is **tailored to the stack Agent Smith detected** — not a generic te
 
 ## Quick start
 
-You need **Node 20+** and the **`claude`** CLI on your PATH (for the smartest setup; it still works without it, just less customized).
+You need **Node 20+** and **git**, plus ideally the **`claude`** CLI on your PATH (for the smartest setup; it still works without it, just less customized). It runs on **macOS, Linux, and Windows** — see [Prerequisites](#prerequisites) for the per-platform tools and [Windows notes](#windows-notes) for Windows specifics.
 
 ```bash
 # from the root of the project you want to set up
@@ -176,6 +205,19 @@ Sentrux measures structural health (coupling, dependency cycles, "god files," fu
 
 > Run it yourself: `sentrux gate .`
 
+### Blocked commands (the "don't touch the stove" gate)
+
+Agent Smith also writes a small **deny list** of dangerous shell commands — `rm -rf`, `git push
+--force`, `git reset --hard`, `chmod -R 777`, `curl | sh`, `dd if=…`, the classic fork bomb, and a
+few more. It's enforced two ways: as `Bash(…)` deny rules in `.claude/settings.json` (Claude Code
+blocks them directly) **and** by a zero-token `PreToolUse` hook that substring-matches the same list
+from `.claude/agent-smith/permissions.json`. The hook is the stronger of the two — a handful of
+patterns (the fork bomb among them) can't be expressed in Claude Code's `Bash()` rule syntax, so the
+hook is what actually stops them. The guard **fails open**: if the policy file is missing or broken it
+allows rather than freezing your session.
+
+> Code: `src/scaffold/permissions.ts`, `hooks/pre-tool-permission-guard.js`.
+
 ---
 
 ## Project layout
@@ -210,6 +252,148 @@ sentrux gate .      # architecture gate (run before committing)
 ```
 
 Conventional Commits are required; CI runs tests (Node 20 & 22), type-check, CodeQL, SonarCloud, and dependency review on every PR.
+
+---
+
+## Usage guide
+
+A practical walkthrough — from installing Agent Smith to using the workspace it sets up, day to day.
+
+### Prerequisites
+
+Agent Smith itself only needs Node, but a **full** `init` installs MCP servers and the Sentrux gate, and those pull in extra toolchains. None of these are installed with `sudo`; if a required manager is missing, agent-smith prints how to get it and skips that server rather than failing.
+
+| Tool | Needed for | Required? |
+|---|---|---|
+| **Node 20+** & npm | Running agent-smith; the npm-based MCP servers (gitnexus, git-memory) | **Required** |
+| **git** ≥ 2.30 | Detection, hooks, git-memory, every PR flow | **Required** |
+| **`claude` CLI** | The smart setup — LLM stack classification, skill generation, and running the `/as-*` commands | **Strongly recommended** (works without it, just less customized) |
+| **Python + pipx** | **serena** *and* **mempalace** MCP servers (both install via `pipx`) | Needed for those two servers; pipx is the one manager agent-smith can auto-bootstrap (via `pip --user`) |
+| **A system package manager** — Homebrew (macOS/Linux), `curl`, or winget/choco (Windows) | Installing the **Sentrux** binary (and `gh` on Windows) | Needed for the quality gate |
+| **GitHub CLI (`gh`)** | `/as-git` and `/as-ship` PR workflows | Optional (auto-installed best-effort; run `gh auth login` once) |
+| **Composer + PHP** | Laravel Boost MCP | Only for Laravel backends |
+
+> **Python version caveat (mempalace):** mempalace depends on chromadb, which lags the newest Python releases. **Python 3.12** is the safe target; the very latest interpreters (3.13+) can break chromadb's install. serena is less picky. If mempalace won't install, check your Python version first.
+
+### Windows notes
+
+`agent-smith init` is supported on Windows, and the full test suite runs on `windows-latest` in CI. A few platform specifics:
+
+- **Run it from any shell** — PowerShell, Windows Terminal, or `cmd`. `npx @gunesbizim/agent-smith init` works the same as on macOS/Linux.
+- **Package managers** — Windows installs use **winget** (preferred) or **Chocolatey**; agent-smith never uses `sudo`-style or interactive installers. `gh` is auto-installed via winget/choco when present, and **Sentrux** is fetched with PowerShell into `%LOCALAPPDATA%\Microsoft\WindowsApps` (already on PATH).
+- **Python** — install from python.org (the `py` launcher) rather than the Microsoft Store stub, which agent-smith deliberately skips. pipx is the one manager it can bootstrap for you. Remember the **Python 3.12** caveat above for mempalace.
+- **CLI shims** — `claude`, `gh`, `npm`/`npx`, `winget`/`choco` are `.cmd`/`.exe` shims on Windows; agent-smith launches them through the shell so they resolve correctly. If a command isn't found, confirm it's on your `PATH` in a *new* terminal (installers often don't refresh the current one).
+- **One honest caveat** — LLM skill/doc generation passes your prompt through the shell on Windows; a prompt containing literal `%VAR%` patterns can be mis-expanded by `cmd.exe`. This only affects the optional generation step (it falls back to templates), never the install itself.
+
+### Setting up a repository
+
+From the root of the project you want to set up:
+
+```bash
+npx @gunesbizim/agent-smith init
+```
+
+`init` runs the four steps (detect → adapt → install → operate) and walks you through:
+
+1. **Detection** — it reads your manifests and reports the stack it found. Anything it can't determine is shown as `none`, never guessed.
+2. **Interview** (~11 questions; skip with `--auto` / `--no-interview`) — branch naming, commit format, ticket prefix, PR checklist, architecture rules, complexity limits, and so on. Each has a smart default: press Enter to accept, type `?` for a Claude elaboration, or `skip` to leave blank. Answers are saved to `docs/architecture/decisions.md`.
+3. **MCP approval** — a single batch prompt lists every server and the exact install command. Approve it (or pass `--yes`) and a live progress bar shows what's installing. Selection is **stack-gated** — you only get servers relevant to your project.
+4. **Generation** — when `claude` is present, it writes architecture docs and rewrites the worker skills grounded in your real code. This runs **last** and can take up to ~20 min on a large monorepo; raise the cap with `AGENT_SMITH_SKILLS_TIMEOUT_MS` (milliseconds) if it times out.
+
+When it finishes, **restart Claude Code**. Your repository now has:
+
+- `.claude/commands/as-*.md` — the slash commands
+- `.claude/skills/` — the worker skills plus **fable-mode** and **handoff**
+- `.mcp.json` and `.claude/settings.json` — MCP servers, hooks, and the permission deny rules
+- `.sentrux/rules.toml` + `baseline.json` — the architecture quality gate
+- a managed block in `CLAUDE.md` (between `<!-- agent-smith:start -->` and `<!-- agent-smith:end -->`) — anything you write outside those markers is never touched
+
+Re-running `init` is safe and idempotent; pass `--regen-skills` to force the LLM skill pass again.
+
+### Looking before you leap
+
+```bash
+npx @gunesbizim/agent-smith analyze          # print what it detects, change nothing
+npx @gunesbizim/agent-smith analyze --json    # machine-readable StackProfile
+npx @gunesbizim/agent-smith init --dry-run    # show every file it would write, write nothing
+npx @gunesbizim/agent-smith init --no-install # scaffold + config, but don't install MCP binaries
+```
+
+### Everyday commands
+
+Once set up, drive the work from inside Claude Code with the `/as-*` slash commands. `$ARGUMENTS` is whatever you type after the command.
+
+| Command | What it does | Example |
+|---|---|---|
+| `/as-backend <task>` | Implement a backend task as a senior backend engineer, against your detected stack | `/as-backend "add a /health endpoint"` |
+| `/as-frontend <task>` | Implement a frontend / full-stack task | `/as-frontend "add a dark-mode toggle"` |
+| `/as-test <target>` | Write or extend tests; dispatches test-backend / test-frontend in fresh subagents | `/as-test "OrderService.charge"` |
+| `/as-pr-review [PR# \| path]` | Review changes through an adversarial critic panel (security, performance, simplicity, maintainability, DX) | `/as-pr-review 42` |
+| `/as-documentation [latest\|all\|path]` | Detect what changed and regenerate the matching docs | `/as-documentation latest` |
+| `/as-git [hint]` | Commit current work and push, following your commit conventions | `/as-git "PROJ-123"` |
+| `/as-ship [hint]` | The gated path from finished work to a green PR: commit → PR → review → drive CI green | `/as-ship` |
+| `/as-insights` | Read your architecture docs + config and suggest concrete improvements | `/as-insights` |
+| `/as-handoff` | Write a structured `HANDOFF.md` and hand the remaining work to fresh-context subagents | `/as-handoff` |
+| `/as-caveman` | Switch to ultra-compressed communication to save tokens | `/as-caveman` |
+
+Commands invoked with no argument (`/as-backend`, `/as-test`) ask you for the task. The orchestrator commands (`/as-test`, `/as-pr-review`, `/as-documentation`) classify the target and fan out to specialized skills, each in a fresh subagent.
+
+### Skills
+
+Skills are detailed playbooks the assistant follows automatically when a task matches — you rarely invoke them by name. After `init` your repo has:
+
+- **Worker skills**, rewritten to match your code: `pr-review-backend` / `pr-review-frontend`, `test-backend` / `test-frontend`, `docs-backend` / `docs-frontend`.
+- **fable-mode** — the execution discipline (stage map → delegate → failable verification → self-critique) applied to any task spanning multiple files, sources, or sessions.
+- **handoff** — captures a session-continuity snapshot and hands work to fresh subagents when the context window gets crowded.
+
+### Guardrails in practice
+
+Three layers keep the assistant from making a mess — you stay in charge of the big, risky steps:
+
+- **Sentrux quality gate** — before a commit, it checks your architecture didn't regress against the saved baseline. Run it yourself anytime with `sentrux gate .`; it blocks changes that add dependency cycles, "god files," or coupling beyond the ratcheted baseline.
+- **Blocked-command deny list** — dangerous shell commands (`rm -rf`, `git push --force`, fork bombs, …) are denied both by rules in `settings.json` and by a zero-token PreToolUse hook. It **fails open** if the policy file is missing, so it can't freeze your session.
+- **TDD gate** — while an engine run is active, commits and pushes are denied unless the tests proven red are verified green on the current working tree.
+
+### Long sessions and handoff
+
+Agent Smith helps long sessions end cleanly instead of degrading as the context window fills:
+
+- At **~60% context**, a `UserPromptSubmit` hook nudges you to run `/as-handoff` (threshold tunable via `AGENT_SMITH_HANDOFF_THRESHOLD`).
+- Right before Claude Code **compacts** the context, a `PreCompact` hook auto-writes `HANDOFF-autosnapshot.md` at the repo root (git status, recent commits, open PRs) so nothing is lost.
+- Run **`/as-handoff`** at any time to write a structured `HANDOFF.md` and continue the remaining work in fresh-context subagents.
+
+### Keeping your setup current
+
+| Want to… | Run |
+|---|---|
+| Re-detect and refresh everything | `agent-smith init` (idempotent) |
+| Force-regenerate the LLM skills | `agent-smith init --regen-skills` |
+| Re-do MCP configuration only | `agent-smith configure` |
+| Check health (MCP connections, skill validity, git state) | `agent-smith doctor` |
+
+The managed `CLAUDE.md` block is refreshed on every `init`, so the command/skill cheat-sheet stays current.
+
+### The experimental pipeline
+
+A semi-autonomous, **human-gated** ticket-to-PR pipeline is on the roadmap:
+
+```bash
+agent-smith ticket <id> [--auto]   # fetch a Jira ticket and run the gated pipeline
+agent-smith pipeline               # run on the current branch's changes
+```
+
+**Status: experimental** — these currently *preview* the planned phase sequence (plan → implement → test → review → docs → PR) but do not yet execute it. The orchestration engine is roadmap item A1.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| Commands aren't available after `init` | Restart Claude Code so it reloads `.claude/`. |
+| "claude unavailable" during skill generation | It most likely **timed out** on a large repo — raise `AGENT_SMITH_SKILLS_TIMEOUT_MS` (ms) and re-run `init --regen-skills`. |
+| mempalace won't install | Check your Python version — chromadb (its dependency) doesn't support the newest interpreters; use Python 3.12. |
+| An MCP server shows disconnected | Run `agent-smith doctor`, then confirm the manager it needs is installed (npm, pipx, or Homebrew/curl/winget). |
+| A commit is blocked | Run `sentrux gate .` for the architecture verdict, or read the permission / TDD guard reason the hook prints. |
+| Setup looks stale | Re-run `agent-smith init` — it's idempotent and only rewrites its own managed regions. |
 
 ---
 

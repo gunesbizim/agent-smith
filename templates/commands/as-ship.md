@@ -36,7 +36,17 @@ gh --version && gh auth status # gh must be installed AND authenticated for the 
 
 If `gh` is missing: `agent-smith init` auto-installs it (no-sudo package managers only) — otherwise install per https://github.com/cli/cli#installation. If `gh auth status` reports not-logged-in, stop and ask the user to run `gh auth login`.
 
-If on `main`/`master`: create a branch first — `<type>/TICKET-XX-short-description`. If no ticket is known, ask for one (commit convention requires it).
+**Branch hygiene — always work on a fresh branch forked from *updated* main.** Never commit onto a stale base. The decision logic is `decideBranch` in `src/pipeline/branch.ts` (unit-tested); apply it here:
+
+- **On `main`/`master`** → create a fresh branch from updated main:
+  ```bash
+  git fetch origin
+  git switch -c <type>/<short-description> origin/main
+  ```
+- **On a feature branch, but `$ARGUMENTS` names a *different* issue** → you are starting new work; create a fresh branch from updated main (as above).
+- **On a feature branch for the *same* issue** (continuing existing work) → stay on it; just refresh remotes with `git fetch origin`.
+
+Always `git fetch origin` **before** creating, so the branch forks from the latest remote main — never from a local stale `main`. Branch name follows the project's commit convention (this repo uses `<type>/<short-description>` with no ticket; other projects may require `TICKET-XX`).
 
 ### 2. Safety scan
 

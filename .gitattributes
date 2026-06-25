@@ -1,0 +1,17 @@
+# Keep LF line endings in the repo AND on checkout on every platform.
+#
+# Rationale: hooks/*.js are ESM modules that begin with a `#!/usr/bin/env node` shebang. On Windows,
+# Git's default (autocrlf=true) would check them out with CRLF, which (a) breaks importing them in
+# the test suite — vite's shebang transform throws "SyntaxError: Invalid or unexpected token" — and
+# (b) breaks the shebang for POSIX execution. Forcing LF eliminates the whole class of cross-platform
+# line-ending bugs. Files are already stored LF, so this introduces no renormalization diff.
+* text=auto eol=lf
+
+# Binary assets must never be line-ending-normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

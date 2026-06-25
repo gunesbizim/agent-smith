@@ -9,7 +9,7 @@
 // password prompt in a non-interactive `init`, so on Linux without Homebrew we
 // surface the manual install hint instead of risking a hang.
 import { spawn } from "node:child_process";
-import { commandExists } from "../shared/platform-utils.js";
+import { commandExists, needsShellForCli } from "../shared/platform-utils.js";
 
 export interface GhInstallResult {
   /** True when gh is available on PATH after this call. */
@@ -50,10 +50,13 @@ export function pickGhInstallCommand(
   return null;
 }
 
-/** Run a command asynchronously (non-blocking, so a spinner keeps animating). */
+/** Run a command asynchronously (non-blocking, so a spinner keeps animating). On Windows the
+ *  install managers (`winget`, `choco`) are shims that Node can't launch directly, so we route
+ *  through cmd.exe (shell:true); on POSIX `brew` is a real binary and shell stays off. The args are
+ *  fixed install flags (no user input), so shell quoting is not a concern. */
 export function runGh(cmd: string, args: string[]): Promise<boolean> {
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { stdio: "ignore" });
+    const child = spawn(cmd, args, { stdio: "ignore", shell: needsShellForCli() });
     child.on("error", () => resolve(false));
     child.on("close", (code) => resolve(code === 0));
   });

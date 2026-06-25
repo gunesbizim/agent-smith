@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { configureMCPs, hasRequiredEnv, registerLocalMCPs, ensureGitignore, installMCPs, runCommandAsync, commandSucceeds } from "../../install/mcp-installer.js";
+import { configureMCPs, hasRequiredEnv, registerLocalMCPs, ensureGitignore, installMCPs, runCommandAsync, commandSucceeds, presenceProbe } from "../../install/mcp-installer.js";
+import { needsShellForCli } from "../../shared/platform-utils.js";
 import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
 import type { DetectedProject, FrontendInfo } from "../../shared/types.js";
 
@@ -26,6 +27,31 @@ function makeProject(overrides: Partial<DetectedProject> = {}): DetectedProject 
     ...overrides,
   };
 }
+
+describe("presenceProbe — cross-platform PATH check (C1 Windows fix)", () => {
+  it("uses `command -v` for a bare token on POSIX", () => {
+    expect(presenceProbe("gitnexus", "linux")).toBe("command -v gitnexus");
+    expect(presenceProbe("serena", "darwin")).toBe("command -v serena");
+  });
+
+  it("uses `where` for a bare token on Windows (cmd.exe has no `command -v`)", () => {
+    expect(presenceProbe("gitnexus", "win32")).toBe("where gitnexus");
+    expect(presenceProbe("sentrux", "win32")).toBe("where sentrux");
+  });
+
+  it("runs a command that already has args verbatim on every platform", () => {
+    expect(presenceProbe("sentrux --version", "win32")).toBe("sentrux --version");
+    expect(presenceProbe("npx @vuetify/mcp --version", "linux")).toBe("npx @vuetify/mcp --version");
+  });
+});
+
+describe("needsShellForCli — launch .cmd/.bat shims via shell on Windows (M2/M3 fix)", () => {
+  it("is true only on win32", () => {
+    expect(needsShellForCli("win32")).toBe(true);
+    expect(needsShellForCli("linux")).toBe(false);
+    expect(needsShellForCli("darwin")).toBe(false);
+  });
+});
 
 describe("configureMCPs — dryRun: false — settings.json writes", () => {
   let tmpDir: string;

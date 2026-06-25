@@ -36,6 +36,18 @@ export function scriptExt(filename: string): string {
 
 // ---- Command resolution ----
 
+/** Whether spawning a CLI shim must go through a shell on this platform.
+ *
+ *  On Windows the globally-installed CLIs agent-smith shells out to (`claude`, `gh`, `npm`, `npx`,
+ *  `winget`, `choco`) are `.cmd`/`.bat`/`.ps1` shims, not native `.exe`s. Modern Node refuses to
+ *  launch a `.cmd`/`.bat` with `CreateProcess` directly (it throws), so the call must run through
+ *  `cmd.exe` (`shell: true`), which resolves the shim via `PATHEXT`. On POSIX the binaries are real
+ *  executables and we keep `shell: false` to preserve exact argv handling (no shell quoting of
+ *  arbitrary inputs). Pure + parameterized so it is unit-testable. */
+export function needsShellForCli(platform: NodeJS.Platform = process.platform): boolean {
+  return platform === "win32";
+}
+
 /** Check if a command exists on PATH — cross-platform which/where */
 export function commandExists(cmd: string): boolean {
   try {

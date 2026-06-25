@@ -16,7 +16,7 @@
 - [How it works (the four steps)](#how-it-works-the-four-steps)
 - [CLI commands](#cli-commands)
 - [MCP servers & dependencies](#mcp-servers--dependencies)
-- [fable-mode — execution discipline](#fable-mode--execution-discipline)
+- [smith-mode — execution discipline](#smith-mode--execution-discipline)
 - [Guardrails: the Sentrux quality gate](#guardrails-the-sentrux-quality-gate)
 - [Project layout](#project-layout)
 - [Development](#development)
@@ -68,7 +68,7 @@ One command turns a plain repository into a Claude-Code-ready workspace with:
 | Thing it installs | What it's for |
 |---|---|
 | **Slash commands** (`/as-backend`, `/as-test`, `/as-ship`, …) | One-word shortcuts for everyday jobs, pre-loaded with your stack |
-| **Skills** (review, test, docs writers — plus **fable-mode**) | Detailed playbooks the assistant follows for specific tasks |
+| **Skills** (review, test, docs writers — plus **smith-mode**) | Detailed playbooks the assistant follows for specific tasks |
 | **MCP servers** (gitnexus, git-memory, serena, …) | Give the assistant memory: code structure, git history, symbol search |
 | **Hooks** (session start, pre-tool, pre-compact, prompt-submit, stop) | Automatic checks around the assistant's actions — including a **handoff snapshot** saved before the context window fills, so long sessions can hand off cleanly |
 | **Sentrux quality gate** | A guardrail that blocks changes which make the architecture worse |
@@ -130,7 +130,7 @@ After the interview finishes, `init` **installs the MCP server binaries programm
 
 - **MCP servers** are installed + configured so the assistant can query code structure, git history, and symbols.
 - **GitHub CLI (`gh`)** is auto-installed (best-effort, no-sudo) for the git/ship PR workflows.
-- **Hooks** are registered (e.g. a SessionStart health check that also surfaces the fable-mode discipline every session).
+- **Hooks** are registered (e.g. a SessionStart health check that also surfaces the smith-mode discipline every session).
 - **Sentrux** is installed (`.sentrux/rules.toml` + a starter `baseline.json`) so architecture quality can be gated.
 - A **managed block** is written into `CLAUDE.md` listing every command and skill — between `<!-- agent-smith:start -->` and `<!-- agent-smith:end -->`, so **your own notes in that file are never overwritten**.
 
@@ -186,9 +186,9 @@ Useful flags: `--llm` / `--no-llm` (force or skip the Claude pass), `--dry-run` 
 
 ---
 
-## fable-mode — execution discipline
+## smith-mode — execution discipline
 
-Every project Agent Smith sets up ships the **fable-mode** skill and surfaces it each session. On any task that spans multiple files, sources, or sessions, it makes the assistant:
+Every project Agent Smith sets up ships the **smith-mode** skill and surfaces it each session. On any task that spans multiple files, sources, or sessions, it makes the assistant:
 
 1. **write a numbered stage plan** before touching anything,
 2. **delegate** independent stages to sub-agents where possible,
@@ -303,7 +303,7 @@ npx @gunesbizim/agent-smith init
 When it finishes, **restart Claude Code**. Your repository now has:
 
 - `.claude/commands/as-*.md` — the slash commands
-- `.claude/skills/` — the worker skills plus **fable-mode** and **handoff**
+- `.claude/skills/` — the worker skills plus **smith-mode** and **handoff**
 - `.mcp.json` and `.claude/settings.json` — MCP servers, hooks, and the permission deny rules
 - `.sentrux/rules.toml` + `baseline.json` — the architecture quality gate
 - a managed block in `CLAUDE.md` (between `<!-- agent-smith:start -->` and `<!-- agent-smith:end -->`) — anything you write outside those markers is never touched
@@ -343,7 +343,7 @@ Commands invoked with no argument (`/as-backend`, `/as-test`) ask you for the ta
 Skills are detailed playbooks the assistant follows automatically when a task matches — you rarely invoke them by name. After `init` your repo has:
 
 - **Worker skills**, rewritten to match your code: `pr-review-backend` / `pr-review-frontend`, `test-backend` / `test-frontend`, `docs-backend` / `docs-frontend`.
-- **fable-mode** — the execution discipline (stage map → delegate → failable verification → self-critique) applied to any task spanning multiple files, sources, or sessions.
+- **smith-mode** — the execution discipline (stage map → delegate → failable verification → self-critique) applied to any task spanning multiple files, sources, or sessions.
 - **handoff** — captures a session-continuity snapshot and hands work to fresh subagents when the context window gets crowded.
 
 ### Guardrails in practice

@@ -24,6 +24,10 @@ the file-type examples below are illustrative, not exhaustive.
 - Frontend → spawn an Agent with:
   > Read `.claude/skills/test-frontend/SKILL.md` and execute it exactly. `$ARGUMENTS` = `<target + context>`. Write tests, run them, return results.
 
+### Subagent model routing
+
+**When you spawn a subagent:** exploration, debugging, planning, or architecture analysis → a FRESH **Opus** subagent (`model: opus`). Implementation, code-writing, or mechanical execution of an already-planned task — including writing and running tests — → a FRESH **Sonnet** subagent (`model: sonnet`). Every subagent starts fresh (no shared context). This mirrors the engine's phase→model map (`src/engine/tdd-engine.ts`): Opus thinks, Sonnet codes.
+
 ## Step 3 — Relay results
 
 ```
@@ -43,6 +47,6 @@ A side with failing tests = the whole command reports failure. Never summarize f
 
 ---
 
-## Execution discipline (fable-mode)
+## Execution discipline (smith-mode)
 
-For work that spans multiple files, sources, or sessions, follow the **fable-mode** skill (`.claude/skills/fable-mode/SKILL.md`): write a numbered stage map before acting, delegate independent stages to subagents where the runtime supports it, verify each stage with a check that can actually fail — a test that runs, a source actually fetched, an output diffed against spec — not "it looks right", and do a skeptical self-review naming at least one weakness before delivery. Skip it only for trivial single-pass tasks where staging would just add ceremony.
+For work that spans multiple files, sources, or sessions, follow the **smith-mode** skill (`.claude/skills/smith-mode/SKILL.md`): write a numbered stage map before acting, delegate independent stages to subagents where the runtime supports it, verify each stage with a check that can actually fail — a test that runs, a source actually fetched, an output diffed against spec — not "it looks right", and do a skeptical self-review naming at least one weakness before delivery. Skip it only for trivial single-pass tasks where staging would just add ceremony.

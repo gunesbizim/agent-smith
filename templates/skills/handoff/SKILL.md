@@ -39,9 +39,9 @@ Run this skill when **either** holds:
 - Context is comfortable and the work is coherent in one head. Handing off mid-thought
   fractures a single idea across agents for no gain.
 
-## Execution discipline (fable-mode)
+## Execution discipline (smith-mode)
 
-This is a multi-step, multi-agent task, so follow `.claude/skills/fable-mode/SKILL.md`:
+This is a multi-step, multi-agent task, so follow `.claude/skills/smith-mode/SKILL.md`:
 write a numbered stage map first, delegate independent subtasks to subagents, verify each
 stage with a check that can actually fail, and self-critique before delivery. The stages
 below ARE that map.

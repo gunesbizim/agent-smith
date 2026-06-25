@@ -23,6 +23,21 @@ You are a senior full-stack engineer. Implement the frontend task given in `$ARG
 
 ---
 
+## Approach — explore → plan (TDD) → implement
+
+Before touching code, work through these four stages:
+
+1. **Explore** — understand the task in context. For any non-trivial change, dispatch a fresh **Opus** subagent (`model: opus`) to map the affected component tree, API surface, and role-gating constraints. Do not skip this for multi-file work.
+2. **Triage complexity** — a trivial single-file change can proceed directly; multi-file or multi-source work requires the full smith-mode stage map (numbered stages, failable verification, self-critique).
+3. **TDD plan** — write the smith-mode numbered stage map with tests planned explicitly before any implementation stage.
+4. **RED-first implement** — write the failing test(s) first, run them to confirm they FAIL for the right reason (not a collection/import error), THEN dispatch a fresh **Sonnet** subagent (`model: sonnet`) for the coding stage and iterate until green. Never write tests after the code.
+
+### Subagent model routing
+
+**When you spawn a subagent:** exploration, debugging, planning, or architecture analysis → a FRESH **Opus** subagent (`model: opus`). Implementation, code-writing, or mechanical execution of an already-planned task → a FRESH **Sonnet** subagent (`model: sonnet`). Every subagent starts fresh (no shared context). This mirrors the engine's phase→model map (`src/engine/tdd-engine.ts`): Opus thinks, Sonnet codes.
+
+---
+
 ## Step 0 — Plan first (mandatory)
 
 **Before writing any code**, use Claude Code's built-in `/advisor` (a stronger planning model; falls back to the current session model if no advisor is configured) to produce a scoped implementation plan. Include the task, relevant files, constraints, and backend endpoints needed. Plan must be verified with human.
@@ -117,6 +132,6 @@ cd {{FRONTEND_DIR}} && {{FRONTEND_LINT_CMD}}
 
 ---
 
-## Execution discipline (fable-mode)
+## Execution discipline (smith-mode)
 
-For work that spans multiple files, sources, or sessions, follow the **fable-mode** skill (`.claude/skills/fable-mode/SKILL.md`): write a numbered stage map before acting, delegate independent stages to subagents where the runtime supports it, verify each stage with a check that can actually fail — a test that runs, a source actually fetched, an output diffed against spec — not "it looks right", and do a skeptical self-review naming at least one weakness before delivery. Skip it only for trivial single-pass tasks where staging would just add ceremony.
+For work that spans multiple files, sources, or sessions, follow the **smith-mode** skill (`.claude/skills/smith-mode/SKILL.md`): write a numbered stage map before acting, delegate independent stages to subagents where the runtime supports it, verify each stage with a check that can actually fail — a test that runs, a source actually fetched, an output diffed against spec — not "it looks right", and do a skeptical self-review naming at least one weakness before delivery. Skip it only for trivial single-pass tasks where staging would just add ceremony.

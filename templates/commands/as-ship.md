@@ -15,7 +15,8 @@ Run the whole pipeline unattended, but **hard-stop and report** the moment a saf
 ### Hard-stop conditions (abort, report why, do not continue)
 
 - On `main`/`master` (branch protection — never commit or push there).
-- Pre-push gates fail: tests red, typecheck/lint errors, `sentrux check`/`sentrux gate` regression.
+- Pre-push gates fail: tests red, typecheck/lint errors, secret scan hit.
+- `sentrux gate` regression that remains after the remediation loop below (tests red / typecheck / lint errors are still immediate hard-stops).
 - A potential secret/credential is staged (scan the diff before committing).
 - A CI check stays red after **{{SHIP_MAX_FIX_ATTEMPTS}}** fix attempts (default 3).
 - A review blocker you are not confident you can fix correctly.
@@ -36,7 +37,17 @@ gh --version && gh auth status # gh must be installed AND authenticated for the 
 
 If `gh` is missing: `agent-smith init` auto-installs it (no-sudo package managers only) — otherwise install per https://github.com/cli/cli#installation. If `gh auth status` reports not-logged-in, stop and ask the user to run `gh auth login`.
 
-If on `main`/`master`: create a branch first — `<type>/TICKET-XX-short-description`. If no ticket is known, ask for one (commit convention requires it).
+**Branch hygiene — always work on a fresh branch forked from *updated* main.** Never commit onto a stale base. The decision logic is `decideBranch` in `src/pipeline/branch.ts` (unit-tested); apply it here:
+
+- **On `main`/`master`** → create a fresh branch from updated main:
+  ```bash
+  git fetch origin
+  git switch -c <type>/<short-description> origin/main
+  ```
+- **On a feature branch, but `$ARGUMENTS` names a *different* issue** → you are starting new work; create a fresh branch from updated main (as above).
+- **On a feature branch for the *same* issue** (continuing existing work) → stay on it; just refresh remotes with `git fetch origin`.
+
+Always `git fetch origin` **before** creating, so the branch forks from the latest remote main — never from a local stale `main`. Branch name follows the project's commit convention (this repo uses `<type>/<short-description>` with no ticket; other projects may require `TICKET-XX`).
 
 ### 2. Safety scan
 
@@ -65,7 +76,16 @@ sentrux check .
 sentrux gate .
 ```
 
-Any failure → **stop**, report the failing gate and output. Do not commit.
+Tests-red, typecheck errors, lint errors, or a secret-scan hit → **stop immediately**, report the failing gate and output. Do not commit.
+
+`sentrux gate .` regression → enter a **bounded remediation loop (max 3 rounds — a fixed budget independent of the CI/review fix budget)** before escalating:
+
+1. Identify the degraded metric(s) from the gate output (quality score down, coupling up, new cycle, new god-file, new complex function).
+2. Attempt a targeted, behavior-preserving fix for that specific metric (e.g. break the new cycle, split the god-file responsibility, reduce coupling of the offending edge). Re-run the relevant tests to confirm behavior is preserved.
+3. Re-run `sentrux gate .`.
+   - No degradation → proceed to commit.
+   - Still degraded but improved and rounds remain → loop back to step 1.
+   - Rounds exhausted and degradation persists → **STOP and escalate to the human** with: the specific degraded metrics and their before→after deltas (quality/coupling/cycles/god-files/complex-fns), the files involved, and a summary of what was tried in each round. Do not push.
 
 **Ratchet on improvement**: if `sentrux gate .` reports the branch is *better* than baseline (quality up, coupling down, fewer cycles/god-files/complex-fns), save the gain before pushing — `sentrux gate . --save` — and include the updated `.sentrux/baseline.json` in a `chore(sentrux): ratchet baseline <old>-><new>` commit. The baseline is monotonic: it only ever moves up.
 
@@ -121,6 +141,6 @@ gh pr checks <pr> --watch || true
 
 ---
 
-## Execution discipline (fable-mode)
+## Execution discipline (smith-mode)
 
-For work that spans multiple files, sources, or sessions, follow the **fable-mode** skill (`.claude/skills/fable-mode/SKILL.md`): write a numbered stage map before acting, delegate independent stages to subagents where the runtime supports it, verify each stage with a check that can actually fail — a test that runs, a source actually fetched, an output diffed against spec — not "it looks right", and do a skeptical self-review naming at least one weakness before delivery. Skip it only for trivial single-pass tasks where staging would just add ceremony.
+For work that spans multiple files, sources, or sessions, follow the **smith-mode** skill (`.claude/skills/smith-mode/SKILL.md`): write a numbered stage map before acting, delegate independent stages to subagents where the runtime supports it, verify each stage with a check that can actually fail — a test that runs, a source actually fetched, an output diffed against spec — not "it looks right", and do a skeptical self-review naming at least one weakness before delivery. Skip it only for trivial single-pass tasks where staging would just add ceremony.

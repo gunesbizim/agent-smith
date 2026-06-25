@@ -245,12 +245,14 @@ export interface TemplateVariables {
 // ----- Pipeline -----
 
 export type PipelinePhase =
+  | "branch"
   | "plan"
   | "implement"
   | "test"
   | "review"
   | "docs"
-  | "pr";
+  | "pr"
+  | "ci";
 
 export type ApprovalGate = "none" | "plan" | "all";
 

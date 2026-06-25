@@ -1,14 +1,14 @@
-# Execution discipline — fable-mode (read every session)
+# Execution discipline — smith-mode (read every session)
 
-This repo bundles the **fable-mode** skill at `.claude/skills/fable-mode/SKILL.md` and surfaces it
+This repo bundles the **smith-mode** skill at `.claude/skills/smith-mode/SKILL.md` and surfaces it
 each session via the SessionStart hook. For any task that spans multiple files, multiple sources,
 or multiple sessions — and when running any `/as-*` command or worker skill — follow its staged
 loop: **(1)** write a numbered stage map before acting, **(2)** delegate independent stages to
 subagents where the runtime supports it, **(3)** verify each stage with a check that can actually
 fail (a test that runs, a source actually fetched, an output diffed against spec — never "it looks
 right"), and **(4)** do a skeptical self-review naming at least one weakness before delivery. Skip
-it only for trivial single-pass tasks. fable-mode is also shipped into every project `agent-smith`
-initializes (via `templates/skills/fable-mode/`).
+it only for trivial single-pass tasks. smith-mode is also shipped into every project `agent-smith`
+initializes (via `templates/skills/smith-mode/`).
 
 # Project Documentation (Obsidian vault)
 
@@ -57,7 +57,7 @@ Also: bump each note's `updated:` frontmatter date, keep `[[wikilinks]]` valid, 
 
 This project is set up with agent-smith. The commands and skills below are available to
 every session. For any task spanning multiple files, sources, or sessions, follow the
-**fable-mode** execution discipline (`.claude/skills/fable-mode/SKILL.md`): stage map →
+**smith-mode** execution discipline (`.claude/skills/smith-mode/SKILL.md`): stage map →
 delegate → failable verification → self-critique.
 
 ## Slash commands
@@ -80,7 +80,7 @@ delegate → failable verification → self-critique.
 |------|---------|
 | `docs-backend` | Generate or update backend technical documentation — API annotations, endpoint/serializer docs, and a technical summary note in Obsidian. U… |
 | `docs-frontend` | Generate human-readable, styled user documentation by driving the running app with Playwright MCP, taking real screenshots per role, and wr… |
-| `fable-mode` | Enforces staged execution discipline on large tasks: a written stage plan, parallel delegation where the runtime supports it, a failable ve… |
+| `smith-mode` | Enforces staged execution discipline on large tasks: a written stage plan, parallel delegation where the runtime supports it, a failable ve… |
 | `git-memory-debug` | Use when the user is debugging a regression, investigating unexpected behaviour, or wants to know the full change history of a component. E… |
 | `git-memory-index` | Use when the user wants to index a repository into git-memory, start using git-memory on a new project, or re-index after significant histo… |
 | `git-memory-search` | Use when the user asks about why code was written a certain way, wants to find commits related to a bug, feature or module, or needs histor… |

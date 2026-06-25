@@ -1,6 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { runPipeline } from "../../pipeline/orchestrator.js";
-import type { PipelineContext } from "../../shared/types.js";
+import type { PipelineContext, PipelineDeps } from "../../pipeline/orchestrator.js";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function makeContext(overrides: Partial<PipelineContext> = {}): PipelineContext {
   return {
@@ -16,113 +20,265 @@ function makeContext(overrides: Partial<PipelineContext> = {}): PipelineContext 
   };
 }
 
-describe("Pipeline Orchestrator", () => {
-  it("runs to completion with no approval gates", async () => {
-    const ctx = makeContext({ approvalGate: "none" });
-    const result = await runPipeline(ctx);
+/** All-green gh checks JSON */
+const GREEN_CHECKS_JSON = JSON.stringify([
+  { name: "build", bucket: "pass" },
+  { name: "unit-tests", bucket: "pass" },
+]);
 
-    expect(result.phasesCompleted).toHaveLength(6);
-    expect(result.phasesCompleted).toEqual(["plan", "implement", "test", "review", "docs", "pr"]);
+/** One failing check */
+const FAILED_CHECKS_JSON = JSON.stringify([
+  { name: "build", bucket: "pass" },
+  { name: "e2e-tests", bucket: "fail" },
+]);
+
+/** All pending */
+const PENDING_CHECKS_JSON = JSON.stringify([
+  { name: "build", bucket: "pending" },
+  { name: "unit-tests", bucket: "pending" },
+]);
+
+function makeDeps(
+  runImpl: (cmd: string) => string = () => GREEN_CHECKS_JSON,
+  sleepImpl: (ms: number) => Promise<void> = () => Promise.resolve(),
+  maxCiPolls = 5,
+): PipelineDeps {
+  return {
+    run: vi.fn(runImpl),
+    sleep: vi.fn(sleepImpl),
+    maxCiPolls,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Branch phase tests
+// ---------------------------------------------------------------------------
+
+describe("branch phase", () => {
+  it("on ctx.branch=main: git fetch origin occurs BEFORE git switch -c", async () => {
+    const ctx = makeContext({ branch: "main", ticketId: "PROJ-99" });
+    const calls: string[] = [];
+    const deps: PipelineDeps = {
+      run: vi.fn((cmd: string) => {
+        calls.push(cmd);
+        // gh pr create returns a URL; other commands return empty
+        if (cmd.includes("gh pr create")) return "https://github.com/owner/repo/pull/1";
+        if (cmd.includes("gh pr checks")) return GREEN_CHECKS_JSON;
+        return "";
+      }),
+      sleep: vi.fn(() => Promise.resolve()),
+      maxCiPolls: 2,
+    };
+
+    await runPipeline(ctx, deps);
+
+    const fetchIdx = calls.findIndex((c) => c.includes("git fetch origin"));
+    const switchIdx = calls.findIndex((c) => c.includes("git switch -c"));
+
+    expect(fetchIdx).toBeGreaterThanOrEqual(0);
+    expect(switchIdx).toBeGreaterThanOrEqual(0);
+    expect(fetchIdx).toBeLessThan(switchIdx);
   });
+});
 
-  it("marks all phases as successful", async () => {
-    const ctx = makeContext({ approvalGate: "none" });
-    const result = await runPipeline(ctx);
+// ---------------------------------------------------------------------------
+// PR phase tests
+// ---------------------------------------------------------------------------
 
-    for (const phase of result.phasesCompleted) {
-      const phaseResult = result.phaseResults.get(phase);
-      expect(phaseResult).toBeDefined();
-      expect(phaseResult!.success).toBe(true);
-    }
+describe("pr phase", () => {
+  it("run is called with a string containing 'gh pr create'", async () => {
+    const ctx = makeContext({ branch: "feat/PROJ-42-test" });
+    const calls: string[] = [];
+    const deps: PipelineDeps = {
+      run: vi.fn((cmd: string) => {
+        calls.push(cmd);
+        if (cmd.includes("gh pr create")) return "https://github.com/owner/repo/pull/2";
+        if (cmd.includes("gh pr checks")) return GREEN_CHECKS_JSON;
+        return "";
+      }),
+      sleep: vi.fn(() => Promise.resolve()),
+      maxCiPolls: 2,
+    };
+
+    await runPipeline(ctx, deps);
+
+    const prCall = calls.find((c) => c.includes("gh pr create"));
+    expect(prCall).toBeDefined();
   });
+});
 
-  it("phase results have correct shape", async () => {
-    const ctx = makeContext({ approvalGate: "none" });
-    const result = await runPipeline(ctx);
+// ---------------------------------------------------------------------------
+// CI phase tests
+// ---------------------------------------------------------------------------
 
-    for (const [phase, pr] of result.phaseResults) {
-      expect(pr.phase).toBe(phase);
-      expect(Array.isArray(pr.filesChanged)).toBe(true);
-      expect(Array.isArray(pr.errors)).toBe(true);
-      expect(Array.isArray(pr.warnings)).toBe(true);
-      expect(typeof pr.summary).toBe("string");
-      expect(pr.summary.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("resumes from a specific phase", async () => {
-    const ctx = makeContext({
-      approvalGate: "none",
-      phasesCompleted: ["plan", "implement"],
+describe("ci phase — all-green mock", () => {
+  it("returns success:true and summary mentions green", async () => {
+    const ctx = makeContext({ branch: "feat/PROJ-42-test" });
+    const deps = makeDeps((cmd) => {
+      if (cmd.includes("gh pr create")) return "https://github.com/owner/repo/pull/3";
+      if (cmd.includes("gh pr checks")) return GREEN_CHECKS_JSON;
+      return "";
     });
-    // Mock phase results for already-completed phases
-    ctx.phaseResults.set("plan", { phase: "plan", success: true, summary: "done", filesChanged: [], errors: [], warnings: [] });
-    ctx.phaseResults.set("implement", { phase: "implement", success: true, summary: "done", filesChanged: [], errors: [], warnings: [] });
 
-    const result = await runPipeline(ctx);
-    expect(result.phasesCompleted).toEqual(["plan", "implement", "test", "review", "docs", "pr"]);
+    const result = await runPipeline(ctx, deps);
+
+    const ciResult = result.phaseResults.get("ci");
+    expect(ciResult).toBeDefined();
+    expect(ciResult!.success).toBe(true);
+    expect(ciResult!.summary.toLowerCase()).toMatch(/green/);
+  });
+});
+
+describe("ci phase — failing check", () => {
+  it("returns success:false AND errors includes the failed check name", async () => {
+    const ctx = makeContext({ branch: "feat/PROJ-42-test" });
+    const deps = makeDeps((cmd) => {
+      if (cmd.includes("gh pr create")) return "https://github.com/owner/repo/pull/4";
+      if (cmd.includes("gh pr checks")) return FAILED_CHECKS_JSON;
+      return "";
+    });
+
+    const result = await runPipeline(ctx, deps);
+
+    const ciResult = result.phaseResults.get("ci");
+    expect(ciResult).toBeDefined();
+    expect(ciResult!.success).toBe(false);
+    expect(ciResult!.errors).toContain("e2e-tests");
+  });
+});
+
+describe("ci phase — poll re-try loop", () => {
+  it("pending then green: eventual success=true and run called ≥2 times for pr checks", async () => {
+    const ctx = makeContext({ branch: "feat/PROJ-42-test" });
+    let checkCallCount = 0;
+    const deps: PipelineDeps = {
+      run: vi.fn((cmd: string) => {
+        if (cmd.includes("gh pr create")) return "https://github.com/owner/repo/pull/5";
+        if (cmd.includes("gh pr checks")) {
+          checkCallCount++;
+          if (checkCallCount === 1) return PENDING_CHECKS_JSON;
+          return GREEN_CHECKS_JSON;
+        }
+        return "";
+      }),
+      sleep: vi.fn(() => Promise.resolve()),
+      maxCiPolls: 5,
+    };
+
+    const result = await runPipeline(ctx, deps);
+
+    const ciResult = result.phaseResults.get("ci");
+    expect(ciResult).toBeDefined();
+    expect(ciResult!.success).toBe(true);
+    expect(checkCallCount).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Review phase — qualitySignal
+// ---------------------------------------------------------------------------
+
+describe("review phase — qualitySignal", () => {
+  it("review PhaseResult has qualitySignal with before/after/bottleneck fields", async () => {
+    const ctx = makeContext({ branch: "feat/PROJ-42-test" });
+    const deps = makeDeps((cmd) => {
+      if (cmd.includes("gh pr create")) return "https://github.com/owner/repo/pull/99";
+      if (cmd.includes("gh pr checks")) return GREEN_CHECKS_JSON;
+      return "";
+    });
+
+    const result = await runPipeline(ctx, deps);
+
+    const reviewResult = result.phaseResults.get("review");
+    expect(reviewResult).toBeDefined();
+    expect(reviewResult!.qualitySignal).toBeDefined();
+    expect(reviewResult!.qualitySignal).toHaveProperty("before");
+    expect(reviewResult!.qualitySignal).toHaveProperty("after");
+    expect(reviewResult!.qualitySignal).toHaveProperty("bottleneck");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Resume — phasesCompleted skip
+// ---------------------------------------------------------------------------
+
+describe("resume from phasesCompleted", () => {
+  it("with phasesCompleted=['branch','plan'], runPipeline starts at 'implement' and does NOT re-run branch/plan", async () => {
+    const ctx = makeContext({
+      branch: "feat/PROJ-42-test",
+      phasesCompleted: ["branch", "plan"],
+    });
+    const executedPhases: string[] = [];
+    const deps: PipelineDeps = {
+      run: vi.fn((cmd: string) => {
+        if (cmd.includes("gh pr create")) return "https://github.com/owner/repo/pull/100";
+        if (cmd.includes("gh pr checks")) return GREEN_CHECKS_JSON;
+        return "";
+      }),
+      sleep: vi.fn(() => Promise.resolve()),
+      maxCiPolls: 2,
+    };
+
+    // Capture which phases get phaseResults written by checking what's in the map
+    const result = await runPipeline(ctx, deps);
+
+    // "implement" must have been executed (phaseResults contains it)
+    expect(result.phaseResults.has("implement")).toBe(true);
+
+    // "branch" and "plan" must NOT have been re-executed (phaseResults doesn't
+    // gain new entries for already-completed phases; they stay out of phaseResults)
+    expect(result.phaseResults.has("branch")).toBe(false);
+    expect(result.phaseResults.has("plan")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Full pipeline integration test
+// ---------------------------------------------------------------------------
+
+describe("full runPipeline with all-green mock", () => {
+  it("phasesCompleted includes 'branch', 'pr', 'ci' in order", async () => {
+    const ctx = makeContext({ branch: "feat/PROJ-42-test" });
+    const deps = makeDeps((cmd) => {
+      if (cmd.includes("gh pr create")) return "https://github.com/owner/repo/pull/6";
+      if (cmd.includes("gh pr checks")) return GREEN_CHECKS_JSON;
+      return "";
+    });
+
+    const result = await runPipeline(ctx, deps);
+
+    expect(result.phasesCompleted).toContain("branch");
+    expect(result.phasesCompleted).toContain("pr");
+    expect(result.phasesCompleted).toContain("ci");
+
+    const branchIdx = result.phasesCompleted.indexOf("branch");
+    const prIdx = result.phasesCompleted.indexOf("pr");
+    const ciIdx = result.phasesCompleted.indexOf("ci");
+
+    expect(branchIdx).toBeLessThan(prIdx);
+    expect(prIdx).toBeLessThan(ciIdx);
   });
 
-  it("pipeline context is preserved across phases", async () => {
-    const ctx = makeContext({ approvalGate: "none" });
-    const result = await runPipeline(ctx);
+  it("all 8 phases complete when everything is green", async () => {
+    const ctx = makeContext({ branch: "feat/PROJ-42-test" });
+    const deps = makeDeps((cmd) => {
+      if (cmd.includes("gh pr create")) return "https://github.com/owner/repo/pull/7";
+      if (cmd.includes("gh pr checks")) return GREEN_CHECKS_JSON;
+      return "";
+    });
 
-    expect(result.ticketId).toBe("PROJ-42");
-    expect(result.branch).toBe("feat/PROJ-42-test");
-    expect(result.acceptanceCriteria).toEqual(["AC1", "AC2"]);
-  });
+    const result = await runPipeline(ctx, deps);
 
-  it("returns context unchanged besides phasesCompleted and phaseResults", async () => {
-    const ctx = makeContext({ approvalGate: "none" });
-    const result = await runPipeline(ctx);
-
-    // Non-phase fields should be preserved
-    expect(result.ticketId).toBe(ctx.ticketId);
-    expect(result.ticketTitle).toBe(ctx.ticketTitle);
-    expect(result.branch).toBe(ctx.branch);
-    expect(result.approvalGate).toBe(ctx.approvalGate);
-  });
-
-  it("handles empty ticket id", async () => {
-    const ctx = makeContext({ ticketId: null, approvalGate: "none" });
-    const result = await runPipeline(ctx);
-    expect(result.phasesCompleted).toHaveLength(6);
-  });
-
-  it("plan phase summary references ticket when available", async () => {
-    const ctx = makeContext({ approvalGate: "none" });
-    const result = await runPipeline(ctx);
-    const planResult = result.phaseResults.get("plan")!;
-    expect(planResult.summary).toContain("PROJ-42");
-  });
-
-  it("PR phase summary mentions PR creation", async () => {
-    const ctx = makeContext({ approvalGate: "none" });
-    const result = await runPipeline(ctx);
-    const prResult = result.phaseResults.get("pr")!;
-    expect(prResult.summary.toLowerCase()).toContain("pr");
-  });
-
-  it("gate=all: auto-approves all phases and completes pipeline", async () => {
-    const ctx = makeContext({ approvalGate: "all" });
-    const result = await runPipeline(ctx);
-    expect(result.phasesCompleted).toHaveLength(6);
-  });
-
-  it("gate=plan: auto-approves plan gate and completes pipeline", async () => {
-    const ctx = makeContext({ approvalGate: "plan" });
-    const result = await runPipeline(ctx);
-    expect(result.phasesCompleted).toHaveLength(6);
-    expect(result.phasesCompleted[0]).toBe("plan");
-  });
-
-  it("review phase qualitySignal has before/after/bottleneck fields", async () => {
-    const ctx = makeContext({ approvalGate: "none" });
-    const result = await runPipeline(ctx);
-    const reviewResult = result.phaseResults.get("review")!;
-    expect(reviewResult).toHaveProperty("qualitySignal");
-    expect(reviewResult.qualitySignal).toHaveProperty("before");
-    expect(reviewResult.qualitySignal).toHaveProperty("after");
-    expect(reviewResult.qualitySignal).toHaveProperty("bottleneck");
+    expect(result.phasesCompleted).toHaveLength(8);
+    expect(result.phasesCompleted).toEqual([
+      "branch",
+      "plan",
+      "implement",
+      "test",
+      "review",
+      "docs",
+      "pr",
+      "ci",
+    ]);
   });
 });

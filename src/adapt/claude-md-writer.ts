@@ -126,7 +126,7 @@ export function buildManagedBlock(commands: Entry[], skills: Entry[]): string {
     "",
     "This project is set up with agent-smith. The commands and skills below are available to",
     "every session. For any task spanning multiple files, sources, or sessions, follow the",
-    "**fable-mode** execution discipline (`.claude/skills/fable-mode/SKILL.md`): stage map →",
+    "**smith-mode** execution discipline (`.claude/skills/smith-mode/SKILL.md`): stage map →",
     "delegate → failable verification → self-critique.",
     "",
     "## Slash commands",

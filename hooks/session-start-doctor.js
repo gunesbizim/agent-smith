@@ -87,12 +87,12 @@ if (report.setup.initialized) {
   additionalContext += `\n⚠ Agent Smith not initialized — run \`npx agent-smith init\` to set up skills and MCPs.\n`;
 }
 
-// fable-mode — surface the execution-discipline skill every session so it is read by all
+// smith-mode — surface the execution-discipline skill every session so it is read by all
 // agent-smith commands and skills. On tasks spanning multiple files/sources/sessions, the
 // model should follow the staged loop instead of one-shotting.
-const hasFableMode = fs.existsSync(path.join(cwd(), ".claude", "skills", "fable-mode", "SKILL.md"));
-if (hasFableMode) {
-  additionalContext += `\n▸ fable-mode is active. For any task spanning multiple files, sources, or sessions — and for every /as-* command and worker skill — follow .claude/skills/fable-mode/SKILL.md: write a numbered stage map first, delegate independent stages to subagents where available, verify each stage with a check that can actually fail (a test, a fetched source, a diff against spec — not "looks right"), and run a skeptical self-review before delivery. Skip it only for trivial single-pass tasks.\n`;
+const hasSmithMode = fs.existsSync(path.join(cwd(), ".claude", "skills", "smith-mode", "SKILL.md"));
+if (hasSmithMode) {
+  additionalContext += `\n▸ smith-mode is active. For any task spanning multiple files, sources, or sessions — and for every /as-* command and worker skill — follow .claude/skills/smith-mode/SKILL.md: write a numbered stage map first, delegate independent stages to subagents where available, verify each stage with a check that can actually fail (a test, a fetched source, a diff against spec — not "looks right"), and run a skeptical self-review before delivery. Skip it only for trivial single-pass tasks.\n`;
 }
 
 const missingMCPs = mcpStatus.filter((m) => !m.installed);

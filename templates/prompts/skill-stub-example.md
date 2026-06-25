@@ -21,7 +21,7 @@ items; surface relevant **Recommended** items under Suggestions.
 ## Step 0 — Plan first (mandatory)
 
 Produce a scoped review plan before reading any diff. For work spanning multiple files or
-sessions, follow `.claude/skills/fable-mode/SKILL.md` (stage map → delegate → failable
+sessions, follow `.claude/skills/smith-mode/SKILL.md` (stage map → delegate → failable
 verification → self-critique).
 
 ## Step 1 — Impact analysis

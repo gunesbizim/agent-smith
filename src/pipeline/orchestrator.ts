@@ -1,8 +1,18 @@
 // Pipeline orchestrator — full autonomous ticket-to-PR flow
 import type { PipelineContext, PipelinePhase, PhaseResult, ApprovalGate } from "../shared/types.js";
+import { decideBranch } from "./branch.js";
+import { parseGhChecks, evaluateCi } from "./ci-status.js";
 
-export async function runPipeline(ctx: PipelineContext): Promise<PipelineContext> {
-  const phases: PipelinePhase[] = ["plan", "implement", "test", "review", "docs", "pr"];
+export interface PipelineDeps {
+  run: (cmd: string) => string;
+  sleep: (ms: number) => Promise<void>;
+  maxCiPolls?: number;
+}
+
+export type { PipelineContext };
+
+export async function runPipeline(ctx: PipelineContext, deps: PipelineDeps): Promise<PipelineContext> {
+  const phases: PipelinePhase[] = ["branch", "plan", "implement", "test", "review", "docs", "pr", "ci"];
   const startFrom = ctx.phasesCompleted.length > 0
     ? phases.indexOf(ctx.phasesCompleted[ctx.phasesCompleted.length - 1] as PipelinePhase) + 1
     : 0;
@@ -21,7 +31,7 @@ export async function runPipeline(ctx: PipelineContext): Promise<PipelineContext
 
     // Execute phase
     console.log(`\n⚒ Phase: ${phase.toUpperCase()}`);
-    const result = await executePhase(phase, ctx);
+    const result = await executePhase(phase, ctx, deps);
 
     ctx.phaseResults.set(phase, result);
     ctx.phasesCompleted.push(phase);
@@ -35,8 +45,10 @@ export async function runPipeline(ctx: PipelineContext): Promise<PipelineContext
   return ctx;
 }
 
-async function executePhase(phase: PipelinePhase, ctx: PipelineContext): Promise<PhaseResult> {
+async function executePhase(phase: PipelinePhase, ctx: PipelineContext, deps: PipelineDeps): Promise<PhaseResult> {
   switch (phase) {
+    case "branch":
+      return executeBranchPhase(ctx, deps);
     case "plan":
       return executePlanPhase(ctx);
     case "implement":
@@ -48,8 +60,36 @@ async function executePhase(phase: PipelinePhase, ctx: PipelineContext): Promise
     case "docs":
       return executeDocsPhase(ctx);
     case "pr":
-      return executePRPhase(ctx);
+      return executePRPhase(ctx, deps);
+    case "ci":
+      return executeCiPhase(ctx, deps);
   }
+}
+
+async function executeBranchPhase(ctx: PipelineContext, deps: PipelineDeps): Promise<PhaseResult> {
+  const d = decideBranch({
+    currentBranch: ctx.branch,
+    continueHint: ctx.ticketId ?? "",
+    proposedName:
+      ctx.branch && ctx.branch !== "main"
+        ? ctx.branch
+        : ctx.ticketId
+          ? `feat/${ctx.ticketId}`
+          : "",
+  });
+
+  for (const step of d.steps) {
+    deps.run(step);
+  }
+
+  return {
+    phase: "branch",
+    success: true,
+    summary: `Branch ${d.action}: ${d.branchName} (${d.reason})`,
+    filesChanged: [],
+    errors: [],
+    warnings: [],
+  };
 }
 
 async function executePlanPhase(ctx: PipelineContext): Promise<PhaseResult> {
@@ -138,14 +178,60 @@ async function executeDocsPhase(ctx: PipelineContext): Promise<PhaseResult> {
   };
 }
 
-async function executePRPhase(ctx: PipelineContext): Promise<PhaseResult> {
-  // git add + commit + push + gh pr create
+async function executePRPhase(ctx: PipelineContext, deps: PipelineDeps): Promise<PhaseResult> {
+  // push current branch then open PR
+  deps.run(`git push -u origin ${ctx.branch}`);
+  const prOutput = deps.run("gh pr create --fill --base main");
+
   return {
     phase: "pr",
     success: true,
-    summary: `PR created for ${ctx.ticketId ?? "changes"}`,
+    summary: prOutput || `PR created for ${ctx.ticketId ?? "changes"}`,
     filesChanged: [],
     errors: [],
+    warnings: [],
+  };
+}
+
+async function executeCiPhase(ctx: PipelineContext, deps: PipelineDeps): Promise<PhaseResult> {
+  const budget = deps.maxCiPolls ?? 30;
+
+  for (let i = 0; i < budget; i++) {
+    const raw = deps.run("gh pr checks --json name,state,bucket,link,workflow");
+    const evalResult = evaluateCi(parseGhChecks(raw));
+
+    if (evalResult.status === "green") {
+      return {
+        phase: "ci",
+        success: true,
+        summary: "All CI + Sonar green",
+        filesChanged: [],
+        errors: [],
+        warnings: [],
+      };
+    }
+
+    if (evalResult.status === "failed") {
+      return {
+        phase: "ci",
+        success: false,
+        summary: `CI failed: ${evalResult.failed.map((c) => c.name).join(", ")}`,
+        filesChanged: [],
+        errors: evalResult.failed.map((c) => c.name),
+        warnings: [],
+      };
+    }
+
+    // pending — wait and re-poll
+    await deps.sleep(1000);
+  }
+
+  return {
+    phase: "ci",
+    success: false,
+    summary: "CI still pending after budget",
+    filesChanged: [],
+    errors: ["ci-timeout"],
     warnings: [],
   };
 }

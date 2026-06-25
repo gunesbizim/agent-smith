@@ -15,7 +15,8 @@ Run the whole pipeline unattended, but **hard-stop and report** the moment a saf
 ### Hard-stop conditions (abort, report why, do not continue)
 
 - On `main`/`master` (branch protection — never commit or push there).
-- Pre-push gates fail: tests red, typecheck/lint errors, `sentrux check`/`sentrux gate` regression.
+- Pre-push gates fail: tests red, typecheck/lint errors, secret scan hit.
+- `sentrux gate` regression that remains after the remediation loop below (tests red / typecheck / lint errors are still immediate hard-stops).
 - A potential secret/credential is staged (scan the diff before committing).
 - A CI check stays red after **{{SHIP_MAX_FIX_ATTEMPTS}}** fix attempts (default 3).
 - A review blocker you are not confident you can fix correctly.
@@ -75,7 +76,16 @@ sentrux check .
 sentrux gate .
 ```
 
-Any failure → **stop**, report the failing gate and output. Do not commit.
+Tests-red, typecheck errors, lint errors, or a secret-scan hit → **stop immediately**, report the failing gate and output. Do not commit.
+
+`sentrux gate .` regression → enter a **bounded remediation loop (max 3 rounds)** before escalating:
+
+1. Identify the degraded metric(s) from the gate output (quality score down, coupling up, new cycle, new god-file, new complex function).
+2. Attempt a targeted, behavior-preserving fix for that specific metric (e.g. break the new cycle, split the god-file responsibility, reduce coupling of the offending edge). Re-run the relevant tests to confirm behavior is preserved.
+3. Re-run `sentrux gate .`.
+   - No degradation → proceed to commit.
+   - Still degraded but improved and rounds remain → loop back to step 1.
+   - Rounds exhausted and degradation persists → **STOP and escalate to the human** with: the specific degraded metrics and their before→after deltas (quality/coupling/cycles/god-files/complex-fns), the files involved, and a summary of what was tried in each round. Do not push.
 
 **Ratchet on improvement**: if `sentrux gate .` reports the branch is *better* than baseline (quality up, coupling down, fewer cycles/god-files/complex-fns), save the gain before pushing — `sentrux gate . --save` — and include the updated `.sentrux/baseline.json` in a `chore(sentrux): ratchet baseline <old>-><new>` commit. The baseline is monotonic: it only ever moves up.
 

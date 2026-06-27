@@ -52,22 +52,31 @@ export interface RedGreenDiff {
 
 const FAILED = new Set<TestStatus>(["fail", "error"]);
 
+const HINT_RULES: Array<{ test: (h: string) => boolean; result: TestFramework }> = [
+  { test: (h) => h.includes("pytest"), result: "pytest" },
+  { test: (h) => h.includes("vitest"), result: "vitest" },
+  { test: (h) => h.includes("jest"), result: "jest" },
+  { test: (h) => h.includes("go"), result: "go" },
+  { test: (h) => h.includes("cargo") || h.includes("rust"), result: "cargo" },
+];
+
+const OUTPUT_RULES: Array<{ test: (stdout: string) => boolean; result: TestFramework }> = [
+  { test: (o) => /={5,}[ \t]+(?:test session starts|FAILURES|ERRORS|short test summary)/i.test(o) || /\bPASSED\b|\bFAILED\b/.test(o), result: "pytest" },
+  { test: (o) => /^\s*[✓×✗❯]\s/m.test(o) || /\bRUN\b.*\bv\d/i.test(o), result: "vitest" },
+  { test: (o) => /^(?:PASS|FAIL) /m.test(o) && /\.(?:test|spec)\.[tj]sx?/.test(o), result: "jest" },
+  { test: (o) => /^(ok|FAIL)\s+\S+/m.test(o) && /---\s*(PASS|FAIL):/.test(o), result: "go" },
+  { test: (o) => /test result:\s+(ok|FAILED)\./.test(o), result: "cargo" },
+];
+
 /** Pick a framework from an explicit hint (e.g. TEST_FRAMEWORK_PACKAGE) then from output shape. */
 export function detectFramework(hint: string | undefined, stdout: string): TestFramework {
   const h = (hint ?? "").toLowerCase();
-  if (h.includes("pytest")) return "pytest";
-  if (h.includes("vitest")) return "vitest";
-  if (h.includes("jest")) return "jest";
-  if (h.includes("go")) return "go";
-  if (h.includes("cargo") || h.includes("rust")) return "cargo";
-
-  if (/={5,}[ \t]+(?:test session starts|FAILURES|ERRORS|short test summary)/i.test(stdout) || /\bPASSED\b|\bFAILED\b/.test(stdout)) {
-    return "pytest";
+  for (const rule of HINT_RULES) {
+    if (rule.test(h)) return rule.result;
   }
-  if (/^\s*[✓×✗❯]\s/m.test(stdout) || /\bRUN\b.*\bv\d/i.test(stdout)) return "vitest";
-  if (/^(?:PASS|FAIL) /m.test(stdout) && /\.(?:test|spec)\.[tj]sx?/.test(stdout)) return "jest";
-  if (/^(ok|FAIL)\s+\S+/m.test(stdout) && /---\s*(PASS|FAIL):/.test(stdout)) return "go";
-  if (/test result:\s+(ok|FAILED)\./.test(stdout)) return "cargo";
+  for (const rule of OUTPUT_RULES) {
+    if (rule.test(stdout)) return rule.result;
+  }
   return "generic";
 }
 

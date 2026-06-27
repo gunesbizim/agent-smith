@@ -50,7 +50,7 @@ export function writeLedger(root: string, ledger: GroundTruthLedger): void {
 /** The confirmed artifact for a key, or null if it isn't settled. */
 export function getConfirmed(ledger: GroundTruthLedger, key: string): ConfirmableValue | null {
   const v = ledger.values[key];
-  return v && v.source === "confirmed" ? v : null;
+  return v?.source === "confirmed" ? v : null;
 }
 
 /**

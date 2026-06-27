@@ -10,8 +10,7 @@ import fs from "fs-extra";
 import type { ApprovalGate } from "../shared/types.js";
 import type { AgentCallFn } from "./agent-call.js";
 import { makeAgentCaller } from "./agent-call.js";
-import { appendEvent } from "./event-store.js";
-import { readEvents } from "./event-store.js";
+import { appendEvent, readEvents } from "./event-store.js";
 import { defaultConfirm, shouldPause, type ConfirmFn } from "./gates.js";
 import { extractJson } from "./parse.js";
 import { treeFingerprint } from "./fingerprint.js";
@@ -315,44 +314,53 @@ async function codePhase(ctx: PhaseCtx): Promise<PhaseOutcome> {
     const st = subtasks[i];
     if (done.has(st.key)) continue;
     appendEvent(ctx.root, ctx.runId, { type: "subtask_started", subtaskKey: st.key, summary: st.summary, index: i, total: subtasks.length });
-
-    let green = false;
-    for (let attempt = 1; attempt <= maxAttempts && !green; attempt++) {
-      await ctx.callAgent({
-        phase: "code",
-        model: ctx.input.codeModel ?? DEFAULT_CODE_MODEL,
-        prompt: codePrompt({ ticketId: ctx.input.ticketId, task: ctx.input.task, testCommand: ctx.input.testCommand, subtaskSummary: st.summary, targetTests: st.targetTests }),
-        allowedTools: ["Read", "Glob", "Grep", "Edit", "Write", "Bash"],
-        cwd: ctx.root,
-        mcpConfigPath: ctx.input.mcpConfigPath,
-        timeoutMs: PHASE_TIMEOUT_MS,
-        subtaskKey: st.key,
-        attempt,
-      });
-      green = haveTests ? targetedGreen(ctx, st) : true;
-    }
-
+    const green = await runSubtaskAttempts(ctx, st, maxAttempts, haveTests);
     appendEvent(ctx.root, ctx.runId, { type: "subtask_finished", subtaskKey: st.key, status: green ? "done" : "failed" });
     if (!green) return { success: false, summary: `code: subtask ${st.key} did not turn its tests green after ${maxAttempts} attempt(s)` };
   }
 
   if (haveTests) {
-    const run = ctx.runTests(ctx.input.testCommand, ctx.input.testCwd);
-    appendEvent(ctx.root, ctx.runId, { type: "test_run", command: ctx.input.testCommand, exitCode: run.exitCode, passed: run.exitCode === 0, durationMs: run.durationMs });
-    if (run.exitCode !== 0) return { success: false, summary: "code: full suite not green after all subtasks" };
-
-    // Verify the green-proof against the ACTUAL final run, not the planned id list: every previously-red
-    // test must be present AND passing. A suite that exits 0 because the new tests were skipped/renamed
-    // must not produce a valid green-proof (that would let the TDD gate pass on unverified tests).
-    const ids = newTestIds(ctx);
-    const byId = new Map(parseTestRun(run.stdout, run.exitCode, ctx.input.testHint).tests.map((t) => [t.id, t]));
-    const notGreen = ids.filter((id) => byId.get(id)?.status !== "pass");
-    if (notGreen.length > 0) {
-      return { success: false, summary: `code: suite exited 0 but new test(s) are not passing: ${notGreen.join(", ")}` };
-    }
-    writeGreenProof(ctx, ids);
+    const suiteOutcome = verifyFullSuiteGreen(ctx);
+    if (suiteOutcome) return suiteOutcome;
   }
   return { success: true, summary: `Implemented ${subtasks.length} subtask(s); suite green` };
+}
+
+async function runSubtaskAttempts(ctx: PhaseCtx, st: Subtask, maxAttempts: number, haveTests: boolean): Promise<boolean> {
+  let green = false;
+  for (let attempt = 1; attempt <= maxAttempts && !green; attempt++) {
+    await ctx.callAgent({
+      phase: "code",
+      model: ctx.input.codeModel ?? DEFAULT_CODE_MODEL,
+      prompt: codePrompt({ ticketId: ctx.input.ticketId, task: ctx.input.task, testCommand: ctx.input.testCommand, subtaskSummary: st.summary, targetTests: st.targetTests }),
+      allowedTools: ["Read", "Glob", "Grep", "Edit", "Write", "Bash"],
+      cwd: ctx.root,
+      mcpConfigPath: ctx.input.mcpConfigPath,
+      timeoutMs: PHASE_TIMEOUT_MS,
+      subtaskKey: st.key,
+      attempt,
+    });
+    green = haveTests ? targetedGreen(ctx, st) : true;
+  }
+  return green;
+}
+
+function verifyFullSuiteGreen(ctx: PhaseCtx): PhaseOutcome | null {
+  const run = ctx.runTests(ctx.input.testCommand, ctx.input.testCwd);
+  appendEvent(ctx.root, ctx.runId, { type: "test_run", command: ctx.input.testCommand, exitCode: run.exitCode, passed: run.exitCode === 0, durationMs: run.durationMs });
+  if (run.exitCode !== 0) return { success: false, summary: "code: full suite not green after all subtasks" };
+
+  // Verify the green-proof against the ACTUAL final run, not the planned id list: every previously-red
+  // test must be present AND passing. A suite that exits 0 because the new tests were skipped/renamed
+  // must not produce a valid green-proof (that would let the TDD gate pass on unverified tests).
+  const ids = newTestIds(ctx);
+  const byId = new Map(parseTestRun(run.stdout, run.exitCode, ctx.input.testHint).tests.map((t) => [t.id, t]));
+  const notGreen = ids.filter((id) => byId.get(id)?.status !== "pass");
+  if (notGreen.length > 0) {
+    return { success: false, summary: `code: suite exited 0 but new test(s) are not passing: ${notGreen.join(", ")}` };
+  }
+  writeGreenProof(ctx, ids);
+  return null;
 }
 
 // Stamp the green-proof the deterministic TDD-gate hook checks before allowing a commit/push/PR.
@@ -405,7 +413,8 @@ async function prPhase(ctx: PhaseCtx): Promise<PhaseOutcome> {
 function renderTodo(subtasks: Subtask[]): string {
   const lines = ["# Subtask todo", ""];
   for (const s of subtasks) {
-    lines.push(`- [ ] **${s.key}** — ${s.summary}${s.targetTests?.length ? ` (tests: ${s.targetTests.join(", ")})` : ""}`);
+    const testSuffix = s.targetTests?.length ? ` (tests: ${s.targetTests.join(", ")})` : "";
+    lines.push(`- [ ] **${s.key}** — ${s.summary}${testSuffix}`);
   }
   return lines.join("\n") + "\n";
 }

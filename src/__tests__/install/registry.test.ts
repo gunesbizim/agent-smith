@@ -61,7 +61,7 @@ describe("MCP Registry", () => {
   });
 
   it("has exactly 12 servers", () => {
-    expect(MCP_REGISTRY.length).toBe(12);
+    expect(MCP_REGISTRY).toHaveLength(12);
   });
 
   it("includes laravel-boost", () => {

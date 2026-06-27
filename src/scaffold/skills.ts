@@ -99,7 +99,9 @@ export async function scaffoldSkills(
   // smith-mode execution-discipline skill — copied verbatim (no template vars). Shipped to
   // every project so staged execution discipline is available and the SessionStart hook can
   // surface it each session.
-  if (!dryRun) {
+  if (dryRun) {
+    console.log(`  Would copy smith-mode skill to: ${path.join(skillsDir, "smith-mode")}`);
+  } else {
     const smithSrc = path.join(getPackageRoot(), "templates", "skills", "smith-mode");
     const smithDest = path.join(skillsDir, "smith-mode");
     try {
@@ -110,8 +112,6 @@ export async function scaffoldSkills(
     } catch {
       // best-effort — a missing template dir should not abort the whole init
     }
-  } else {
-    console.log(`  Would copy smith-mode skill to: ${path.join(skillsDir, "smith-mode")}`);
   }
 
   // gitnexus helper skills

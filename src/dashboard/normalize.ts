@@ -3,10 +3,54 @@
 // Handles both engine runs (full agent_call_started/finished pairs grouped by phase) and interactive
 // runs captured by the telemetry hook (only agent_call_finished, no phase_started — synthesized under
 // an "interactive" phase). Pure and deterministic; `nowMs` is injectable for live wall-clock.
-import type { EngineEvent } from "../engine/events.js";
+import type { AgentCallFinishedEvent, EngineEvent } from "../engine/events.js";
 import type { AgentCallDTO, CallStatus, PhaseDTO, RunDTO, RunOrigin } from "./types.js";
 
 const CALL_STATUS: Record<string, CallStatus> = { ok: "done", error: "failed", timeout: "failed" };
+const RUN_FINISHED_STATUS: Record<string, CallStatus> = { completed: "done", failed: "failed" };
+
+function mapRunFinishedStatus(status: string): CallStatus {
+  return RUN_FINISHED_STATUS[status] ?? "queued";
+}
+
+function notePhaseInto(name: string, phaseSeen: Set<string>, phaseOrder: string[]): void {
+  if (!phaseSeen.has(name)) {
+    phaseSeen.add(name);
+    phaseOrder.push(name);
+  }
+}
+
+/** Upsert a call DTO for an `agent_call_finished` event. */
+function applyCallFinished(
+  e: AgentCallFinishedEvent,
+  calls: Map<string, AgentCallDTO>,
+  runId: string,
+  origin: RunOrigin,
+): void {
+  const existing = calls.get(e.callId);
+  const dto: AgentCallDTO = existing ?? {
+    id: e.callId,
+    runId,
+    phase: e.phase,
+    model: e.model,
+    promptSummary: e.promptSummary ?? "",
+    tokens: 0,
+    costUsd: null,
+    durationMs: null,
+    status: "running",
+    startedAt: e.ts,
+    finishedAt: null,
+    origin: e.origin ?? origin,
+    subtaskKey: e.subtaskKey,
+  };
+  dto.status = CALL_STATUS[e.status] ?? "done";
+  dto.durationMs = e.durationMs ?? dto.durationMs;
+  dto.tokens = e.tokens?.total ?? dto.tokens;
+  dto.costUsd = e.costUsd ?? dto.costUsd;
+  dto.finishedAt = e.ts;
+  if (e.tools) dto.tools = e.tools;
+  calls.set(e.callId, dto);
+}
 
 export function normalizeRun(runId: string, events: EngineEvent[], nowMs: number = Date.now()): RunDTO {
   const calls = new Map<string, AgentCallDTO>();
@@ -19,13 +63,6 @@ export function normalizeRun(runId: string, events: EngineEvent[], nowMs: number
   let finishedAt: string | null = null;
   let runStatus: CallStatus = "running";
 
-  const notePhase = (name: string): void => {
-    if (!phaseSeen.has(name)) {
-      phaseSeen.add(name);
-      phaseOrder.push(name);
-    }
-  };
-
   for (const e of events) {
     switch (e.type) {
       case "run_started":
@@ -35,10 +72,10 @@ export function normalizeRun(runId: string, events: EngineEvent[], nowMs: number
         startedAt = e.ts;
         break;
       case "phase_started":
-        notePhase(e.phase);
+        notePhaseInto(e.phase, phaseSeen, phaseOrder);
         break;
       case "agent_call_started": {
-        notePhase(e.phase);
+        notePhaseInto(e.phase, phaseSeen, phaseOrder);
         calls.set(e.callId, {
           id: e.callId,
           runId,
@@ -56,35 +93,12 @@ export function normalizeRun(runId: string, events: EngineEvent[], nowMs: number
         });
         break;
       }
-      case "agent_call_finished": {
-        notePhase(e.phase);
-        const existing = calls.get(e.callId);
-        const dto: AgentCallDTO = existing ?? {
-          id: e.callId,
-          runId,
-          phase: e.phase,
-          model: e.model,
-          promptSummary: e.promptSummary ?? "",
-          tokens: 0,
-          costUsd: null,
-          durationMs: null,
-          status: "running",
-          startedAt: e.ts,
-          finishedAt: null,
-          origin: e.origin ?? origin,
-          subtaskKey: e.subtaskKey,
-        };
-        dto.status = CALL_STATUS[e.status] ?? "done";
-        dto.durationMs = e.durationMs ?? dto.durationMs;
-        dto.tokens = e.tokens?.total ?? dto.tokens;
-        dto.costUsd = e.costUsd ?? dto.costUsd;
-        dto.finishedAt = e.ts;
-        if (e.tools) dto.tools = e.tools;
-        calls.set(e.callId, dto);
+      case "agent_call_finished":
+        notePhaseInto(e.phase, phaseSeen, phaseOrder);
+        applyCallFinished(e, calls, runId, origin);
         break;
-      }
       case "run_finished":
-        runStatus = e.status === "completed" ? "done" : e.status === "failed" ? "failed" : "queued";
+        runStatus = mapRunFinishedStatus(e.status);
         finishedAt = e.ts;
         break;
       default:

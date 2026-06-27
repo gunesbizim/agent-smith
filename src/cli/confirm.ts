@@ -68,7 +68,8 @@ export async function confirmCommand(pairs: string[], opts: ConfirmOptions = {})
       console.log(chalk.gray("  (none — every tracked value is confirmed or proven by detection)\n"));
     } else {
       for (const u of unconfirmed) {
-        console.log(`  ${chalk.yellow("?")} ${chalk.white(u.key)} ${chalk.gray(`(currently: ${u.current})`)}`);
+        const currentLabel = chalk.gray(`(currently: ${u.current})`);
+        console.log(`  ${chalk.yellow("?")} ${chalk.white(u.key)} ${currentLabel}`);
       }
       console.log(chalk.gray('\n  Settle one with: agent-smith confirm key="value"\n'));
     }

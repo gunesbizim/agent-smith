@@ -31,7 +31,7 @@ export function parseGhChecks(json: string): CiCheck[] {
   }
 
   if (!Array.isArray(parsed)) {
-    throw new Error("Expected a JSON array of checks");
+    throw new TypeError("Expected a JSON array of checks");
   }
 
   return parsed.map((e: unknown) => {
@@ -40,8 +40,8 @@ export function parseGhChecks(json: string): CiCheck[] {
     }
     const obj = e as Record<string, unknown>;
     const check: CiCheck = {
-      name: String(obj.name ?? ""),
-      bucket: String(obj.bucket ?? ""),
+      name: obj.name !== undefined ? String(obj.name) : "",
+      bucket: obj.bucket !== undefined ? String(obj.bucket) : "",
     };
     if (obj.state !== undefined) check.state = String(obj.state);
     if (obj.link !== undefined) check.link = String(obj.link);

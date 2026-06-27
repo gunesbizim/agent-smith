@@ -15,8 +15,7 @@ function stepsFor(label: string, cmds: Array<string | null>): string[] {
   const lines: string[] = [];
   for (const c of cmds) {
     if (!c) continue;
-    lines.push(`      - name: ${label} — ${c.split(/\s+/)[0]}`);
-    lines.push(`        run: ${c}`);
+    lines.push(`      - name: ${label} — ${c.split(/\s+/)[0]}`, `        run: ${c}`);
   }
   return lines;
 }

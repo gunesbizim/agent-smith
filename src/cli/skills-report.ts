@@ -6,8 +6,7 @@ import type { SkillsReport } from "../adapt/llm-skills.js";
 
 export function renderSkillsReport(report: SkillsReport): void {
   const lines: string[] = [];
-  lines.push(chalk.bold.cyan("\n  Skills report"));
-  lines.push(chalk.gray(`  Stack grounded in: ${report.stack}`));
+  lines.push(chalk.bold.cyan("\n  Skills report"), chalk.gray(`  Stack grounded in: ${report.stack}`));
   if (report.bestPracticesDoc) {
     lines.push(chalk.gray(`  Best-practices doc: ${report.bestPracticesDoc}`));
   }
@@ -23,8 +22,7 @@ export function renderSkillsReport(report: SkillsReport): void {
     practices += s.recommendedPractices;
   }
 
-  lines.push("");
-  lines.push(chalk.gray(`  ${rewritten}/${report.skills.length} skills rewritten · ${practices} recommended practices surfaced`));
+  lines.push("", chalk.gray(`  ${rewritten}/${report.skills.length} skills rewritten · ${practices} recommended practices surfaced`));
   if (report.notes) {
     lines.push(chalk.gray(`  Notes: ${report.notes}`));
   }

@@ -86,7 +86,7 @@ export const GENERATED_SKILLS = [
 const DEFAULT_SKILLS_TIMEOUT_MS = 1_200_000;
 export function skillsTimeoutMs(): number {
   const raw = process.env.AGENT_SMITH_SKILLS_TIMEOUT_MS;
-  const n = raw ? Number(raw) : NaN;
+  const n = raw ? Number(raw) : Number.NaN;
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_SKILLS_TIMEOUT_MS;
 }
 
@@ -171,7 +171,8 @@ export interface SkillGenResult {
   promptHash?: string;
 }
 
-const REPORT_SENTINEL = /<<<AGENT_SMITH_SKILLS_REPORT\s*([\s\S]*?)\s*AGENT_SMITH_SKILLS_REPORT>>>/;
+const SENTINEL_OPEN = "<<<AGENT_SMITH_SKILLS_REPORT";
+const SENTINEL_CLOSE = "\nAGENT_SMITH_SKILLS_REPORT>>>";
 
 /**
  * Extract the sentinel-fenced JSON skills report from claude's stdout (P4). Returns null on a
@@ -179,10 +180,16 @@ const REPORT_SENTINEL = /<<<AGENT_SMITH_SKILLS_REPORT\s*([\s\S]*?)\s*AGENT_SMITH
  * a malformed report never fails init.
  */
 export function parseSkillsReport(stdout: string): SkillsReport | null {
-  const m = REPORT_SENTINEL.exec(stdout);
-  if (!m) return null;
+  const openIdx = stdout.indexOf(SENTINEL_OPEN);
+  if (openIdx === -1) return null;
+  // Skip the sentinel tag and the following newline (normalise CRLF → LF)
+  const afterOpen = stdout.indexOf("\n", openIdx);
+  if (afterOpen === -1) return null;
+  const closeIdx = stdout.indexOf(SENTINEL_CLOSE, afterOpen);
+  if (closeIdx === -1) return null;
+  const jsonBody = stdout.slice(afterOpen + 1, closeIdx);
   try {
-    const parsed = JSON.parse(m[1]) as Partial<SkillsReport>;
+    const parsed = JSON.parse(jsonBody) as Partial<SkillsReport>;
     if (typeof parsed.stack !== "string" || !Array.isArray(parsed.skills)) return null;
     const skills: SkillReportEntry[] = parsed.skills
       .filter((s): s is SkillReportEntry => !!s && typeof s.name === "string" && typeof s.path === "string")
@@ -290,46 +297,48 @@ function recordSkillGenUsage(projectRoot: string, sessionId: string | undefined)
   }
 }
 
+// P3/A11: If generation already ran (and regen not forced), return early with a drift note if needed.
+function checkFirstRunGate(projectRoot: string, regen?: boolean): SkillGenResult | null {
+  if (regen) return null;
+  const marker = readMarker(projectRoot);
+  if (!marker) return null;
+  let drift = "";
+  try {
+    if (marker.promptHash && marker.promptHash !== hashPrompt(loadSkillGeneratorPrompt())) {
+      drift = " — note: the generator prompt CHANGED since this run; re-run with --regen-skills to refresh";
+    }
+  } catch { /* prompt unreadable → no drift note */ }
+  return { ran: false, reason: `already generated (use --regen-skills to re-run)${drift}` };
+}
+
+// Guard: the skill stubs and at least one architecture doc must exist before we invoke the LLM.
+function checkPreconditions(projectRoot: string): SkillGenResult | null {
+  const skillsDir = path.join(projectRoot, ".claude", "skills");
+  const haveStubs = GENERATED_SKILLS.every((s) =>
+    fs.existsSync(path.join(skillsDir, s, "SKILL.md")),
+  );
+  if (!haveStubs) return { ran: false, reason: "skill stubs not scaffolded yet" };
+
+  // P5: proceed if AT LEAST ONE architecture doc exists — frontend-only / CLI projects never
+  // produce backend-architecture.md, so a backend-only guard caused silent skips.
+  const archDir = path.join(projectRoot, "docs", "architecture");
+  const haveArchDoc =
+    fs.existsSync(path.join(archDir, "backend-architecture.md")) ||
+    fs.existsSync(path.join(archDir, "frontend-architecture.md"));
+  if (!haveArchDoc) return { ran: false, reason: "architecture docs not generated yet" };
+
+  return null;
+}
+
 // Regenerate skills in place via the LLM. Requires the scaffolded stubs + architecture docs
 // to already exist under projectRoot. Returns ran:false (with a reason) on any failure so
 // the caller silently keeps the template-customized skills.
 export function generateSkills(projectRoot: string, opts: GenerateSkillsOptions = {}): SkillGenResult {
-  // P3: first-run gate. If generation already ran for this repo and --regen-skills was not
-  // passed, skip the expensive step entirely (do NOT invoke claude). A11: if the generator
-  // prompt changed since the recorded run, say so — the prior output is no longer reproducible
-  // from the current prompt, so a regen is advisable.
-  if (!opts.regen) {
-    const marker = readMarker(projectRoot);
-    if (marker) {
-      let drift = "";
-      try {
-        if (marker.promptHash && marker.promptHash !== hashPrompt(loadSkillGeneratorPrompt())) {
-          drift = " — note: the generator prompt CHANGED since this run; re-run with --regen-skills to refresh";
-        }
-      } catch { /* prompt unreadable → no drift note */ }
-      return { ran: false, reason: `already generated (use --regen-skills to re-run)${drift}` };
-    }
-  }
+  const gateResult = checkFirstRunGate(projectRoot, opts.regen);
+  if (gateResult) return gateResult;
 
-  // Guard: the stubs and at least one architecture doc must exist.
-  const skillsDir = path.join(projectRoot, ".claude", "skills");
-  const archDir = path.join(projectRoot, "docs", "architecture");
-  const haveStubs = GENERATED_SKILLS.every((s) =>
-    fs.existsSync(path.join(skillsDir, s, "SKILL.md")),
-  );
-  if (!haveStubs) {
-    return { ran: false, reason: "skill stubs not scaffolded yet" };
-  }
-  // P5: generation proceeds if AT LEAST ONE architecture doc exists. A frontend-only or
-  // CLI/library project never produces backend-architecture.md, so a backend-only guard
-  // made those projects silently skip generation. The per-skill subagents already scope a
-  // side that does not exist.
-  const haveArchDoc =
-    fs.existsSync(path.join(archDir, "backend-architecture.md")) ||
-    fs.existsSync(path.join(archDir, "frontend-architecture.md"));
-  if (!haveArchDoc) {
-    return { ran: false, reason: "architecture docs not generated yet" };
-  }
+  const preResult = checkPreconditions(projectRoot);
+  if (preResult) return preResult;
 
   let prompt: string;
   try {

@@ -74,7 +74,7 @@ async function readAbsFile(absPath: string, cache: FsCache): Promise<string | nu
   const p = (async () => {
     try {
       const content = await fs.readFile(absPath, "utf-8");
-      return content.replace(/\r\n/g, "\n"); // normalize line endings cross-platform
+      return content.replaceAll("\r\n", "\n"); // normalize line endings cross-platform
     } catch { return null; }
   })();
   cache.file.set(absPath, p);
@@ -132,7 +132,10 @@ export async function dirExists(dirPath: string): Promise<boolean> {
 // ---- Package.json helper ----
 
 export function pkgDeps(pkg: Record<string, unknown>): Record<string, unknown> {
-  return { ...(pkg.dependencies as Record<string, unknown> ?? {}), ...(pkg.devDependencies as Record<string, unknown> ?? {}) };
+  return {
+    ...(pkg.dependencies as Record<string, unknown> | undefined),
+    ...(pkg.devDependencies as Record<string, unknown> | undefined),
+  };
 }
 
 // ---- Monorepo subpackage discovery ----

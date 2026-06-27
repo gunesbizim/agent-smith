@@ -21,10 +21,10 @@ interface Entry {
 // Collapse whitespace, unwrap quotes, and trim a description to a single readable line.
 function oneLine(text: string, max = 140): string {
   const flat = text
-    .replace(/\s+/g, " ")
+    .replaceAll(/\s+/g, " ")
     .trim()
-    .replace(/\\"/g, '"')        // unescape YAML-escaped quotes
-    .replace(/^["']|["']$/g, "") // strip a single surrounding quote pair
+    .replaceAll(/\\"/g, '"')        // unescape YAML-escaped quotes
+    .replaceAll(/^["']|["']$/g, "") // strip a single surrounding quote pair
     .trim();
   return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
 }
@@ -72,42 +72,64 @@ function findSkillFiles(dir: string, depth = 0): string[] {
   return out;
 }
 
+type FmState = { name: string; descParts: string[]; inDesc: boolean };
+
+// Handle the `description:` key line; mutates state.
+function handleDescriptionLine(line: string, state: FmState): void {
+  state.inDesc = true;
+  const rest = line.slice("description:".length).trim();
+  if (rest && rest !== ">" && rest !== "|") state.descParts.push(rest);
+}
+
+// Handle a folded-continuation or non-key line; mutates state.
+function handleContinuationLine(line: string, trimmed: string, state: FmState): void {
+  const indented = (line.startsWith(" ") || line.startsWith("\t")) && trimmed.length > 0;
+  if (state.inDesc && indented) {
+    state.descParts.push(trimmed);
+  } else if (state.inDesc) {
+    state.inDesc = false;
+  }
+}
+
+// Process one frontmatter line; mutates `state`. Returns true to continue, false to break.
+function processFrontmatterLine(line: string, state: FmState): boolean {
+  const trimmed = line.trim();
+  if (trimmed === "---") return false; // closing fence
+  if (line.startsWith("name:")) {
+    state.name = line.slice("name:".length).trim();
+    state.inDesc = false;
+    return true;
+  }
+  if (line.startsWith("description:")) {
+    handleDescriptionLine(line, state);
+    return true;
+  }
+  // Folded continuation: an indented, non-empty line beneath `description:`.
+  handleContinuationLine(line, trimmed, state);
+  return true;
+}
+
 // Minimal YAML frontmatter parse — just name + description (description may be a folded `>`
 // block). Uses plain string operations (no regex) to avoid backtracking/ReDoS concerns.
 function parseFrontmatter(content: string): { name: string; description: string } {
   const lines = content.split("\n");
   if (lines[0]?.trim() !== "---") return { name: "", description: "" };
-  let name = "";
-  const descParts: string[] = [];
-  let inDesc = false;
+  const state = { name: "", descParts: [] as string[], inDesc: false };
   for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    if (trimmed === "---") break;
-    if (line.startsWith("name:")) { name = line.slice("name:".length).trim(); inDesc = false; continue; }
-    if (line.startsWith("description:")) {
-      inDesc = true;
-      const rest = line.slice("description:".length).trim();
-      if (rest && rest !== ">" && rest !== "|") descParts.push(rest);
-      continue;
-    }
-    // Folded continuation: an indented, non-empty line beneath `description:`.
-    const indented = (line.startsWith(" ") || line.startsWith("\t")) && trimmed.length > 0;
-    if (inDesc && indented) { descParts.push(trimmed); continue; }
-    if (inDesc) inDesc = false;
+    if (!processFrontmatterLine(lines[i], state)) break;
   }
-  return { name, description: descParts.join(" ") };
+  return { name: state.name, description: state.descParts.join(" ") };
 }
 
 function safeRead(p: string): string {
   // Normalize CRLF → LF so per-line regex anchors behave (some scaffolded stubs ship CRLF).
-  try { return fs.readFileSync(p, "utf-8").replace(/\r\n/g, "\n"); } catch { return ""; }
+  try { return fs.readFileSync(p, "utf-8").replaceAll("\r\n", "\n"); } catch { return ""; }
 }
 
 // Escape a value for a markdown table cell — backslashes FIRST, then pipes, so an input
 // backslash can't defeat the pipe escaping.
 function cell(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+  return text.replaceAll("\\", String.raw`\\`).replaceAll("|", String.raw`\|`);
 }
 
 function table(rows: Entry[]): string {
@@ -173,7 +195,7 @@ export function writeClaudeMd(targetDir: string, dryRun = false): ClaudeMdResult
   let existing = "";
   let existed = false;
   try {
-    existing = fs.readFileSync(claudePath, "utf-8").replace(/\r\n/g, "\n");
+    existing = fs.readFileSync(claudePath, "utf-8").replaceAll("\r\n", "\n");
     existed = true;
   } catch {
     // No CLAUDE.md yet — we'll create one.

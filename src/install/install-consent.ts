@@ -47,14 +47,16 @@ async function readlinePrompt(message: string): Promise<string> {
 export function describeInstallPlan(servers: MCPServerDefinition[]): string {
   const lines = servers.map((s) => {
     const cmd = resolveInstallCommand(s);
-    const detail =
-      s.installType === "manual"
-        ? chalk.gray("manual install required")
-        : s.installType === "npx" && !cmd
-          ? chalk.gray("fetched on first use (npx)")
-          : s.installType === "prewarm"
-            ? `${chalk.gray("pre-warm")} ${chalk.cyan(cmd)}`
-            : chalk.cyan(cmd);
+    let detail: string;
+    if (s.installType === "manual") {
+      detail = chalk.gray("manual install required");
+    } else if (s.installType === "npx" && !cmd) {
+      detail = chalk.gray("fetched on first use (npx)");
+    } else if (s.installType === "prewarm") {
+      detail = `${chalk.gray("pre-warm")} ${chalk.cyan(cmd)}`;
+    } else {
+      detail = chalk.cyan(cmd);
+    }
     return `    • ${s.name.padEnd(16)} ${detail}`;
   });
   const managers = requiredManagersFor(servers);

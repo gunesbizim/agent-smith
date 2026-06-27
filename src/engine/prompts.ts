@@ -4,6 +4,10 @@
 // (templates/prompts/tdd-*.md) and has the RED/CODE phases reference the scaffolded test-backend /
 // test-frontend skills as the single source of truth for test authoring. The shapes returned here
 // define the JSON contract every phase agent must honor.
+function ticketSuffix(ticketId: string | null): string {
+  return ticketId ? ` (${ticketId})` : "";
+}
+
 export interface TddPromptContext {
   ticketId: string | null;
   task: string;
@@ -17,7 +21,7 @@ export interface TddPromptContext {
 
 export function understandPrompt(c: TddPromptContext): string {
   return [
-    `You are the planning agent for a TDD-first workflow. Task${c.ticketId ? ` (${c.ticketId})` : ""}: ${c.task}`,
+    `You are the planning agent for a TDD-first workflow. Task${ticketSuffix(c.ticketId)}: ${c.task}`,
     "",
     "Produce BOTH manual + automation test scenarios AND a unit/feature test plan grounded in the real repo.",
     "Read the codebase first. Reference real files/symbols.",

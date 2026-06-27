@@ -101,7 +101,8 @@ function preferNonEmpty(v: unknown, base: string): string {
   return typeof v === "string" && v ? v : base;
 }
 function preferDefined<T>(v: T | undefined, base: T): T {
-  return v !== undefined ? v : base;
+  if (v !== undefined) return v;
+  return base;
 }
 
 // Merge an LLM descriptor over the deterministic base. The LLM overrides a field only when
@@ -175,7 +176,8 @@ export function deterministicProfile(evidence: StackEvidence): StackProfile {
 
 function jvmStack(build: string): { framework: string; detail: string; orm: string | null; auth: string | null; logging: "structured" | "unstructured" } {
   if (build.includes("spring-boot") || build.includes("org.springframework.boot")) {
-    return { framework: "spring-boot", detail: "Spring Boot", orm: jvmOrm(build), auth: build.includes("spring-security") || build.includes("spring-boot-starter-security") ? "Spring Security" : null, logging: "structured" };
+    const hasSpringSecurityDep = build.includes("spring-security") || build.includes("spring-boot-starter-security");
+    return { framework: "spring-boot", detail: "Spring Boot", orm: jvmOrm(build), auth: hasSpringSecurityDep ? "Spring Security" : null, logging: "structured" };
   }
   if (build.includes("quarkus")) return { framework: "quarkus", detail: "Quarkus", orm: jvmOrm(build), auth: null, logging: "structured" };
   if (build.includes("micronaut")) return { framework: "micronaut", detail: "Micronaut", orm: jvmOrm(build), auth: null, logging: "structured" };
@@ -201,12 +203,28 @@ function jvmDb(build: string): string | null {
   return null;
 }
 
+function mavenLintCmd(c: string): string | null {
+  if (c.includes("checkstyle")) return "mvn checkstyle:check";
+  if (c.includes("spotless")) return "mvn spotless:check";
+  return null;
+}
+
+function mavenFormatCmd(c: string): string | null {
+  if (c.includes("spotless")) return "mvn spotless:apply";
+  return null;
+}
+
+function mavenMigrateCmd(c: string): string | null {
+  if (c.includes("flyway")) return "mvn flyway:migrate";
+  if (c.includes("liquibase")) return "mvn liquibase:update";
+  return null;
+}
+
 function javaMaven(e: StackEvidence): StackProfile | null {
   const pom = manifest(e, "pom.xml");
   if (!pom) return null;
   const c = pom.content;
   const s = jvmStack(c);
-  const cmd = (goal: string) => `mvn ${goal}`;
   return {
     ...emptyProfile(),
     language: "java", languageVersion: parseTag(c, "java.version") || parseTag(c, "maven.compiler.release") || "",
@@ -214,14 +232,33 @@ function javaMaven(e: StackEvidence): StackProfile | null {
     authMethod: s.auth, roleModel: s.auth === "Spring Security" ? "@PreAuthorize / hasRole(...) on controllers" : "none",
     roleValues: "none", loggingPattern: s.logging,
     commands: {
-      test: cmd("test"),
-      lint: c.includes("checkstyle") ? cmd("checkstyle:check") : c.includes("spotless") ? cmd("spotless:check") : null,
-      format: c.includes("spotless") ? cmd("spotless:apply") : null,
+      test: "mvn test",
+      lint: mavenLintCmd(c),
+      format: mavenFormatCmd(c),
       typecheck: null,
-      migrate: c.includes("flyway") ? cmd("flyway:migrate") : c.includes("liquibase") ? cmd("liquibase:update") : null,
+      migrate: mavenMigrateCmd(c),
     },
     confidence: 0.7, evidenceRefs: [pom.path],
   };
+}
+
+function gradleLintCmd(c: string): string | null {
+  if (c.includes("checkstyle")) return "./gradlew checkstyleMain";
+  if (c.includes("ktlint")) return "./gradlew ktlintCheck";
+  if (c.includes("spotless")) return "./gradlew spotlessCheck";
+  return null;
+}
+
+function gradleFormatCmd(c: string): string | null {
+  if (c.includes("ktlint")) return "./gradlew ktlintFormat";
+  if (c.includes("spotless")) return "./gradlew spotlessApply";
+  return null;
+}
+
+function gradleMigrateCmd(c: string): string | null {
+  if (c.includes("flyway")) return "./gradlew flywayMigrate";
+  if (c.includes("liquibase")) return "./gradlew update";
+  return null;
 }
 
 function javaGradle(e: StackEvidence): StackProfile | null {
@@ -230,19 +267,20 @@ function javaGradle(e: StackEvidence): StackProfile | null {
   const c = g.content;
   const isKotlin = g.path.endsWith(".kts") || c.includes("kotlin(");
   const s = jvmStack(c);
+  const isSpringBootKotlin = isKotlin && s.framework === "spring-boot";
   return {
     ...emptyProfile(),
     language: isKotlin ? "kotlin" : "java", languageVersion: parseGradleJavaVersion(c),
-    framework: isKotlin && s.framework === "spring-boot" ? "spring-boot-kotlin" : s.framework,
+    framework: isSpringBootKotlin ? "spring-boot-kotlin" : s.framework,
     frameworkDetail: s.detail, orm: s.orm, dbEngine: jvmDb(c),
     authMethod: s.auth, roleModel: s.auth === "Spring Security" ? "@PreAuthorize / hasRole(...) on controllers" : "none",
     roleValues: "none", loggingPattern: s.logging,
     commands: {
       test: "./gradlew test",
-      lint: c.includes("checkstyle") ? "./gradlew checkstyleMain" : c.includes("ktlint") ? "./gradlew ktlintCheck" : c.includes("spotless") ? "./gradlew spotlessCheck" : null,
-      format: c.includes("ktlint") ? "./gradlew ktlintFormat" : c.includes("spotless") ? "./gradlew spotlessApply" : null,
+      lint: gradleLintCmd(c),
+      format: gradleFormatCmd(c),
       typecheck: null,
-      migrate: c.includes("flyway") ? "./gradlew flywayMigrate" : c.includes("liquibase") ? "./gradlew update" : null,
+      migrate: gradleMigrateCmd(c),
     },
     confidence: 0.7, evidenceRefs: [g.path],
   };
@@ -250,39 +288,88 @@ function javaGradle(e: StackEvidence): StackProfile | null {
 
 // ---- Node / TS -----------------------------------------------------------
 
+function nodeFramework(has: (n: string) => boolean): string | null {
+  if (has("@nestjs/core")) return "nestjs";
+  if (has("fastify")) return "fastify";
+  if (has("koa")) return "koa";
+  if (has("hono")) return "hono";
+  if (has("express")) return "express";
+  return null;
+}
+
+function nodeFrameworkDetail(framework: string | null, isTs: boolean): string {
+  if (framework === "nestjs") return "NestJS + TypeScript";
+  if (framework !== null) return `${framework} + TypeScript`;
+  return `Node + ${isTs ? "TypeScript" : "JavaScript"}`;
+}
+
+function nodeTestCmd(scriptCmd: (n: string) => string | null, has: (n: string) => boolean): string | null {
+  const fromScript = scriptCmd("test");
+  if (fromScript !== null) return fromScript;
+  if (has("vitest")) return "npx vitest run";
+  if (has("jest")) return "npx jest";
+  return null;
+}
+
+function nodeLintCmd(scriptCmd: (n: string) => string | null, has: (n: string) => boolean): string | null {
+  return scriptCmd("lint") ?? (has("eslint") ? "npx eslint ." : null);
+}
+
+function nodeFormatCmd(scriptCmd: (n: string) => string | null, has: (n: string) => boolean): string | null {
+  return scriptCmd("format") ?? (has("prettier") ? "npx prettier --check ." : null);
+}
+
+function nodeTypecheckCmd(scriptCmd: (n: string) => string | null, isTs: boolean): string | null {
+  return scriptCmd("typecheck") ?? (isTs ? "npx tsc --noEmit" : null);
+}
+
+function nodeMigrateCmd(has: (n: string) => boolean): string | null {
+  if (has("prisma")) return "npx prisma migrate deploy";
+  if (has("typeorm")) return "npx typeorm migration:run";
+  if (has("drizzle-orm")) return "npx drizzle-kit migrate";
+  return null;
+}
+
 function nodeBackend(e: StackEvidence): StackProfile | null {
   const pkg = manifest(e, "package.json");
   if (!pkg) return null;
   let json: Record<string, unknown> = {};
   try { json = JSON.parse(pkg.content) as Record<string, unknown>; } catch { return null; }
   const deps = { ...(json.dependencies as object), ...(json.devDependencies as object) } as Record<string, string>;
-  const has = (name: string) => Object.prototype.hasOwnProperty.call(deps, name);
+  const has = (name: string) => Object.hasOwn(deps, name);
   const scripts = (json.scripts ?? {}) as Record<string, string>;
   const scriptCmd = (name: string) => (scripts[name] ? `npm run ${name}` : null);
   // A backend web framework if one is present; otherwise null — this is a Node/TS CLI, library,
   // or frontend, which is still a real TypeScript/JavaScript project whose language + toolchain
   // we detect honestly. (Previously this returned null for any non-backend Node project, so CLIs
   // and libraries reported "stack none".)
-  const framework = has("@nestjs/core") ? "nestjs" : has("fastify") ? "fastify" : has("koa") ? "koa" : has("hono") ? "hono" : has("express") ? "express" : null;
+  const framework = nodeFramework(has);
   const isTs = !!deps.typescript || has("typescript");
+  const authMethod = nodeAuthMethod(has);
   return {
     ...emptyProfile(),
     language: isTs ? "typescript" : "javascript", languageVersion: "",
     framework,
-    frameworkDetail: framework === "nestjs" ? "NestJS + TypeScript" : framework ? `${framework} + TypeScript` : `Node + ${isTs ? "TypeScript" : "JavaScript"}`,
+    frameworkDetail: nodeFrameworkDetail(framework, isTs),
     orm: nodeOrm(has), dbEngine: nodeDb(has),
-    authMethod: has("passport") ? "Passport" : has("@nestjs/jwt") || has("jsonwebtoken") ? "JWT" : null,
+    authMethod,
     roleModel: "none", roleValues: "none", loggingPattern: has("pino") || has("winston") ? "structured" : "unstructured",
     commands: {
-      test: scriptCmd("test") ?? (has("vitest") ? "npx vitest run" : has("jest") ? "npx jest" : null),
-      lint: scriptCmd("lint") ?? (has("eslint") ? "npx eslint ." : null),
-      format: scriptCmd("format") ?? (has("prettier") ? "npx prettier --check ." : null),
-      typecheck: scriptCmd("typecheck") ?? (isTs ? "npx tsc --noEmit" : null),
-      migrate: has("prisma") ? "npx prisma migrate deploy" : has("typeorm") ? "npx typeorm migration:run" : has("drizzle-orm") ? "npx drizzle-kit migrate" : null,
+      test: nodeTestCmd(scriptCmd, has),
+      lint: nodeLintCmd(scriptCmd, has),
+      format: nodeFormatCmd(scriptCmd, has),
+      typecheck: nodeTypecheckCmd(scriptCmd, isTs),
+      migrate: nodeMigrateCmd(has),
     },
     // Lower confidence when no backend framework was matched — language is sure, framework isn't.
     confidence: framework ? 0.65 : 0.5, evidenceRefs: [pkg.path],
   };
+}
+
+function nodeAuthMethod(has: (n: string) => boolean): string | null {
+  if (has("passport")) return "Passport";
+  if (has("@nestjs/jwt") || has("jsonwebtoken")) return "JWT";
+  return null;
 }
 
 function nodeOrm(has: (n: string) => boolean): string | null {
@@ -304,20 +391,45 @@ function nodeDb(has: (n: string) => boolean): string | null {
 
 // ---- Go ------------------------------------------------------------------
 
+function goFramework(c: string): string {
+  if (c.includes("gin-gonic/gin")) return "gin";
+  if (c.includes("labstack/echo")) return "echo";
+  if (c.includes("gofiber/fiber")) return "fiber";
+  if (c.includes("go-chi/chi")) return "chi";
+  return "generic-server";
+}
+
+function goOrm(c: string): string | null {
+  if (c.includes("gorm.io/gorm")) return "GORM";
+  if (c.includes("jmoiron/sqlx")) return "sqlx";
+  if (c.includes("entgo.io/ent")) return "Ent";
+  return null;
+}
+
+function goDb(c: string): string | null {
+  if (c.includes("jackc/pgx") || c.includes("lib/pq")) return "postgresql";
+  if (c.includes("go-sql-driver/mysql")) return "mysql";
+  if (c.includes("mattn/go-sqlite3")) return "sqlite";
+  return null;
+}
+
 function goBackend(e: StackEvidence): StackProfile | null {
   const mod = manifest(e, "go.mod");
   if (!mod) return null;
   const c = mod.content;
-  const framework = c.includes("gin-gonic/gin") ? "gin" : c.includes("labstack/echo") ? "echo" : c.includes("gofiber/fiber") ? "fiber" : c.includes("go-chi/chi") ? "chi" : "generic-server";
+  const framework = goFramework(c);
+  const frameworkDetail = framework === "generic-server" ? "Go service" : `${framework} (Go)`;
+  const authMethod = (c.includes("golang-jwt") || c.includes("jwt")) ? "JWT" : null;
+  const loggingPattern = (c.includes("uber-go/zap") || c.includes("rs/zerolog") || c.includes("sirupsen/logrus")) ? "structured" : "unstructured";
   return {
     ...emptyProfile(),
     language: "go", languageVersion: parseGoVersion(c),
-    framework, frameworkDetail: framework === "generic-server" ? "Go service" : `${framework} (Go)`,
-    orm: c.includes("gorm.io/gorm") ? "GORM" : c.includes("jmoiron/sqlx") ? "sqlx" : c.includes("entgo.io/ent") ? "Ent" : null,
-    dbEngine: c.includes("jackc/pgx") || c.includes("lib/pq") ? "postgresql" : c.includes("go-sql-driver/mysql") ? "mysql" : c.includes("mattn/go-sqlite3") ? "sqlite" : null,
-    authMethod: c.includes("golang-jwt") || c.includes("jwt") ? "JWT" : null,
+    framework, frameworkDetail,
+    orm: goOrm(c),
+    dbEngine: goDb(c),
+    authMethod,
     roleModel: "none", roleValues: "none",
-    loggingPattern: c.includes("uber-go/zap") || c.includes("rs/zerolog") || c.includes("sirupsen/logrus") ? "structured" : "unstructured",
+    loggingPattern,
     commands: { test: "go test ./...", lint: "golangci-lint run", format: "gofmt -l .", typecheck: "go vet ./...", migrate: null },
     confidence: 0.7, evidenceRefs: [mod.path],
   };
@@ -325,50 +437,129 @@ function goBackend(e: StackEvidence): StackProfile | null {
 
 // ---- Rust ----------------------------------------------------------------
 
+function rustFramework(c: string): string {
+  if (c.includes("actix-web")) return "actix-web";
+  if (c.includes("axum")) return "axum";
+  if (c.includes("rocket")) return "rocket";
+  return "generic-server";
+}
+
+function rustOrm(c: string): string | null {
+  if (c.includes("diesel")) return "Diesel";
+  if (c.includes("sqlx")) return "sqlx";
+  if (c.includes("sea-orm")) return "SeaORM";
+  return null;
+}
+
+function rustDb(c: string): string | null {
+  if (c.includes("postgres")) return "postgresql";
+  if (c.includes("mysql")) return "mysql";
+  if (c.includes("sqlite")) return "sqlite";
+  return null;
+}
+
+function rustMigrateCmd(c: string): string | null {
+  if (c.includes("diesel")) return "diesel migration run";
+  if (c.includes("sqlx")) return "sqlx migrate run";
+  return null;
+}
+
 function rustBackend(e: StackEvidence): StackProfile | null {
   const cargo = manifest(e, "Cargo.toml");
   if (!cargo) return null;
   const c = cargo.content;
-  const framework = c.includes("actix-web") ? "actix-web" : c.includes("axum") ? "axum" : c.includes("rocket") ? "rocket" : "generic-server";
+  const framework = rustFramework(c);
   if (framework === "generic-server" && !c.includes("tokio")) return null;
+  const frameworkDetail = framework === "generic-server" ? "Rust service" : `${framework} (Rust)`;
+  const orm = rustOrm(c);
+  const dbEngine = rustDb(c);
+  const authMethod = c.includes("jsonwebtoken") ? "JWT" : null;
   return {
     ...emptyProfile(),
     language: "rust", languageVersion: parseTomlValue(c, "edition"),
-    framework, frameworkDetail: framework === "generic-server" ? "Rust service" : `${framework} (Rust)`,
-    orm: c.includes("diesel") ? "Diesel" : c.includes("sqlx") ? "sqlx" : c.includes("sea-orm") ? "SeaORM" : null,
-    dbEngine: c.includes("postgres") ? "postgresql" : c.includes("mysql") ? "mysql" : c.includes("sqlite") ? "sqlite" : null,
-    authMethod: c.includes("jsonwebtoken") ? "JWT" : null, roleModel: "none", roleValues: "none", loggingPattern: "structured",
-    commands: { test: "cargo test", lint: "cargo clippy -- -D warnings", format: "cargo fmt --check", typecheck: "cargo check", migrate: c.includes("diesel") ? "diesel migration run" : c.includes("sqlx") ? "sqlx migrate run" : null },
+    framework, frameworkDetail,
+    orm, dbEngine,
+    authMethod, roleModel: "none", roleValues: "none", loggingPattern: "structured",
+    commands: { test: "cargo test", lint: "cargo clippy -- -D warnings", format: "cargo fmt --check", typecheck: "cargo check", migrate: rustMigrateCmd(c) },
     confidence: 0.7, evidenceRefs: [cargo.path],
   };
 }
 
 // ---- Python --------------------------------------------------------------
 
+function pythonFramework(c: string): string | null {
+  if (c.includes("django")) return "django";
+  if (c.includes("fastapi")) return "fastapi";
+  if (c.includes("flask")) return "flask";
+  return null;
+}
+
+function pythonFrameworkDetail(framework: string): string {
+  if (framework === "django") return "Django + Django REST Framework";
+  if (framework === "fastapi") return "FastAPI + Pydantic";
+  return "Flask";
+}
+
+function pythonOrm(c: string, isDjango: boolean): string | null {
+  if (isDjango) return "Django ORM";
+  if (c.includes("sqlalchemy")) return "SQLAlchemy";
+  return null;
+}
+
+function pythonDb(c: string): string | null {
+  if (c.includes("psycopg")) return "postgresql";
+  if (c.includes("mysqlclient") || c.includes("pymysql")) return "mysql";
+  if (c.includes("sqlite")) return "sqlite";
+  return null;
+}
+
+function pythonAuthMethod(c: string): string {
+  if (c.includes("djangorestframework-simplejwt") || c.includes("jwt")) return "JWT";
+  return "session";
+}
+
+function pythonLintCmd(c: string): string | null {
+  if (c.includes("ruff")) return "ruff check .";
+  if (c.includes("flake8")) return "flake8 .";
+  return null;
+}
+
+function pythonFormatCmd(c: string): string | null {
+  if (c.includes("ruff")) return "ruff format --check .";
+  if (c.includes("black")) return "black --check .";
+  return null;
+}
+
+function pythonMigrateCmd(c: string, isDjango: boolean): string | null {
+  if (isDjango) return "python manage.py makemigrations && python manage.py migrate";
+  if (c.includes("alembic")) return "alembic upgrade head";
+  return null;
+}
+
 function pythonBackend(e: StackEvidence): StackProfile | null {
   const py = manifest(e, "pyproject.toml") ?? manifest(e, "requirements.txt");
   if (!py) return null;
   const c = py.content.toLowerCase();
-  const framework = c.includes("django") ? "django" : c.includes("fastapi") ? "fastapi" : c.includes("flask") ? "flask" : null;
+  const framework = pythonFramework(c);
   if (!framework) return null;
   const isDjango = framework === "django";
   return {
     ...emptyProfile(),
     language: "python", languageVersion: "",
-    framework, frameworkDetail: isDjango ? "Django + Django REST Framework" : framework === "fastapi" ? "FastAPI + Pydantic" : "Flask",
-    orm: isDjango ? "Django ORM" : c.includes("sqlalchemy") ? "SQLAlchemy" : null,
+    framework, frameworkDetail: pythonFrameworkDetail(framework),
+    orm: pythonOrm(c, isDjango),
     // Honest detection: only report a DB engine when a driver is actually declared — do not
     // fabricate one (consistent with every other detector and this module's "unknown → null").
-    dbEngine: c.includes("psycopg") ? "postgresql" : c.includes("mysqlclient") || c.includes("pymysql") ? "mysql" : c.includes("sqlite") ? "sqlite" : null,
-    authMethod: c.includes("djangorestframework-simplejwt") || c.includes("jwt") ? "JWT" : "session",
+    dbEngine: pythonDb(c),
+    authMethod: pythonAuthMethod(c),
     roleModel: isDjango ? "DRF permission classes / role checks" : "none", roleValues: "none",
     loggingPattern: "unstructured",
     commands: {
       test: c.includes("pytest") ? "pytest" : "python -m unittest",
-      lint: c.includes("ruff") ? "ruff check ." : c.includes("flake8") ? "flake8 ." : null,
-      format: c.includes("ruff") ? "ruff format --check ." : c.includes("black") ? "black --check ." : null,
+      lint: pythonLintCmd(c),
+      format: pythonFormatCmd(c),
       typecheck: c.includes("mypy") ? "mypy ." : null,
-      migrate: isDjango ? "python manage.py makemigrations && python manage.py migrate" : c.includes("alembic") ? "alembic upgrade head" : null,
+      migrate: pythonMigrateCmd(c, isDjango),
     },
     confidence: 0.7, evidenceRefs: [py.path],
   };
@@ -406,7 +597,7 @@ function parseGradleJavaVersion(gradle: string): string {
   const i = gradle.indexOf(sc);
   if (i !== -1) {
     const line = gradle.slice(i, gradle.indexOf("\n", i) === -1 ? undefined : gradle.indexOf("\n", i));
-    const digits = line.replace(/[^0-9]/g, "");
+    const digits = line.replace(/\D/g, "");
     if (digits) return digits;
   }
   return "";

@@ -136,9 +136,11 @@ export async function initCommand(opts: InitOptions): Promise<void> {
     analysisSpinner.start();
   }
   const confirmedCount = Object.keys(ledger.values).filter((k) => ledger.values[k].source === "confirmed").length;
+  const confirmedSuffix = confirmedCount ? ` · ${confirmedCount} confirmed` : "";
+  const frameworkSuffix = stackProfile.framework ? "/" + stackProfile.framework : "";
   analysisSpinner.succeed(
     `Detected: ${project.backend?.framework ?? "no backend"} / ${project.frontend?.framework ?? "no frontend"} · ` +
-    `${patterns.length} patterns · stack ${stackProfile.language ?? "none"}${stackProfile.framework ? "/" + stackProfile.framework : ""}${confirmedCount ? ` · ${confirmedCount} confirmed` : ""}`,
+    `${patterns.length} patterns · stack ${stackProfile.language ?? "none"}${frameworkSuffix}${confirmedSuffix}`,
   );
 
   // Step 4c — Sentrux probe (live scan to seed rules.toml thresholds)

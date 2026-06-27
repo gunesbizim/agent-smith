@@ -240,11 +240,13 @@ function applyStackProfile(vars: TemplateVariables, profile: StackProfile): void
   vars.LOGGING_CANONICAL_KEYS = profile.loggingPattern === "structured"
     ? "trace_id, span_id, user_id, entity_id, action"
     : "none";
-  vars.API_DOCS_LIBRARY = profile.framework === "django"
-    ? "drf-spectacular"
-    : profile.framework === "fastapi"
-      ? "FastAPI built-in OpenAPI (Swagger UI + ReDoc)"
-      : "none";
+  if (profile.framework === "django") {
+    vars.API_DOCS_LIBRARY = "drf-spectacular";
+  } else if (profile.framework === "fastapi") {
+    vars.API_DOCS_LIBRARY = "FastAPI built-in OpenAPI (Swagger UI + ReDoc)";
+  } else {
+    vars.API_DOCS_LIBRARY = "none";
+  }
 
   const c = profile.commands;
   vars.BACKEND_TEST_CMD = c.test ?? "none";

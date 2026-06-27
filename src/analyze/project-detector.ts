@@ -15,10 +15,7 @@ import type {
   MonorepoInfo,
 } from "../shared/types.js";
 import {
-  type FsCache,
-  createFsCache,
   fileExists,
-  findFile,
   readFirstFile,
   readFileSafe,
   readJson,
@@ -35,7 +32,6 @@ import {
   phpEvidence,
   goModVersion,
   goORM,
-  goAuth,
   tsVersion,
   rustVersion,
   GO_ROWS,
@@ -254,13 +250,23 @@ async function detectBackend(rootPath: string, project?: DetectedProject): Promi
 // Monorepo subpackage Go detection. NOTE: deliberately distinct from the root GO_ROWS
 // registry path — here auth defaults to a hardcoded "JWT" for the named frameworks and
 // the ORM scan omits sqlc, matching the original behavior for sub-package discovery.
+function goSubORM(goMod: string): string | null {
+  if (goMod.includes("gorm")) return "GORM";
+  if (goMod.includes("sqlx")) return "sqlx";
+  if (goMod.includes("ent")) return "Ent";
+  return null;
+}
+
 function detectGoBackend(subDir: string, goMod: string): BackendInfo | null {
-  if (goMod.includes("gin-gonic/gin")) return { framework: "gin", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : goMod.includes("ent") ? "Ent" : null };
+  if (goMod.includes("gin-gonic/gin")) return { framework: "gin", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: goSubORM(goMod) };
   if (goMod.includes("labstack/echo")) return { framework: "echo", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
   if (goMod.includes("gofiber/fiber")) return { framework: "fiber", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
   if (goMod.includes("go-chi/chi")) return { framework: "chi", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "unstructured", orm: null };
   if (goMod.includes("github.com/") || goMod.includes("module ")) {
-    return { framework: "generic-server", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: goMod.includes("jwt") ? "JWT" : "none", loggingPattern: goMod.includes("pino") || goMod.includes("logrus") || goMod.includes("zap") ? "structured" : "unstructured", orm: goMod.includes("gorm") ? "GORM" : goMod.includes("sqlx") ? "sqlx" : goMod.includes("ent") ? "Ent" : null };
+    const authMethod = goMod.includes("jwt") ? "JWT" : "none";
+    const hasStructuredLog = goMod.includes("pino") || goMod.includes("logrus") || goMod.includes("zap");
+    const loggingPattern = hasStructuredLog ? "structured" : "unstructured";
+    return { framework: "generic-server", language: "go", languageVersion: goModVersion(goMod), hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod, loggingPattern, orm: goSubORM(goMod) };
   }
   return null;
 }

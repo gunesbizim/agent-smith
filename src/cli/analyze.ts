@@ -16,7 +16,10 @@ export async function analyzeCommand(opts: AnalyzeOptions): Promise<void> {
   // so `analyze --json` is a faithful preview of what `init` scaffolds.
   const { project, patterns, packageUsage, stackProfile, templateVars: vars, llmRefined, llmReason } =
     await analyzeProject(cwd, { useLlm: opts.llm });
-  const llmNote = opts.llm ? (llmRefined ? "refined by Claude" : `programmatic (${llmReason})`) : undefined;
+  let llmNote: string | undefined;
+  if (opts.llm) {
+    llmNote = llmRefined ? "refined by Claude" : `programmatic (${llmReason})`;
+  }
 
   spinner.succeed(llmNote ? `Analysis complete — ${llmNote}` : "Analysis complete");
 

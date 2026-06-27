@@ -6,6 +6,37 @@ import type { PackageUsage } from "./package-scanner.js";
 import type { ArchitecturePattern } from "./architecture-sniffer.js";
 import type { StackProfile } from "./stack-types.js";
 
+// ---- Module-level lookup tables (data-driven, no branching) ----
+
+const ROLE_SYSTEM_MAP: Record<string, { system: string; values: string }> = {
+  decorators: {
+    system: "role decorators on APIView subclasses — every view must have exactly one",
+    values: "admin, supervisor, lawyer",
+  },
+  middleware: {
+    system: "middleware-based role enforcement",
+    values: "admin, user",
+  },
+};
+
+const LANG_TYPE_CHECK_CMD: Record<string, string> = {
+  go: "go vet ./...",
+  rust: "cargo check",
+  python: "mypy .",
+  typescript: "npx tsc --noEmit",
+  javascript: "npx tsc --noEmit",
+};
+
+const FRAMEWORK_API_DOCS: Record<string, string> = {
+  django: "drf-spectacular",
+  fastapi: "FastAPI built-in OpenAPI (Swagger UI + ReDoc)",
+};
+
+const CICD_GIT_HOST: Record<string, string> = {
+  "github-actions": "github.com",
+  "gitlab-ci": "gitlab.com",
+};
+
 export function mapBestPractices(
   project: DetectedProject,
   patterns: ArchitecturePattern[],
@@ -73,12 +104,10 @@ export function mapBestPractices(
     vars.AUTH_METHOD = b.authMethod || "JWT";
 
     // Role system
-    if (b.rolePattern === "decorators") {
-      vars.ROLE_SYSTEM = "role decorators on APIView subclasses — every view must have exactly one";
-      vars.ROLE_VALID_VALUES = "admin, supervisor, lawyer";
-    } else if (b.rolePattern === "middleware") {
-      vars.ROLE_SYSTEM = "middleware-based role enforcement";
-      vars.ROLE_VALID_VALUES = "admin, user";
+    const role = ROLE_SYSTEM_MAP[b.rolePattern];
+    if (role) {
+      vars.ROLE_SYSTEM = role.system;
+      vars.ROLE_VALID_VALUES = role.values;
     } else {
       vars.ROLE_SYSTEM = "none (manual permission checks)";
       vars.ROLE_VALID_VALUES = "none";
@@ -99,17 +128,7 @@ export function mapBestPractices(
     vars.PRE_PUSH_GATES = buildPrePushGates(project);
 
     // Type check command — language-specific
-    if (b.language === "go") {
-      vars.BACKEND_TYPE_CHECK_CMD = "go vet ./...";
-    } else if (b.language === "rust") {
-      vars.BACKEND_TYPE_CHECK_CMD = "cargo check";
-    } else if (b.language === "python") {
-      vars.BACKEND_TYPE_CHECK_CMD = "mypy .";
-    } else if (b.language === "typescript" || b.language === "javascript") {
-      vars.BACKEND_TYPE_CHECK_CMD = "npx tsc --noEmit";
-    } else {
-      vars.BACKEND_TYPE_CHECK_CMD = "";
-    }
+    vars.BACKEND_TYPE_CHECK_CMD = LANG_TYPE_CHECK_CMD[b.language] ?? "";
 
     // Backend dir
     vars.BACKEND_DIR = detectBackendDir(project);
@@ -125,13 +144,7 @@ export function mapBestPractices(
     }
 
     // API docs library
-    if (b.framework === "django") {
-      vars.API_DOCS_LIBRARY = "drf-spectacular";
-    } else if (b.framework === "fastapi") {
-      vars.API_DOCS_LIBRARY = "FastAPI built-in OpenAPI (Swagger UI + ReDoc)";
-    } else {
-      vars.API_DOCS_LIBRARY = "none";
-    }
+    vars.API_DOCS_LIBRARY = FRAMEWORK_API_DOCS[b.framework] ?? "none";
   }
 
   // ---- Frontend ----
@@ -158,11 +171,7 @@ export function mapBestPractices(
   vars.PROJECT_NAME = path.basename(path.resolve(project.rootPath)) || "my-project";
   vars.REPO_NAME = vars.PROJECT_NAME;
 
-  if (project.cicd?.provider === "github-actions") {
-    vars.GIT_HOST = "github.com";
-  } else if (project.cicd?.provider === "gitlab-ci") {
-    vars.GIT_HOST = "gitlab.com";
-  }
+  if (project.cicd?.provider) vars.GIT_HOST = CICD_GIT_HOST[project.cicd.provider] ?? vars.GIT_HOST;
   vars.DEFAULT_BRANCH = detectDefaultBranch(project.rootPath);
 
   // ---- Package-specific variables ----
@@ -240,13 +249,7 @@ function applyStackProfile(vars: TemplateVariables, profile: StackProfile): void
   vars.LOGGING_CANONICAL_KEYS = profile.loggingPattern === "structured"
     ? "trace_id, span_id, user_id, entity_id, action"
     : "none";
-  if (profile.framework === "django") {
-    vars.API_DOCS_LIBRARY = "drf-spectacular";
-  } else if (profile.framework === "fastapi") {
-    vars.API_DOCS_LIBRARY = "FastAPI built-in OpenAPI (Swagger UI + ReDoc)";
-  } else {
-    vars.API_DOCS_LIBRARY = "none";
-  }
+  vars.API_DOCS_LIBRARY = FRAMEWORK_API_DOCS[profile.framework ?? ""] ?? "none";
 
   const c = profile.commands;
   vars.BACKEND_TEST_CMD = c.test ?? "none";

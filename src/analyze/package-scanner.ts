@@ -237,33 +237,41 @@ function createEmptyUsage(): PackageUsage {
 
 // ---- Lock file parsers ----
 
-async function mergeNpmDeps(rootPath: string, deps: Record<string, string>, devDeps: Record<string, string>): Promise<void> {
-  // Try root + monorepo subdirs
-  const pkgPaths = [rootPath];
-  for (const sub of ["apps", "packages", "client", "web", "frontend", "server", "api"]) {
-    const subPath = path.join(rootPath, sub);
-    try {
-      if (await fs.pathExists(subPath)) {
-        const stat = await fs.stat(subPath);
-        if (stat.isDirectory()) {
-          // If it contains package.json directly, add it
-          if (await fs.pathExists(path.join(subPath, "package.json"))) {
-            pkgPaths.push(subPath);
-          }
-          // Also recurse into subdirectories (e.g. apps/client, apps/server)
-          const entries = await fs.readdir(subPath, { withFileTypes: true });
-          for (const entry of entries) {
-            if (entry.isDirectory() && !entry.name.startsWith(".")) {
-              const nested = path.join(subPath, entry.name);
-              if (await fs.pathExists(path.join(nested, "package.json"))) {
-                pkgPaths.push(nested);
-              }
-            }
-          }
+/** Returns dirs that have a package.json under the given subPath (itself and non-dot nested dirs). */
+async function collectPackageJsonDirsUnderSub(subPath: string): Promise<string[]> {
+  const found: string[] = [];
+  try {
+    const stat = await fs.stat(subPath);
+    if (!stat.isDirectory()) return found;
+    if (await fs.pathExists(path.join(subPath, "package.json"))) {
+      found.push(subPath);
+    }
+    const entries = await fs.readdir(subPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith(".")) {
+        const nested = path.join(subPath, entry.name);
+        if (await fs.pathExists(path.join(nested, "package.json"))) {
+          found.push(nested);
         }
       }
-    } catch {}
-  }
+    }
+  } catch {}
+  return found;
+}
+
+/** Collects rootPath plus all monorepo subdir package.json locations. */
+async function collectPackageJsonDirs(rootPath: string): Promise<string[]> {
+  const pkgPaths = [rootPath];
+  const monorepoSubs = ["apps", "packages", "client", "web", "frontend", "server", "api"];
+  const subResults = await Promise.all(
+    monorepoSubs.map((sub) => collectPackageJsonDirsUnderSub(path.join(rootPath, sub)))
+  );
+  for (const dirs of subResults) pkgPaths.push(...dirs);
+  return pkgPaths;
+}
+
+async function mergeNpmDeps(rootPath: string, deps: Record<string, string>, devDeps: Record<string, string>): Promise<void> {
+  const pkgPaths = await collectPackageJsonDirs(rootPath);
 
   for (const pkgPath of pkgPaths) {
     const pkgJson = await readJson(pkgPath, "package.json");

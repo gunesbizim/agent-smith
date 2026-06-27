@@ -49,7 +49,7 @@ function unwrapFence(text: string): string {
   const trimmed = text.trim();
   const lines = trimmed.split("\n");
   const first = lines[0]?.trim() ?? "";
-  const last = lines[lines.length - 1]?.trim() ?? "";
+  const last = lines.at(-1)?.trim() ?? "";
   const opensFence = first === "```" || first === "```markdown" || first === "```md";
   if (opensFence && last === "```" && lines.length >= 2) {
     return lines.slice(1, -1).join("\n").trim();

@@ -115,6 +115,20 @@ export function goAuth(goMod: string): string {
   return "unknown";
 }
 
+function nestjsORM(deps: Record<string, unknown>): string | null {
+  if (deps["@prisma/client"]) return "Prisma";
+  if (deps.typeorm) return "TypeORM";
+  if (deps.mikroorm) return "MikroORM";
+  if (deps.knex) return "Knex";
+  return null;
+}
+
+function prismaDrizzleORM(deps: Record<string, unknown>): string | null {
+  if (deps.prisma) return "Prisma";
+  if (deps.drizzle) return "Drizzle";
+  return null;
+}
+
 function nodeORM(deps: Record<string, unknown>): string | null {
   if (deps["@prisma/client"] || deps.prisma) return "Prisma";
   if (deps.drizzle || deps["drizzle-orm"]) return "Drizzle";
@@ -157,18 +171,25 @@ function goFrameworkRow(framework: BackendFramework, marker: string): DetectorRo
   };
 }
 
+function rustORM(manifest: string): string | null {
+  if (manifest.includes("diesel")) return "Diesel";
+  if (manifest.includes("sqlx")) return "SQLx";
+  if (manifest.includes("sea-orm")) return "SeaORM";
+  return null;
+}
+
 export const RUST_ROWS: DetectorRow[] = [
   {
     marker: (ev) => ev.manifest.includes("actix-web"),
     framework: "actix-web", language: "rust",
     facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", usesFunctionViews: true }),
-    capabilities: { orm: (ev) => ev.manifest.includes("diesel") ? "Diesel" : ev.manifest.includes("sqlx") ? "SQLx" : ev.manifest.includes("sea-orm") ? "SeaORM" : null },
+    capabilities: { orm: (ev) => rustORM(ev.manifest) },
   },
   {
     marker: (ev) => ev.manifest.includes("axum"),
     framework: "axum", language: "rust",
     facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", usesFunctionViews: true }),
-    capabilities: { orm: (ev) => ev.manifest.includes("sqlx") ? "SQLx" : ev.manifest.includes("diesel") ? "Diesel" : ev.manifest.includes("sea-orm") ? "SeaORM" : null },
+    capabilities: { orm: (ev) => rustORM(ev.manifest) },
   },
   {
     marker: (ev) => ev.manifest.includes("rocket"),
@@ -188,7 +209,7 @@ export const NODE_ROWS: DetectorRow[] = [
     marker: (ev) => !!ev.deps["@nestjs/core"],
     framework: "nestjs", language: "typescript",
     facts: baseFacts({ languageVersion: "", hasServiceRepo: true, rolePattern: "decorators", authMethod: "JWT", loggingPattern: "structured" }),
-    capabilities: { orm: (ev) => ev.deps["@prisma/client"] ? "Prisma" : ev.deps.typeorm ? "TypeORM" : ev.deps.mikroorm ? "MikroORM" : ev.deps.knex ? "Knex" : null },
+    capabilities: { orm: (ev) => nestjsORM(ev.deps) },
   },
   {
     marker: (ev) => !!ev.deps.fastify,
@@ -229,13 +250,13 @@ export const NODE_ROWS: DetectorRow[] = [
     marker: (ev) => !!ev.deps.next,
     framework: "nextjs-api", language: "typescript",
     facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "NextAuth", usesFunctionViews: true }),
-    capabilities: { orm: (ev) => ev.deps.prisma ? "Prisma" : ev.deps.drizzle ? "Drizzle" : null },
+    capabilities: { orm: (ev) => prismaDrizzleORM(ev.deps) },
   },
   {
     marker: (ev) => !!(ev.deps.nuxt || ev.deps["nuxt3"]),
     framework: "nuxt-api", language: "typescript",
     facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "session", usesFunctionViews: true }),
-    capabilities: { orm: (ev) => ev.deps.prisma ? "Prisma" : ev.deps.drizzle ? "Drizzle" : null },
+    capabilities: { orm: (ev) => prismaDrizzleORM(ev.deps) },
   },
   {
     marker: (ev) => !!(ev.deps["@remix-run/node"] || ev.deps["@remix-run/react"]),
@@ -247,7 +268,7 @@ export const NODE_ROWS: DetectorRow[] = [
     marker: (ev) => !!ev.deps["@sveltejs/kit"],
     framework: "sveltekit-api", language: "typescript",
     facts: baseFacts({ languageVersion: "", rolePattern: "middleware", authMethod: "session", usesFunctionViews: true }),
-    capabilities: { orm: (ev) => ev.deps.prisma ? "Prisma" : ev.deps.drizzle ? "Drizzle" : null },
+    capabilities: { orm: (ev) => prismaDrizzleORM(ev.deps) },
   },
   {
     marker: (ev) => !!(ev.deps["body-parser"] || ev.deps.cors || ev.deps.helmet),
@@ -256,6 +277,12 @@ export const NODE_ROWS: DetectorRow[] = [
     capabilities: { orm: (ev) => nodeORM(ev.deps) },
   },
 ];
+
+function sinatraORM(manifest: string): string | null {
+  if (manifest.includes("activerecord")) return "ActiveRecord";
+  if (manifest.includes("sequel")) return "Sequel";
+  return null;
+}
 
 export const RUBY_ROWS: DetectorRow[] = [
   {
@@ -267,7 +294,7 @@ export const RUBY_ROWS: DetectorRow[] = [
     marker: (ev) => ev.manifest.includes("sinatra"),
     framework: "sinatra", language: "ruby",
     facts: baseFacts({ languageVersion: "3.x", rolePattern: "manual", authMethod: "none", usesFunctionViews: true }),
-    capabilities: { orm: (ev) => ev.manifest.includes("activerecord") ? "ActiveRecord" : ev.manifest.includes("sequel") ? "Sequel" : null },
+    capabilities: { orm: (ev) => sinatraORM(ev.manifest) },
   },
   {
     marker: () => true,
@@ -275,6 +302,12 @@ export const RUBY_ROWS: DetectorRow[] = [
     facts: baseFacts({ languageVersion: "3.x", rolePattern: "none", authMethod: "none", usesFunctionViews: true }),
   },
 ];
+
+function slimORM(require: Record<string, string>): string | null {
+  if (require["illuminate/database"]) return "Eloquent";
+  if (require["doctrine/orm"]) return "Doctrine";
+  return null;
+}
 
 export const PHP_ROWS: DetectorRow[] = [
   {
@@ -292,7 +325,7 @@ export const PHP_ROWS: DetectorRow[] = [
     marker: (ev) => !!ev.require["slim/slim"],
     framework: "slim", language: "php",
     facts: baseFacts({ languageVersion: "8.x", rolePattern: "middleware", authMethod: "none", usesFunctionViews: true }),
-    capabilities: { orm: (ev) => ev.require["illuminate/database"] ? "Eloquent" : ev.require["doctrine/orm"] ? "Doctrine" : null },
+    capabilities: { orm: (ev) => slimORM(ev.require) },
   },
   {
     marker: () => true,
@@ -300,6 +333,26 @@ export const PHP_ROWS: DetectorRow[] = [
     facts: baseFacts({ languageVersion: "8.x", rolePattern: "none", authMethod: "none", usesFunctionViews: true }),
   },
 ];
+
+function springBootORM(manifest: string): string | null {
+  const hasJpa = manifest.includes("data-jpa") || manifest.includes("hibernate")
+    || manifest.includes("jakarta.persistence") || manifest.includes("javax.persistence");
+  if (hasJpa) return "JPA/Hibernate";
+  if (manifest.includes("mybatis")) return "MyBatis";
+  return null;
+}
+
+function ktorORM(manifest: string): string | null {
+  if (manifest.includes("exposed")) return "Exposed";
+  if (manifest.includes("hibernate")) return "Hibernate";
+  return null;
+}
+
+function playORM(manifest: string): string | null {
+  if (manifest.includes("slick")) return "Slick";
+  if (manifest.includes("anorm")) return "Anorm";
+  return null;
+}
 
 export const JVM_ROWS: DetectorRow[] = [
   {
@@ -312,7 +365,7 @@ export const JVM_ROWS: DetectorRow[] = [
       version: (ev) => ev.manifest.includes("kotlin") ? "2.x" : "21",
       // Match real JPA artifacts: "spring-boot-starter-data-jpa" does NOT contain "spring-data-jpa";
       // check the broader "data-jpa" plus direct Hibernate/JPA markers.
-      orm: (ev) => ev.manifest.includes("data-jpa") || ev.manifest.includes("hibernate") || ev.manifest.includes("jakarta.persistence") || ev.manifest.includes("javax.persistence") ? "JPA/Hibernate" : ev.manifest.includes("mybatis") ? "MyBatis" : null,
+      orm: (ev) => springBootORM(ev.manifest),
     },
   },
   {
@@ -337,13 +390,13 @@ export const JVM_ROWS: DetectorRow[] = [
     marker: (ev) => ev.manifest.includes("ktor"),
     framework: "ktor", language: "kotlin",
     facts: baseFacts({ languageVersion: "2.x", rolePattern: "middleware", authMethod: "Ktor Auth", usesFunctionViews: true }),
-    capabilities: { orm: (ev) => ev.manifest.includes("exposed") ? "Exposed" : ev.manifest.includes("hibernate") ? "Hibernate" : null },
+    capabilities: { orm: (ev) => ktorORM(ev.manifest) },
   },
   {
     marker: (ev) => ev.manifest.includes("play"),
     framework: "play-framework", language: "scala",
     facts: baseFacts({ languageVersion: "3.x", rolePattern: "middleware", authMethod: "Play Auth" }),
-    capabilities: { orm: (ev) => ev.manifest.includes("slick") ? "Slick" : ev.manifest.includes("anorm") ? "Anorm" : null },
+    capabilities: { orm: (ev) => playORM(ev.manifest) },
   },
   {
     marker: () => true,
@@ -351,6 +404,12 @@ export const JVM_ROWS: DetectorRow[] = [
     facts: baseFacts({ languageVersion: "21", rolePattern: "none", authMethod: "none" }),
   },
 ];
+
+function dotnetORM(manifest: string): string | null {
+  if (manifest.includes("EntityFrameworkCore")) return "Entity Framework Core";
+  if (manifest.includes("Dapper")) return "Dapper";
+  return null;
+}
 
 export const DOTNET_ROWS: DetectorRow[] = [
   {
@@ -361,7 +420,7 @@ export const DOTNET_ROWS: DetectorRow[] = [
       framework: (ev) => ev.manifest.includes("Blazor") ? "blazor-api" : "aspnet-core",
       // Blazor app is not service/repo layered in the original literal; ASP.NET Core is.
       hasServiceRepo: (ev) => !ev.manifest.includes("Blazor"),
-      orm: (ev) => ev.manifest.includes("EntityFrameworkCore") ? "Entity Framework Core" : ev.manifest.includes("Dapper") ? "Dapper" : null,
+      orm: (ev) => dotnetORM(ev.manifest),
     },
   },
   {
@@ -405,34 +464,38 @@ function baseFacts(over: Partial<DetectorRow["facts"]>): DetectorRow["facts"] {
   };
 }
 
+function resolveRowToBackendInfo(row: DetectorRow, ev: DetectionEvidence): BackendInfo {
+  const cap = row.capabilities;
+  const language = cap?.language ? cap.language(ev) : row.language;
+  let languageVersion = cap?.version ? cap.version(ev) : row.facts.languageVersion;
+  // B1: derive the REAL TS/JS version from package.json rather than a fabricated stamp; an
+  // unparseable version stays "" (honest) instead of the old hardcoded "5.x".
+  if (!languageVersion && (language === "typescript" || language === "javascript")) {
+    languageVersion = tsVersion(ev.deps);
+  }
+  return {
+    framework: cap?.framework ? cap.framework(ev) : row.framework,
+    language,
+    languageVersion,
+    hasHexagonalArch: row.facts.hasHexagonalArch,
+    hasServiceRepo: cap?.hasServiceRepo ? cap.hasServiceRepo(ev) : row.facts.hasServiceRepo,
+    usesAPIView: row.facts.usesAPIView,
+    usesFunctionViews: row.facts.usesFunctionViews,
+    importStyle: "absolute",
+    rolePattern: row.facts.rolePattern,
+    authMethod: cap?.auth ? cap.auth(ev) : row.facts.authMethod,
+    loggingPattern: cap?.logging ? cap.logging(ev) : row.facts.loggingPattern,
+    orm: cap?.orm ? cap.orm(ev) : row.facts.orm,
+  };
+}
+
 // Walk a row set, return the BackendInfo of the first matching row (facts + extractors),
 // or null when no row matches (used by language families that have no generic fallback,
 // e.g. monorepo Node sub-detection where "no marker" means "not a backend here").
 export function detectBackendFromRegistry(rows: DetectorRow[], ev: DetectionEvidence): BackendInfo | null {
   for (const row of rows) {
     if (!row.marker(ev)) continue;
-    const cap = row.capabilities;
-    const language = cap?.language ? cap.language(ev) : row.language;
-    let languageVersion = cap?.version ? cap.version(ev) : row.facts.languageVersion;
-    // B1: derive the REAL TS/JS version from package.json rather than a fabricated stamp; an
-    // unparseable version stays "" (honest) instead of the old hardcoded "5.x".
-    if (!languageVersion && (language === "typescript" || language === "javascript")) {
-      languageVersion = tsVersion(ev.deps);
-    }
-    return {
-      framework: cap?.framework ? cap.framework(ev) : row.framework,
-      language,
-      languageVersion,
-      hasHexagonalArch: row.facts.hasHexagonalArch,
-      hasServiceRepo: cap?.hasServiceRepo ? cap.hasServiceRepo(ev) : row.facts.hasServiceRepo,
-      usesAPIView: row.facts.usesAPIView,
-      usesFunctionViews: row.facts.usesFunctionViews,
-      importStyle: "absolute",
-      rolePattern: row.facts.rolePattern,
-      authMethod: cap?.auth ? cap.auth(ev) : row.facts.authMethod,
-      loggingPattern: cap?.logging ? cap.logging(ev) : row.facts.loggingPattern,
-      orm: cap?.orm ? cap.orm(ev) : row.facts.orm,
-    };
+    return resolveRowToBackendInfo(row, ev);
   }
   return null;
 }

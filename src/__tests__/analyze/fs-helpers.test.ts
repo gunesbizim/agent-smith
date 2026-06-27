@@ -68,6 +68,6 @@ describe("fs-helpers", () => {
     const subs = await findSubPackages(dir, c);
     expect(subs.some((s) => s.endsWith(path.join("apps", "api")))).toBe(true);
     const pkgs = await findAllPackageJsons(dir, c);
-    expect(pkgs.length).toBe(2); // root + apps/api
+    expect(pkgs).toHaveLength(2); // root + apps/api
   });
 });

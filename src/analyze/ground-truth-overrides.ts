@@ -34,6 +34,7 @@ export const LEDGER_KEY_TO_VAR: Record<string, keyof TemplateVariables> = {
 function renderConfirmed(value: unknown): string {
   if (value === null || value === undefined) return "none";
   if (typeof value === "string") return value;
+  if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }
 

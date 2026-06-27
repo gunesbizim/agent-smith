@@ -87,9 +87,9 @@ export function substituteToFixpoint(
   }
   const residual = extractPlaceholders(out);
   if (residual.length > 0) {
-    console.warn(
-      `⚠ Unresolved template placeholders in ${fileLabel}: ${residual.map((p) => `{{${p}}}`).join(", ")}`,
-    );
+    const wrapPlaceholder = (p: string): string => "{{" + p + "}}";
+    const placeholderList = residual.map(wrapPlaceholder).join(", ");
+    console.warn(`⚠ Unresolved template placeholders in ${fileLabel}: ${placeholderList}`);
   }
   return out;
 }

@@ -77,7 +77,7 @@ export async function gatherStackEvidence(rootPath: string): Promise<StackEviden
     collectFiles(rootPath, CI_GLOBS),
   ]);
 
-  // TODO: A future version can populate GitNexusEvidence (topImports, supertypes,
+  // A future version can populate GitNexusEvidence (topImports, supertypes,
   // clusters) by querying an installed + indexed GitNexus — via its CLI or MCP.
   // It must stay best-effort and OPTIONAL: GitNexus may not be installed, so this
   // step must never block or throw. For now we return null when it is absent.
@@ -131,7 +131,7 @@ async function readEvidenceFile(rootPath: string, absPath: string): Promise<Evid
     return null;
   }
 
-  content = content.replace(/\r\n/g, "\n"); // normalize line endings cross-platform
+  content = content.replaceAll("\r\n", "\n"); // normalize line endings cross-platform
   if (content.length > MAX_FILE_CHARS) {
     content = content.slice(0, MAX_FILE_CHARS) + TRUNCATION_MARKER;
   }

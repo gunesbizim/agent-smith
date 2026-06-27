@@ -23,7 +23,14 @@ interface RunOptions {
 
 export async function runCommand(input: string, opts: RunOptions): Promise<void> {
   const root = path.resolve(opts.dir ?? process.cwd());
-  const approvalGate: ApprovalGate = opts.auto ? "none" : opts.approveAll ? "all" : "plan";
+  let approvalGate: ApprovalGate;
+  if (opts.auto) {
+    approvalGate = "none";
+  } else if (opts.approveAll) {
+    approvalGate = "all";
+  } else {
+    approvalGate = "plan";
+  }
 
   console.log(chalk.bold.cyan(`\n⚒ Agent Smith — TDD engine\n`));
 
@@ -65,12 +72,14 @@ export async function runCommand(input: string, opts: RunOptions): Promise<void>
   );
 
   const s = result.state;
-  const line =
-    s.status === "completed"
-      ? chalk.green("✓ Run completed")
-      : s.status === "paused"
-        ? chalk.yellow("⏸ Run paused (approval gate) — resume with --resume " + result.runId)
-        : chalk.red("✗ Run " + s.status);
+  let line: string;
+  if (s.status === "completed") {
+    line = chalk.green("✓ Run completed");
+  } else if (s.status === "paused") {
+    line = chalk.yellow("⏸ Run paused (approval gate) — resume with --resume " + result.runId);
+  } else {
+    line = chalk.red("✗ Run " + s.status);
+  }
   console.log(`\n${line}`);
   console.log(chalk.gray(`  run id: ${result.runId}`));
   console.log(chalk.gray(`  phases done: ${s.phasesCompleted.join(", ") || "(none)"}`));
@@ -94,7 +103,7 @@ async function resolveInput(input: string, root: string): Promise<{ ticketId: st
 }
 
 function deriveBranch(task: string): string {
-  const slug = task.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "task";
+  const slug = task.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+/, "").replace(/-+$/, "").slice(0, 40) || "task";
   return `feat/${slug}`;
 }
 

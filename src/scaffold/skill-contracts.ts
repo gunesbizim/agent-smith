@@ -38,13 +38,13 @@ function frontmatter(content: string): string | null {
 
 // Minimal YAML-ish reader for the flat contract keys we support (scalars + inline `[a, b]` lists).
 function readList(fm: string, key: string): string[] | null {
-  const m = new RegExp(`^${key}:\\s*\\[(.*?)\\]\\s*$`, "m").exec(fm);
+  const m = new RegExp(String.raw`^${key}:\s*\[(.*?)\]\s*$`, "m").exec(fm);
   if (!m) return null;
   return m[1].split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean);
 }
 
 function readNumber(fm: string, key: string): number | null {
-  const m = new RegExp(`^${key}:\\s*(\\d+)\\s*$`, "m").exec(fm);
+  const m = new RegExp(String.raw`^${key}:\s*(\d+)\s*$`, "m").exec(fm);
   return m ? Number(m[1]) : null;
 }
 

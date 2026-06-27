@@ -23,36 +23,42 @@ export interface SkillGenUsage {
   calls: SkillGenCall[];
 }
 
+/** Tally tool_use blocks from one parsed JSONL message into `tools`; update `model` if not yet set. */
+function processTranscriptLine(
+  line: string,
+  state: { model: string; tools: Record<string, number> },
+): void {
+  const t = line.trim();
+  if (!t) return;
+  let o: { message?: unknown } & Record<string, unknown>;
+  try {
+    o = JSON.parse(t);
+  } catch {
+    return;
+  }
+  const msg = (o.message ?? o) as { model?: unknown; content?: unknown };
+  if (state.model === "unknown" && typeof msg.model === "string") state.model = msg.model;
+  if (!Array.isArray(msg.content)) return;
+  for (const b of msg.content as Array<Record<string, unknown>>) {
+    if (b?.type === "tool_use" && typeof b.name === "string") {
+      state.tools[b.name] = (state.tools[b.name] ?? 0) + 1;
+    }
+  }
+}
+
 /** Tally tool_use calls (and capture the model) from one transcript JSONL file. */
 export function parseTranscriptTools(file: string): { model: string; tools: Record<string, number> } {
-  const tools: Record<string, number> = {};
-  let model = "unknown";
+  const state = { model: "unknown", tools: {} as Record<string, number> };
   let raw: string;
   try {
     raw = fs.readFileSync(file, "utf-8");
   } catch {
-    return { model, tools };
+    return state;
   }
   for (const line of raw.split("\n")) {
-    const t = line.trim();
-    if (!t) continue;
-    let o: { message?: unknown } & Record<string, unknown>;
-    try {
-      o = JSON.parse(t);
-    } catch {
-      continue;
-    }
-    const msg = (o.message ?? o) as { model?: unknown; content?: unknown };
-    if (model === "unknown" && typeof msg.model === "string") model = msg.model;
-    if (Array.isArray(msg.content)) {
-      for (const b of msg.content as Array<Record<string, unknown>>) {
-        if (b && b.type === "tool_use" && typeof b.name === "string") {
-          tools[b.name] = (tools[b.name] ?? 0) + 1;
-        }
-      }
-    }
+    processTranscriptLine(line, state);
   }
-  return { model, tools };
+  return state;
 }
 
 /**
@@ -72,7 +78,7 @@ export function collectSkillGenUsage(sessionId: string, homeDir: string = os.hom
     const { model, tools } = parseTranscriptTools(p);
     calls.push({ label: "orchestrator", model, tools });
   }
-  for (const s of subs.sort((a, b) => a.localeCompare(b))) {
+  for (const s of [...subs].sort((a, b) => a.localeCompare(b))) {
     const { model, tools } = parseTranscriptTools(s);
     calls.push({ label: path.basename(s, ".jsonl"), model, tools });
   }

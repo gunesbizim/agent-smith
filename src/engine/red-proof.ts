@@ -61,11 +61,11 @@ export function detectFramework(hint: string | undefined, stdout: string): TestF
   if (h.includes("go")) return "go";
   if (h.includes("cargo") || h.includes("rust")) return "cargo";
 
-  if (/={5,}\s*(test session starts|FAILURES|ERRORS|short test summary)/i.test(stdout) || /\bPASSED\b|\bFAILED\b/.test(stdout)) {
+  if (/={5,}[ \t]+(?:test session starts|FAILURES|ERRORS|short test summary)/i.test(stdout) || /\bPASSED\b|\bFAILED\b/.test(stdout)) {
     return "pytest";
   }
-  if (/^\s*(✓|×|✗|❯)\s/m.test(stdout) || /\bRUN\b.*\bv\d/i.test(stdout)) return "vitest";
-  if (/(PASS|FAIL)\s+.+\.(test|spec)\.[tj]sx?/.test(stdout)) return "jest";
+  if (/^\s*[✓×✗❯]\s/m.test(stdout) || /\bRUN\b.*\bv\d/i.test(stdout)) return "vitest";
+  if (/^(?:PASS|FAIL) /m.test(stdout) && /\.(?:test|spec)\.[tj]sx?/.test(stdout)) return "jest";
   if (/^(ok|FAIL)\s+\S+/m.test(stdout) && /---\s*(PASS|FAIL):/.test(stdout)) return "go";
   if (/test result:\s+(ok|FAILED)\./.test(stdout)) return "cargo";
   return "generic";
@@ -99,12 +99,12 @@ const PARSERS: Record<TestFramework, FrameworkParser> = {
 // "ERRORS" banner or "errors during collection".
 function parsePytest(stdout: string): { tests: TestResult[]; collectionError: boolean } {
   const tests: TestResult[] = [];
-  const re = /^(\S+::\S+)\s+(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)\b/gm;
+  const re = /^([^:\s]+::[^\s]+)\s+(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)\b/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(stdout)) !== null) {
     tests.push({ id: m[1], status: pytestStatus(m[2]) });
   }
-  const collectionError = /errors during collection|^ERROR\s+\S+|={3,}\s*ERRORS\s*={3,}/im.test(stdout);
+  const collectionError = /errors during collection|^ERROR[ \t]+\S+|={3,}[ \t]+ERRORS[ \t]+={3,}/im.test(stdout);
   return { tests, collectionError };
 }
 
@@ -125,13 +125,16 @@ function pytestStatus(s: string): TestStatus {
 
 // vitest / jest verbose: `✓ suite > name` (pass), `× name` or `✗ name` (fail). Collection/transform
 // errors surface as "Failed to load" / "transform error" / "Cannot find module".
+// Strip a trailing timing annotation like " 3ms" or " 1.2ms" from a test-id line.
+const TIMING_SUFFIX = /\s+\d[\d.]*\s*m?s\s*$/;
+
 function parseVitestJest(stdout: string): { tests: TestResult[]; collectionError: boolean } {
   const tests: TestResult[] = [];
-  const re = /^\s*([✓×✗❯])\s+(.+?)(?:\s+\d+(?:\.\d+)?\s*m?s)?\s*$/gm;
+  const re = /^\s*([✓×✗❯])\s+(.+)$/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(stdout)) !== null) {
     const mark = m[1];
-    const id = m[2].trim();
+    const id = m[2].replace(TIMING_SUFFIX, "").trim();
     if (mark === "❯") continue; // a file/describe header, not a test
     tests.push({ id, status: mark === "✓" ? "pass" : "fail" });
   }
@@ -142,10 +145,18 @@ function parseVitestJest(stdout: string): { tests: TestResult[]; collectionError
 // `go test -v`: `--- PASS: TestName (0.00s)` / `--- FAIL: TestName`. Build failure ⇒ collectionError.
 function parseGo(stdout: string): { tests: TestResult[]; collectionError: boolean } {
   const tests: TestResult[] = [];
-  const re = /^\s*--- (PASS|FAIL|SKIP):\s+(\S+)/gm;
+  const re = /^[ \t]*--- (PASS|FAIL|SKIP):[ \t]+(\S+)/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(stdout)) !== null) {
-    tests.push({ id: m[2], status: m[1] === "PASS" ? "pass" : m[1] === "SKIP" ? "skip" : "fail" });
+    let status: TestStatus;
+    if (m[1] === "PASS") {
+      status = "pass";
+    } else if (m[1] === "SKIP") {
+      status = "skip";
+    } else {
+      status = "fail";
+    }
+    tests.push({ id: m[2], status });
   }
   const collectionError = /\[build failed\]|cannot find package|undefined:/i.test(stdout);
   return { tests, collectionError };
@@ -157,7 +168,15 @@ function parseCargo(stdout: string): { tests: TestResult[]; collectionError: boo
   const re = /^test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)\b/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(stdout)) !== null) {
-    tests.push({ id: m[1], status: m[2] === "ok" ? "pass" : m[2] === "ignored" ? "skip" : "fail" });
+    let status: TestStatus;
+    if (m[2] === "ok") {
+      status = "pass";
+    } else if (m[2] === "ignored") {
+      status = "skip";
+    } else {
+      status = "fail";
+    }
+    tests.push({ id: m[1], status });
   }
   const collectionError = /error\[E\d+\]|could not compile/i.test(stdout);
   return { tests, collectionError };

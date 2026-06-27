@@ -6,8 +6,8 @@
 export function extractJson<T = unknown>(text: string | null): T | null {
   if (!text) return null;
 
-  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidates = fence ? [fence[1], text] : [text];
+  const fence = extractFenceContent(text);
+  const candidates = fence !== null ? [fence, text] : [text];
 
   for (const c of candidates) {
     const trimmed = c.trim();
@@ -20,6 +20,22 @@ export function extractJson<T = unknown>(text: string | null): T | null {
     }
   }
   return null;
+}
+
+// Extract the body of the first ```[json] … ``` fence without a lazy wildcard (avoids S8786).
+function extractFenceContent(text: string): string | null {
+  const open = text.indexOf("```");
+  if (open < 0) return null;
+  // Skip optional language tag (e.g. "json") up to first newline; if no newline, body starts right after ```
+  let body = open + 3;
+  const nl = text.indexOf("\n", body);
+  if (nl >= 0) {
+    const tag = text.slice(body, nl).trim().toLowerCase();
+    if (tag === "" || tag === "json") body = nl + 1;
+  }
+  const close = text.indexOf("```", body);
+  if (close < 0) return null;
+  return text.slice(body, close);
 }
 
 function tryParse<T>(text: string): T | null {

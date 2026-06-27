@@ -41,14 +41,14 @@ describe("buildReport", () => {
       ["src"],
       "/tmp/proj",
     );
-    expect(report.changedCodeFiles.length).toBe(2);
+    expect(report.changedCodeFiles).toHaveLength(2);
     expect(report.suggestions).not.toContain("commit: documentation-only changes ready to commit");
     expect(report.suggestions.some((s: string) => s.startsWith("commit: uncommitted code changes"))).toBe(true);
   });
 
   it("flags documentation-only ONLY when there are no code changes", () => {
     const report = buildReport(["docs/a.md", "README.md"], ["src"], "/tmp/proj");
-    expect(report.changedCodeFiles.length).toBe(0);
+    expect(report.changedCodeFiles).toHaveLength(0);
     expect(report.suggestions).toContain("commit: documentation-only changes ready to commit");
   });
 

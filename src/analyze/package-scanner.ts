@@ -293,7 +293,7 @@ function parsePnpmLock(content: string, deps: Record<string, string>, devDeps: R
   const lines = content.split("\n");
   let currentPkg = "";
   for (const line of lines) {
-    const pkgMatch = line.match(/^  \/(\S+)\/(\S+):$/);
+    const pkgMatch = line.match(/^  \/(\S+?)\/([^\s/]+):$/);
     if (pkgMatch) {
       currentPkg = pkgMatch[2];
       continue;
@@ -336,7 +336,7 @@ async function mergePythonDeps(rootPath: string, deps: Record<string, string>): 
   const reqTxt = await readFileSafe(rootPath, "requirements.txt");
   if (reqTxt) {
     for (const line of reqTxt.split("\n")) {
-      const m = line.trim().match(/^(\S[^=<>!]+)\s*[>=<~!]=\s*(\S+)/);
+      const m = line.trim().match(/^([^\s=<>!][^=<>!]*?)\s*[>=<~!]=\s*(\S+)/);
       if (m) deps[m[1]] = m[2];
     }
   }
@@ -346,7 +346,7 @@ async function mergePythonDeps(rootPath: string, deps: Record<string, string>): 
     const depSection = pyproject.match(/dependencies\s*=\s*\[([\s\S]*?)\]/);
     if (depSection) {
       for (const line of depSection[1].split("\n")) {
-        const m = line.trim().match(/["'](\S+)\s*[>=<~!]=\s*(\S+)["']/);
+        const m = line.trim().match(/["']([^\s=<>!'"]+)\s*[>=<~!]=\s*([^\s'"]+)["']/);
         if (m) deps[m[1]] = m[2];
       }
     }

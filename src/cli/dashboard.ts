@@ -33,7 +33,14 @@ export async function dashboardCommand(opts: DashboardOptions): Promise<void> {
 }
 
 function openBrowser(url: string): void {
-  const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
+  let cmd: string;
+  if (process.platform === "darwin") {
+    cmd = "open";
+  } else if (process.platform === "win32") {
+    cmd = "start";
+  } else {
+    cmd = "xdg-open";
+  }
   try {
     spawn(cmd, [url], { stdio: "ignore", detached: true }).unref(); // NOSONAR — fixed opener, local URL
   } catch {

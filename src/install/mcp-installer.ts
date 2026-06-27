@@ -1,5 +1,6 @@
 // MCP installer — downloads and configures MCP servers
 import { spawn, execFileSync } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
 import chalk from "chalk";
@@ -245,6 +246,7 @@ export async function configureMCPs(
   platform: string = "claude-code",
   dryRun: boolean = false,
   project: DetectedProject | null = null,
+  userMcpPath: string = path.join(os.homedir(), ".claude", ".mcp.json"),
 ): Promise<MCPConfigBundle> {
   const bundle: MCPConfigBundle = {
     projectSettings: {},
@@ -263,17 +265,9 @@ export async function configureMCPs(
     addServerToBundle(bundle, server, vars, dryRun);
   }
 
-  // Also put browser tools in .mcp.json scope — only when a frontend exists.
-  if (bundle.projectSettings.playwright) {
-    bundle.projectMcp.playwright = bundle.projectSettings.playwright;
-  }
-  if (bundle.projectSettings["chrome-devtools"]) {
-    bundle.projectMcp["chrome-devtools"] = bundle.projectSettings["chrome-devtools"];
-  }
-
   if (!dryRun) {
-    writeClaudeSettings(projectRoot, bundle);
     writeProjectMcp(projectRoot, bundle);
+    writeUserMcp(userMcpPath, bundle);
   }
 
   return bundle;
@@ -304,29 +298,11 @@ function addServerToBundle(
 
   const entry = { type: "stdio" as const, ...resolveConfigEnv(server.configTemplate, vars) };
   if (server.scope === "project" || server.scope === "both") {
-    bundle.projectSettings[server.name] = entry;
+    bundle.projectMcp[server.name] = entry;
   }
   if (server.scope === "user" || server.scope === "both") {
     bundle.userMcp[server.name] = entry;
   }
-}
-
-/** Merge bundle.projectSettings into .claude/settings.json. */
-function writeClaudeSettings(projectRoot: string, bundle: MCPConfigBundle): void {
-  const settingsPath = path.join(projectRoot, ".claude", "settings.json");
-  fs.ensureDirSync(path.dirname(settingsPath));
-
-  let existingSettings: Record<string, unknown> = {};
-  if (fs.existsSync(settingsPath)) {
-    existingSettings = fs.readJsonSync(settingsPath);
-  }
-
-  existingSettings.mcpServers = {
-    ...(existingSettings.mcpServers as Record<string, unknown> ?? {}),
-    ...bundle.projectSettings,
-  };
-
-  fs.writeJsonSync(settingsPath, existingSettings, { spaces: 2 });
 }
 
 /** Merge bundle.projectMcp into the repo's .mcp.json. */
@@ -341,6 +317,25 @@ function writeProjectMcp(projectRoot: string, bundle: MCPConfigBundle): void {
     ...bundle.projectMcp,
   };
   fs.writeJsonSync(mcpPath, existingMcp, { spaces: 2 });
+}
+
+/**
+ * Merge bundle.userMcp into the user-level MCP config file
+ * (default: ~/.claude/.mcp.json). Pass a custom path in tests
+ * so the real user file is never touched.
+ */
+function writeUserMcp(userMcpPath: string, bundle: MCPConfigBundle): void {
+  if (Object.keys(bundle.userMcp).length === 0) return;
+  fs.ensureDirSync(path.dirname(userMcpPath));
+  let existing: Record<string, unknown> = {};
+  if (fs.existsSync(userMcpPath)) {
+    existing = fs.readJsonSync(userMcpPath);
+  }
+  existing.mcpServers = {
+    ...(existing.mcpServers as Record<string, unknown> ?? {}),
+    ...bundle.userMcp,
+  };
+  fs.writeJsonSync(userMcpPath, existing, { spaces: 2 });
 }
 
 function resolveConfigEnv(

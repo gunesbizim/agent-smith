@@ -50,7 +50,10 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     configTemplate: {
       type: "stdio",
       command: "serena",
-      args: ["start-mcp-server", "--project-from-cwd"],
+      // --context claude-code is REQUIRED: serena defaults to the `desktop-app`
+      // context, which misconfigures it for Claude Code (wrong tool surface /
+      // behavior). Without this serena connects but does not operate correctly.
+      args: ["start-mcp-server", "--context", "claude-code", "--project-from-cwd"],
       env: {},
     },
   },

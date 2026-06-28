@@ -58,6 +58,7 @@ export interface HookConfig {
 
 export function buildHookConfig(projectRoot: string, hooksDir: string): HookConfig {
   const doctorHook = path.join(hooksDir, "session-start-doctor.js");
+  const dashboardAutostartHook = path.join(hooksDir, "session-start-dashboard.js");
   const permissionGuardHook = path.join(hooksDir, "pre-tool-permission-guard.js");
   const gitGuardHook = path.join(hooksDir, "pre-tool-git-guard.js");
   const sentruxGateHook = path.join(hooksDir, "pre-tool-sentrux-gate.js");
@@ -87,6 +88,14 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
             type: "command",
             command: `node "${doctorHook}"`,
             statusMessage: "Agent Smith — checking project health...",
+          },
+          {
+            // Serena-style: auto-start the tracking dashboard (and open it) if it isn't already
+            // serving on its port. Idempotent across sessions via a port probe; fully best-effort and
+            // opt-out with AGENT_SMITH_DASHBOARD_AUTOSTART=0.
+            type: "command",
+            command: `node "${dashboardAutostartHook}"`,
+            statusMessage: "Agent Smith — starting dashboard...",
           },
         ],
       },

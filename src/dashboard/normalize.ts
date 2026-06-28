@@ -3,8 +3,8 @@
 // Handles both engine runs (full agent_call_started/finished pairs grouped by phase) and interactive
 // runs captured by the telemetry hook (only agent_call_finished, no phase_started — synthesized under
 // an "interactive" phase). Pure and deterministic; `nowMs` is injectable for live wall-clock.
-import type { AgentCallFinishedEvent, EngineEvent } from "../engine/events.js";
-import type { AgentCallDTO, CallStatus, PhaseDTO, RunDTO, RunOrigin } from "./types.js";
+import type { AgentCallFinishedEvent, EngineEvent, ToolCallEvent } from "../engine/events.js";
+import type { AgentCallDTO, CallStatus, PhaseDTO, RunDTO, RunOrigin, ToolCallsAggregation } from "./types.js";
 
 const CALL_STATUS: Record<string, CallStatus> = { ok: "done", error: "failed", timeout: "failed" };
 const RUN_FINISHED_STATUS: Record<string, CallStatus> = { completed: "done", failed: "failed" };
@@ -63,6 +63,9 @@ export function normalizeRun(runId: string, events: EngineEvent[], nowMs: number
   let finishedAt: string | null = null;
   let runStatus: CallStatus = "running";
 
+  // Accumulator for tool_call events
+  const toolCallsAgg: ToolCallsAggregation = { total: 0, mcpCount: 0, byTool: {}, byServer: {} };
+
   for (const e of events) {
     switch (e.type) {
       case "run_started":
@@ -97,6 +100,9 @@ export function normalizeRun(runId: string, events: EngineEvent[], nowMs: number
         notePhaseInto(e.phase, phaseSeen, phaseOrder);
         applyCallFinished(e, calls, runId, origin);
         break;
+      case "tool_call":
+        applyToolCall(e, toolCallsAgg);
+        break;
       case "run_finished":
         runStatus = mapRunFinishedStatus(e.status);
         finishedAt = e.ts;
@@ -123,7 +129,19 @@ export function normalizeRun(runId: string, events: EngineEvent[], nowMs: number
     status: deriveRunStatus(runStatus, allCalls),
     phases,
     totals: { tokens, costUsd, wallClockMs, callCount: allCalls.length },
+    toolCalls: toolCallsAgg,
   };
+}
+
+function applyToolCall(e: ToolCallEvent, agg: ToolCallsAggregation): void {
+  agg.total += 1;
+  agg.byTool[e.tool] = (agg.byTool[e.tool] ?? 0) + 1;
+  if (e.isMcp) {
+    agg.mcpCount += 1;
+    if (e.mcpServer) {
+      agg.byServer[e.mcpServer] = (agg.byServer[e.mcpServer] ?? 0) + 1;
+    }
+  }
 }
 
 function buildPhase(name: string, calls: AgentCallDTO[]): PhaseDTO {

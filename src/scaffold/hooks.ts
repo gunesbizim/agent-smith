@@ -138,14 +138,16 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
     ],
     PostToolUse: [
       {
-        // Capture every subagent dispatch (the `Agent` tool) so planning/coding done in a plain
-        // Claude Code session shows up in the dashboard alongside engine runs.
-        matcher: "Agent",
+        // Capture every tool call — Bash/Read/Edit/Write/Glob/Grep, Agent (subagent dispatches),
+        // and all MCP tools (mcp__*) — so the dashboard has full tool visibility for interactive
+        // sessions. The hook branches internally: Agent → agent_call_finished (richer model/token
+        // data); all others → tool_call (lightweight isMcp/mcpServer/status record).
+        matcher: ".*",
         hooks: [
           {
             type: "command",
             command: `node "${agentTelemetryHook}"`,
-            statusMessage: "Agent Smith — recording agent-call telemetry...",
+            statusMessage: "Agent Smith — recording tool-call telemetry...",
           },
         ],
       },

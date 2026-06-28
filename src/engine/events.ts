@@ -22,6 +22,7 @@ export type EngineEventType =
   | "subtask_finished"
   | "agent_call_started"
   | "agent_call_finished"
+  | "tool_call"
   | "test_run"
   | "gate_result"
   | "run_finished";
@@ -115,6 +116,24 @@ export interface AgentCallFinishedEvent extends EngineEventBase {
   promptSummary?: string;
 }
 
+/**
+ * Emitted by the PostToolUse hook for every non-Agent tool call (Bash, Read, Edit, Write, Glob, Grep,
+ * and all `mcp__*` tools). Provides per-call visibility in the dashboard without the richer
+ * model/token data that only Agent dispatches carry.
+ */
+export interface ToolCallEvent extends EngineEventBase {
+  type: "tool_call";
+  /** Full tool name, e.g. "Bash", "mcp__serena__find_symbol". */
+  tool: string;
+  /** True when tool name starts with "mcp__". */
+  isMcp: boolean;
+  /** Parsed MCP server segment from "mcp__<server>__<tool>", or null for non-MCP tools. */
+  mcpServer: string | null;
+  status: "ok" | "error";
+  /** Wall-clock duration in ms, if reported by Claude Code. */
+  durationMs?: number;
+}
+
 export interface TestRunEvent extends EngineEventBase {
   type: "test_run";
   command: string;
@@ -148,6 +167,7 @@ export type EngineEvent =
   | SubtaskFinishedEvent
   | AgentCallStartedEvent
   | AgentCallFinishedEvent
+  | ToolCallEvent
   | TestRunEvent
   | GateResultEvent
   | RunFinishedEvent;

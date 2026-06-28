@@ -25,6 +25,39 @@ import path from "node:path";
 
 // ---- pure, testable helpers ----
 
+/**
+ * Given a tool name like "mcp__serena__find_symbol", return the server segment ("serena").
+ * Returns null for non-MCP tools.
+ */
+export function parseMcpServer(name) {
+  if (!name || !name.startsWith("mcp__")) return null;
+  const parts = name.split("__");
+  // Format: mcp__<server>__<tool> → at least 3 parts
+  return parts.length >= 3 ? parts[1] : null;
+}
+
+/**
+ * Turn a PostToolUse(non-Agent) payload into a tool_call event body.
+ * Pure — no fs. `now` is an ISO string so tests are deterministic.
+ */
+export function buildToolCallEvent(payload, runId, now) {
+  const resp = payload.tool_response || {};
+  const toolName = payload.tool_name || "unknown";
+  const isMcp = toolName.startsWith("mcp__");
+  const mcpServer = parseMcpServer(toolName);
+  const durationMs = numOrUndef(resp.totalDurationMs);
+  const event = {
+    type: "tool_call",
+    tool: toolName,
+    isMcp,
+    mcpServer,
+    status: resp.status === "error" ? "error" : "ok",
+    _ts: now,
+  };
+  if (durationMs !== undefined) event.durationMs = durationMs;
+  return event;
+}
+
 export function slugSession(sessionId) {
   const s = String(sessionId || "unknown").replace(/[^a-zA-Z0-9_-]+/g, "").slice(0, 32);
   return s || "unknown";
@@ -125,9 +158,14 @@ function main() {
       );
     }
 
-    const call = buildCallEvent(payload, runId, ts);
-    delete call._ts;
-    appendLine(file, stamp(call, nextSeq(file)));
+    // Branch: Agent tool → richer agent_call_finished; all other tools → lightweight tool_call
+    const toolName = payload.tool_name || "";
+    const event =
+      toolName === "Agent"
+        ? buildCallEvent(payload, runId, ts)
+        : buildToolCallEvent(payload, runId, ts);
+    delete event._ts;
+    appendLine(file, stamp(event, nextSeq(file)));
   } catch {
     /* telemetry is best-effort and must never block a tool */
   }

@@ -40,6 +40,20 @@ export interface RunDTO {
   status: CallStatus;
   phases: PhaseDTO[];
   totals: { tokens: number; costUsd: number; wallClockMs: number; callCount: number };
+  /** Aggregated counts from tool_call events. Zero-initialized when no tool_call events are present. */
+  toolCalls: ToolCallsAggregation;
+}
+
+/** Aggregated per-session tool-call counts derived from `tool_call` events. */
+export interface ToolCallsAggregation {
+  /** Total number of tool calls (all non-Agent tools). */
+  total: number;
+  /** Total MCP tool calls (isMcp === true). */
+  mcpCount: number;
+  /** Calls keyed by full tool name. */
+  byTool: Record<string, number>;
+  /** Calls keyed by MCP server segment (only MCP calls contribute). */
+  byServer: Record<string, number>;
 }
 
 export interface DashboardSnapshot {

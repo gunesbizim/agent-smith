@@ -14,6 +14,18 @@ export interface AgentCallEvent {
   _ts?: string;
 }
 
+export interface ToolCallEventHook {
+  type: "tool_call";
+  tool: string;
+  isMcp: boolean;
+  mcpServer: string | null;
+  status: "ok" | "error";
+  durationMs?: number;
+  _ts?: string;
+}
+
 export function slugSession(sessionId: unknown): string;
 export function summarize(text: unknown): string;
 export function buildCallEvent(payload: Record<string, unknown>, runId: string, now: string): AgentCallEvent;
+export function parseMcpServer(name: string): string | null;
+export function buildToolCallEvent(payload: Record<string, unknown>, runId: string, now: string): ToolCallEventHook;

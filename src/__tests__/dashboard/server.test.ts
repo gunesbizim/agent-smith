@@ -18,6 +18,7 @@ const SNAP: DashboardSnapshot = {
       status: "running",
       phases: [],
       totals: { tokens: 42, costUsd: 0, wallClockMs: 0, callCount: 1 },
+      toolCalls: { total: 0, mcpCount: 0, byTool: {}, byServer: {} },
     },
   ],
 };

@@ -19,10 +19,10 @@ describe("buildHookConfig", () => {
     expect(tdd).toBeLessThan(sentrux);
   });
 
-  it("registers the Agent telemetry PostToolUse hook", () => {
-    const agent = cfg.PostToolUse!.find((e) => e.matcher === "Agent");
-    expect(agent).toBeTruthy();
-    expect(agent!.hooks[0].command).toContain("post-tool-agent-telemetry.js");
+  it("registers the all-tools telemetry PostToolUse hook with broad matcher", () => {
+    const allTools = cfg.PostToolUse!.find((e) => e.matcher === ".*");
+    expect(allTools).toBeTruthy();
+    expect(allTools!.hooks[0].command).toContain("post-tool-agent-telemetry.js");
   });
 
   it("preserves the caveman memory suspend/resume hooks", () => {

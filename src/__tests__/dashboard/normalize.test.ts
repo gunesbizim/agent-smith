@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EngineEvent } from "../../engine/events.js";
-import { normalizeRun } from "../../dashboard/normalize.js";
+import { INTERACTIVE_IDLE_MS, normalizeRun } from "../../dashboard/normalize.js";
 import type { ToolCallEvent } from "../../engine/events.js";
 
 let seq = 0;
@@ -113,6 +113,55 @@ describe("normalizeRun", () => {
     expect(dto.toolCalls.byServer["sentrux"]).toBe(1);
     // Existing agent call aggregation still works
     expect(dto.totals.callCount).toBe(1);
+  });
+
+  it("aggregates tool_call error counts per tool and per server", () => {
+    const r = "interactive-errs";
+    const events: EngineEvent[] = [
+      ev(r, { type: "tool_call", tool: "Bash", isMcp: false, mcpServer: null, status: "error", durationMs: 3 } as unknown as EngineEvent),
+      ev(r, { type: "tool_call", tool: "Bash", isMcp: false, mcpServer: null, status: "ok", durationMs: 3 } as unknown as EngineEvent),
+      ev(r, { type: "tool_call", tool: "mcp__serena__find_symbol", isMcp: true, mcpServer: "serena", status: "error", durationMs: 9 } as unknown as EngineEvent),
+    ];
+    const dto = normalizeRun(r, events);
+    expect(dto.toolCalls.total).toBe(3);
+    expect(dto.toolCalls.errorCount).toBe(2);
+    expect(dto.toolCalls.byToolErrors["Bash"]).toBe(1);
+    expect(dto.toolCalls.byToolErrors["mcp__serena__find_symbol"]).toBe(1);
+    expect(dto.toolCalls.byServerErrors["serena"]).toBe(1);
+  });
+
+  it("marks an idle interactive run (no run_finished, killed terminal) as done, not queued", () => {
+    const r = "interactive-killed";
+    const t = "2026-06-24T00:00:00Z";
+    const events: EngineEvent[] = [
+      ev(r, { type: "run_started", ticketId: null, task: "interactive session", branch: "", approvalGate: "none", phases: ["interactive"], origin: "interactive", engineVersion: "hook", ts: t }),
+      ev(r, { type: "tool_call", tool: "Read", isMcp: false, mcpServer: null, status: "ok", durationMs: 5, ts: t } as unknown as EngineEvent),
+    ];
+    // now is well past the idle threshold → the session is treated as ended.
+    const now = Date.parse(t) + INTERACTIVE_IDLE_MS + 60_000;
+    expect(normalizeRun(r, events, now).status).toBe("done");
+  });
+
+  it("keeps a recently-active interactive run as running", () => {
+    const r = "interactive-live";
+    const t = "2026-06-24T00:00:00Z";
+    const events: EngineEvent[] = [
+      ev(r, { type: "run_started", ticketId: null, task: "interactive session", branch: "", approvalGate: "none", phases: ["interactive"], origin: "interactive", engineVersion: "hook", ts: t }),
+      ev(r, { type: "tool_call", tool: "Read", isMcp: false, mcpServer: null, status: "ok", durationMs: 5, ts: t } as unknown as EngineEvent),
+    ];
+    const now = Date.parse(t) + 1_000; // 1s later, well within the window
+    expect(normalizeRun(r, events, now).status).toBe("running");
+  });
+
+  it("keeps an in-flight engine call running even when idle (long-running call)", () => {
+    const r = "engine-longcall";
+    const t = "2026-06-24T00:00:00Z";
+    const events: EngineEvent[] = [
+      ev(r, { type: "phase_started", phase: "code", ts: t }),
+      ev(r, { type: "agent_call_started", callId: "c1", phase: "code", model: "opus", attempt: 1, ts: t }),
+    ];
+    const now = Date.parse(t) + INTERACTIVE_IDLE_MS + 60_000;
+    expect(normalizeRun(r, events, now).status).toBe("running");
   });
 
   it("has zero toolCalls when no tool_call events present", () => {

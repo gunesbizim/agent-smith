@@ -64,9 +64,22 @@ export function normalizeRun(runId: string, events: EngineEvent[], nowMs: number
   let runStatus: CallStatus = "running";
 
   // Accumulator for tool_call events
-  const toolCallsAgg: ToolCallsAggregation = { total: 0, mcpCount: 0, byTool: {}, byServer: {} };
+  const toolCallsAgg: ToolCallsAggregation = {
+    total: 0,
+    mcpCount: 0,
+    errorCount: 0,
+    byTool: {},
+    byToolErrors: {},
+    byServer: {},
+    byServerErrors: {},
+  };
+  // Newest event timestamp seen — used to decide whether a non-terminal run is still live or has
+  // gone idle (e.g. its terminal was killed with Ctrl-C, so no run_finished was ever written).
+  let lastEventMs = 0;
 
   for (const e of events) {
+    const tMs = Date.parse(e.ts);
+    if (Number.isFinite(tMs)) lastEventMs = Math.max(lastEventMs, tMs);
     switch (e.type) {
       case "run_started":
         origin = e.origin ?? origin;
@@ -126,7 +139,11 @@ export function normalizeRun(runId: string, events: EngineEvent[], nowMs: number
     task,
     startedAt,
     finishedAt,
-    status: deriveRunStatus(runStatus, allCalls),
+    status: deriveRunStatus(runStatus, allCalls, {
+      nowMs,
+      lastEventMs,
+      hasActivity: allCalls.length > 0 || toolCallsAgg.total > 0,
+    }),
     phases,
     totals: { tokens, costUsd, wallClockMs, callCount: allCalls.length },
     toolCalls: toolCallsAgg,
@@ -134,12 +151,18 @@ export function normalizeRun(runId: string, events: EngineEvent[], nowMs: number
 }
 
 function applyToolCall(e: ToolCallEvent, agg: ToolCallsAggregation): void {
+  const isError = e.status === "error";
   agg.total += 1;
   agg.byTool[e.tool] = (agg.byTool[e.tool] ?? 0) + 1;
+  if (isError) {
+    agg.errorCount += 1;
+    agg.byToolErrors[e.tool] = (agg.byToolErrors[e.tool] ?? 0) + 1;
+  }
   if (e.isMcp) {
     agg.mcpCount += 1;
     if (e.mcpServer) {
       agg.byServer[e.mcpServer] = (agg.byServer[e.mcpServer] ?? 0) + 1;
+      if (isError) agg.byServerErrors[e.mcpServer] = (agg.byServerErrors[e.mcpServer] ?? 0) + 1;
     }
   }
 }
@@ -169,10 +192,33 @@ interface CallStatusBearer {
   status: CallStatus;
 }
 
-// A terminal run_finished status wins; otherwise infer from the calls.
-function deriveRunStatus(fromEvent: CallStatus, calls: CallStatusBearer[]): CallStatus {
+/**
+ * A run is considered idle (its session ended without a terminal `run_finished` event — e.g. the
+ * terminal was killed with Ctrl-C) when no event has been recorded for this long. The dashboard
+ * re-normalizes on every poll with a fresh `nowMs`, so a run flips back to "running" the instant a
+ * new tool/agent event lands — the heuristic is self-healing, not sticky.
+ */
+export const INTERACTIVE_IDLE_MS = 120_000;
+
+interface RunStatusContext {
+  nowMs: number;
+  lastEventMs: number;
+  hasActivity: boolean;
+}
+
+// A terminal run_finished status wins; otherwise infer from the calls and recency. Without a
+// run_finished event we can never see a clean shutdown, so a run with no recent activity is treated
+// as ended ("done"/"failed") rather than left hanging as "running"/"queued" forever.
+function deriveRunStatus(fromEvent: CallStatus, calls: CallStatusBearer[], ctx: RunStatusContext): CallStatus {
   if (fromEvent === "done" || fromEvent === "failed" || fromEvent === "queued") return fromEvent;
-  return aggregateStatus(calls);
+  if (calls.some((c) => c.status === "failed")) return "failed";
+  // An in-flight call (agent_call_started with no finished — engine runs) means work is genuinely
+  // still running, however long it has been quiet. Never let idle override that.
+  if (calls.some((c) => c.status === "running")) return "running";
+
+  const idle = ctx.lastEventMs > 0 && ctx.nowMs - ctx.lastEventMs > INTERACTIVE_IDLE_MS;
+  if (idle) return ctx.hasActivity ? "done" : "queued";
+  return ctx.hasActivity ? "running" : "queued";
 }
 
 function sum(ns: number[]): number {

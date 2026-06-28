@@ -8,8 +8,8 @@ import type { PlatformAdapter, MCPConfigBundle, SkillFile } from "./types.js";
 export class ClaudeCodeAdapter implements PlatformAdapter {
   name = "claude-code";
   displayName = "Claude Code";
-  mcpConfigPath = ".claude/settings.json";
-  mcpConfigFormat = "claude-settings" as const;
+  mcpConfigPath = ".mcp.json";
+  mcpConfigFormat = "claude-mcp" as const;
   skillsBasePath = ".claude/skills";
   commandsBasePath = ".claude/commands";
   architectureBasePath = "docs/architecture";
@@ -17,24 +17,11 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
   async installMCPs(configs: MCPConfigBundle): Promise<void> {
     const projectRoot = process.cwd();
 
-    // Write .claude/settings.json
-    const settingsPath = path.join(projectRoot, this.mcpConfigPath);
-    fs.ensureDirSync(path.dirname(settingsPath));
-
-    let settings: Record<string, unknown> = {};
-    if (fs.existsSync(settingsPath)) {
-      settings = (await fs.readJson(settingsPath)) as Record<string, unknown>;
-    }
-
-    settings.mcpServers = {
-      ...(settings.mcpServers as Record<string, unknown> ?? {}),
-      ...configs.projectSettings,
-    };
-
-    await fs.writeJson(settingsPath, settings, { spaces: 2 });
-
-    // Write .mcp.json
-    const mcpPath = path.join(projectRoot, ".mcp.json");
+    // All MCP servers — every scope — are consolidated into the project's
+    // .mcp.json. `mcpServers` is intentionally NOT written to
+    // .claude/settings.json (Claude Code reads it from .mcp.json, and a
+    // duplicate block in settings.json caused double-launches).
+    const mcpPath = path.join(projectRoot, this.mcpConfigPath);
     let mcpConfig: Record<string, unknown> = {};
     if (fs.existsSync(mcpPath)) {
       mcpConfig = (await fs.readJson(mcpPath)) as Record<string, unknown>;
@@ -71,9 +58,8 @@ export class CursorAdapter implements PlatformAdapter {
     const cursorDir = path.join(projectRoot, ".cursor");
     fs.ensureDirSync(cursorDir);
 
-    const allMcps = { ...configs.projectSettings, ...configs.projectMcp };
     const mcpPath = path.join(cursorDir, "mcp.json");
-    await fs.writeJson(mcpPath, { mcpServers: allMcps }, { spaces: 2 });
+    await fs.writeJson(mcpPath, { mcpServers: configs.projectMcp }, { spaces: 2 });
   }
 
   async scaffoldSkills(skills: SkillFile[]): Promise<void> {
@@ -116,8 +102,7 @@ export class ContinueAdapter implements PlatformAdapter {
 
     config.mcpServers = {
       ...(config.mcpServers as Record<string, unknown> ?? {}),
-      ...configs.projectSettings,
-      ...configs.userMcp,
+      ...configs.projectMcp,
     };
 
     await fs.writeJson(configPath, config, { spaces: 2 });

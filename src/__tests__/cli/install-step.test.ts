@@ -10,7 +10,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../../install/mcp-installer.js", () => ({
   configureMCPs: vi.fn().mockResolvedValue(undefined),
-  registerLocalMCPs: vi.fn().mockReturnValue({ registered: [], skipped: [] }),
 }));
 
 vi.mock("../../install/install-flow.js", () => ({
@@ -42,13 +41,12 @@ vi.mock("ora", () => {
 
 import { runInstallStep } from "../../cli/init-steps/install-step.js";
 import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
-import { configureMCPs, registerLocalMCPs } from "../../install/mcp-installer.js";
+import { configureMCPs } from "../../install/mcp-installer.js";
 import { installWithConsent } from "../../install/install-flow.js";
 import { setupObsidianVault } from "../../install/obsidian-vault.js";
 import { writeClaudeMd } from "../../adapt/claude-md-writer.js";
 
 const mockConfigureMCPs = vi.mocked(configureMCPs);
-const mockRegisterLocalMCPs = vi.mocked(registerLocalMCPs);
 const mockInstallWithConsent = vi.mocked(installWithConsent);
 const mockSetupObsidianVault = vi.mocked(setupObsidianVault);
 const mockWriteClaudeMd = vi.mocked(writeClaudeMd);
@@ -128,14 +126,14 @@ describe("runInstallStep", () => {
     expect(mockSetupObsidianVault).toHaveBeenCalledOnce();
   });
 
-  it("skips registerLocalMCPs in dry-run mode", async () => {
-    await runInstallStep({ ...BASE_OPTS, dryRun: true });
-    expect(mockRegisterLocalMCPs).not.toHaveBeenCalled();
-  });
-
-  it("calls registerLocalMCPs when not dryRun and platform=claude-code", async () => {
+  it("configures all MCP scopes through configureMCPs (.mcp.json) — no `claude mcp add --scope local`", async () => {
+    // All scopes (project/user/local) are written into .mcp.json by configureMCPs.
+    // The orchestration never shells out to `claude mcp add --scope local`.
     await runInstallStep({ ...BASE_OPTS, dryRun: false });
-    expect(mockRegisterLocalMCPs).toHaveBeenCalledWith(MOCK_VARS, "claude-code");
+    // configureMCPs is still called (it now handles all scopes)
+    expect(mockConfigureMCPs).toHaveBeenCalledOnce();
+    // setupObsidianVault still runs (vault creation, not MCP registration)
+    expect(mockSetupObsidianVault).toHaveBeenCalledOnce();
   });
 
   it("logs consent declined message when consent not approved", async () => {
@@ -187,17 +185,6 @@ describe("runInstallStep", () => {
       { project: MOCK_PROJECT },
       expect.objectContaining({ noInstall: true }),
     );
-  });
-
-  it("registerLocalMCPs logs when servers are registered", async () => {
-    mockRegisterLocalMCPs.mockReturnValue({ registered: ["obsidian"], skipped: [] });
-    // Should not throw; spinner.succeed is called
-    await expect(runInstallStep({ ...BASE_OPTS, dryRun: false })).resolves.toBeUndefined();
-  });
-
-  it("registerLocalMCPs info when no servers registered and some skipped", async () => {
-    mockRegisterLocalMCPs.mockReturnValue({ registered: [], skipped: ["obsidian"] });
-    await expect(runInstallStep({ ...BASE_OPTS, dryRun: false })).resolves.toBeUndefined();
   });
 
   it("setupObsidianVault called with interactive=false when auto=true", async () => {

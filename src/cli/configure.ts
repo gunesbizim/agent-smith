@@ -2,7 +2,7 @@
 import chalk from "chalk";
 import ora from "ora";
 import { checkDependencies } from "../install/dependency-checker.js";
-import { configureMCPs, registerLocalMCPs, ensureGitignore, PLAYWRIGHT_OUTPUT_DIR } from "../install/mcp-installer.js";
+import { configureMCPs, ensureGitignore, PLAYWRIGHT_OUTPUT_DIR } from "../install/mcp-installer.js";
 import { installWithConsent } from "../install/install-flow.js";
 import { setupObsidianVault } from "../install/obsidian-vault.js";
 import { scaffoldConfigs } from "../scaffold/configs.js";
@@ -45,8 +45,9 @@ export async function configureCommand(opts: ConfigureOptions): Promise<void> {
   }
 
   // Obsidian (local scope) needs a per-repo vault path. Ask for it at install
-  // time — it is stored privately in ~/.claude.json, never committed — and
-  // create the directory so the mcp-obsidian server can actually start.
+  // time — it is written into the project's .mcp.json, which configureMCPs adds
+  // to .gitignore so the path is never committed — and create the directory so
+  // the mcp-obsidian server can start.
   const vault = await setupObsidianVault(cwd, { interactive: true });
   if (vault.vaultPath && vault.created) {
     console.log(chalk.gray(`  Created Obsidian vault: ${vault.vaultPath}`));
@@ -55,19 +56,10 @@ export async function configureCommand(opts: ConfigureOptions): Promise<void> {
   const configSpinner = ora("Writing MCP configurations...").start();
   await configureMCPs(cwd, DEFAULT_TEMPLATE_VARS, "claude-code", false, project);
   await scaffoldConfigs(cwd, "claude-code");
-  // Keep Playwright screenshot artifacts out of version control.
-  ensureGitignore(cwd, [`${PLAYWRIGHT_OUTPUT_DIR}/`]);
-  configSpinner.succeed("MCP configurations written");
-
-  // Register local-scope servers (e.g. obsidian) into ~/.claude.json for this repo.
-  const localSpinner = ora("Registering local-scope MCP servers...").start();
-  const { registered, skipped } = registerLocalMCPs(DEFAULT_TEMPLATE_VARS, "claude-code");
-  if (registered.length > 0) {
-    localSpinner.succeed(`Registered local MCP servers: ${registered.join(", ")}`);
-  } else {
-    const skippedNote = skipped.length ? ` (skipped: ${skipped.join(", ")})` : "";
-    localSpinner.info(`No local MCP servers registered${skippedNote}`);
-  }
+  // Keep Playwright screenshot artifacts out of version control. (.mcp.json is
+  // gitignored separately by configureMCPs, right after the file is written.)
+  ensureGitignore(cwd, [`${PLAYWRIGHT_OUTPUT_DIR}/`], "Playwright MCP screenshots/traces — generated artifacts, never commit");
+  configSpinner.succeed("MCP configurations written — all servers (project, user, local) in .mcp.json");
 
   console.log(chalk.bold.green("\n✓ MCP configuration complete\n"));
 }

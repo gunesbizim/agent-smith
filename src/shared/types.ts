@@ -312,7 +312,7 @@ export interface PlatformAdapter {
   name: string;
   displayName: string;
   mcpConfigPath: string;
-  mcpConfigFormat: "claude-settings" | "cursor-mcp" | "continue-config";
+  mcpConfigFormat: "claude-mcp" | "cursor-mcp" | "continue-config";
   skillsBasePath: string;
   commandsBasePath: string;
   architectureBasePath: string;
@@ -321,9 +321,13 @@ export interface PlatformAdapter {
 }
 
 export interface MCPConfigBundle {
-  projectSettings: Record<string, MCPConfigEntry>;
+  /**
+   * Every MCP server, across all scopes (project/both/user/local), consolidated
+   * into the project's `.mcp.json`. There is no longer a separate per-user or
+   * settings.json destination — user-scope servers are intentionally scoped to
+   * the projects where agent-smith was set up.
+   */
   projectMcp: Record<string, MCPConfigEntry>;
-  userMcp: Record<string, MCPConfigEntry>;
 }
 
 export interface SkillFile {

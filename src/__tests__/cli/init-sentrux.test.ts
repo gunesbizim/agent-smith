@@ -60,7 +60,6 @@ vi.mock("../../install/dependency-checker.js", () => ({
 vi.mock("../../install/mcp-installer.js", () => ({
   installMCPs: vi.fn().mockResolvedValue({ installed: [], prewarmed: [], alreadyPresent: [], onDemand: [], manual: [], failed: [] }),
   configureMCPs: vi.fn().mockResolvedValue(undefined),
-  registerLocalMCPs: vi.fn().mockReturnValue({ registered: [], skipped: [] }),
   selectServersToInstall: vi.fn().mockReturnValue([]),
 }));
 
@@ -110,12 +109,9 @@ import { initCommand } from "../../cli/init.js";
 import { probeSentrux } from "../../analyze/architecture-sniffer.js";
 import { ensureGhCli } from "../../install/gh-installer.js";
 import { resolveConsent } from "../../install/install-consent.js";
-import { registerLocalMCPs } from "../../install/mcp-installer.js";
-
 const mockProbeSentrux = vi.mocked(probeSentrux);
 const mockGh = vi.mocked(ensureGhCli);
 const mockConsent = vi.mocked(resolveConsent);
-const mockRegisterLocal = vi.mocked(registerLocalMCPs);
 
 const PROBE_OK = { available: true, cycles: 0, maxCC: 12, couplingGrade: "A", qualitySignal: 90, bottleneck: null } as const;
 
@@ -168,11 +164,10 @@ describe("initCommand — sentrux probe integration", () => {
     }
   });
 
-  it("non-dry: gh just-installed + consent declined + obsidian vault created + local MCP registered", async () => {
+  it("non-dry: gh just-installed + consent declined + obsidian vault created (local MCP now in .mcp.json)", async () => {
     mockProbeSentrux.mockResolvedValue(PROBE_OK);
     mockGh.mockResolvedValue({ available: true, alreadyPresent: false, installed: true, skipped: false });
     mockConsent.mockResolvedValue({ approved: false, reason: "skipped via --no-install" });
-    mockRegisterLocal.mockReturnValue({ registered: ["obsidian"], skipped: [] });
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agent-smith-init-"));
     process.env.OBSIDIAN_VAULT_PATH = path.join(tmp, "vault");
     try {

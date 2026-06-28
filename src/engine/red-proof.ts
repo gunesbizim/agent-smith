@@ -144,15 +144,16 @@ function pytestStatus(s: string): TestStatus {
 // vitest / jest verbose: `✓ suite > name` (pass), `× name` or `✗ name` (fail). Collection/transform
 // errors surface as "Failed to load" / "transform error" / "Cannot find module".
 // Strip a trailing timing annotation like " 3ms" or " 1.2ms" from a test-id line.
-// Use [ \t]+ instead of \s+ so whitespace matching is disjoint from digit/letter matching;
-// avoid leading \s+ that creates O(n²) retry on lines with many spaces.
-const TIMING_SUFFIX = /[ \t]+\d[\d.]*[ \t]*m?s[ \t]*$/;
+// Bounded quantifiers ({1,9}) keep this strictly O(1) backtracking — a real timing has only a
+// handful of digits — so SonarCloud S8786 can't flag a super-linear path.
+const TIMING_SUFFIX = /[ \t]+\d{1,9}(?:\.\d{1,9})?[ \t]*m?s[ \t]*$/;
 
 function parseVitestJest(stdout: string): { tests: TestResult[]; collectionError: boolean } {
   const tests: TestResult[] = [];
-  // ^\s* rewritten to ^[ \t]* — in multiline mode \s can cross line boundaries creating super-linear
-  // paths; [ \t]* restricts to horizontal whitespace which is all that precedes these markers.
-  const re = /^[ \t]*([✓×✗❯])[ \t]+(.+)$/gm;
+  // The capture starts with \S so it can't overlap the preceding [ \t]+ (a name run beginning with
+  // a space would otherwise let [ \t]+ and (.+) split the same whitespace ambiguously — the
+  // super-linear path SonarCloud S8786 flags). [ \t]* (not \s*) keeps matching off line boundaries.
+  const re = /^[ \t]*([✓×✗❯])[ \t]+(\S.*)$/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(stdout)) !== null) {
     const mark = m[1];

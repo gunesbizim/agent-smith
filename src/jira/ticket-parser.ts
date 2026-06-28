@@ -45,10 +45,10 @@ export function fetchJiraTicket(ticketId: string, projectRoot: string): JiraTick
 
 function parseTicketJson(out: string | null): Record<string, any> | null {
   if (!out) return null;
-  // Avoid nested-quantifier super-linear paths: instead of ((?:[^`]|`(?!``))*), use a
-  // "non-backtick runs separated by lone backticks" structure — each outer iteration consumes
-  // at least one char, so the repetition is O(n) not O(n²).
-  const fence = /```(?:json)?[ \t]*(?:\r?\n)?([^`]*(?:`(?!``)[^`]*)*)```/i.exec(out);
+  // A single lazy [\s\S]*? bounded by the literal ``` fence — no nested/overlapping quantifiers,
+  // so there is no super-linear path for SonarCloud S8786 to flag. The exact fence content does
+  // not matter: the brace scan below extracts the JSON object regardless.
+  const fence = /```(?:json)?[ \t]*\r?\n?([\s\S]*?)```/i.exec(out);
   const text = fence ? fence[1] : out;
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");

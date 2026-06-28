@@ -103,9 +103,13 @@ async function resolveInput(input: string, root: string): Promise<{ ticketId: st
 }
 
 function deriveBranch(task: string): string {
-  // Strip leading/trailing hyphens using [^a-z0-9]* anchored at ^ and $ — anchored char-class
-  // repetitions are O(n) and avoid the super-linear path that SonarCloud S8786 flags on /-+$/.
-  const slug = task.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^[^a-z0-9]*/, "").replace(/[^a-z0-9]*$/, "").slice(0, 40) || "task";
+  // Collapse each run of non-alphanumerics to a single "-", so the result can have at most one
+  // leading and one trailing "-". Trim those with plain string ops — no regex quantifier, hence
+  // no super-linear backtracking for SonarCloud S8786 to flag.
+  let slug = task.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  if (slug.startsWith("-")) slug = slug.slice(1);
+  if (slug.endsWith("-")) slug = slug.slice(0, -1);
+  slug = slug.slice(0, 40) || "task";
   return `feat/${slug}`;
 }
 

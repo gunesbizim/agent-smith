@@ -346,7 +346,7 @@ async function mergePythonDeps(rootPath: string, deps: Record<string, string>): 
     for (const line of reqTxt.split("\n")) {
       // Replace lazy [^=<>!]*? (overlaps with \s* after it) with greedy [^\s=<>!]* that
       // also excludes whitespace — the package name has no spaces in valid requirements.txt.
-      const m = line.trim().match(/^([^\s=<>!]+)\s*[>=<~!]=\s*(\S+)/);
+      const m = /^([^\s=<>!]+)\s*[>=<~!]=\s*(\S+)/.exec(line.trim());
       if (m) deps[m[1]] = m[2];
     }
   }

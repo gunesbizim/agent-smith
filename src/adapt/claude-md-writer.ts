@@ -23,7 +23,7 @@ function oneLine(text: string, max = 140): string {
   const flat = text
     .replaceAll(/\s+/g, " ")
     .trim()
-    .replaceAll(/\\"/g, '"')        // unescape YAML-escaped quotes
+    .replaceAll('\\"', '"')         // unescape YAML-escaped quotes
     .replaceAll(/^["']|["']$/g, "") // strip a single surrounding quote pair
     .trim();
   return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;

@@ -103,7 +103,9 @@ async function resolveInput(input: string, root: string): Promise<{ ticketId: st
 }
 
 function deriveBranch(task: string): string {
-  const slug = task.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+/, "").replace(/-+$/, "").slice(0, 40) || "task";
+  // Strip leading/trailing hyphens using [^a-z0-9]* anchored at ^ and $ — anchored char-class
+  // repetitions are O(n) and avoid the super-linear path that SonarCloud S8786 flags on /-+$/.
+  const slug = task.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^[^a-z0-9]*/, "").replace(/[^a-z0-9]*$/, "").slice(0, 40) || "task";
   return `feat/${slug}`;
 }
 

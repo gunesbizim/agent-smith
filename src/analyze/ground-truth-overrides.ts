@@ -35,7 +35,8 @@ function renderConfirmed(value: unknown): string {
   if (value === null || value === undefined) return "none";
   if (typeof value === "string") return value;
   if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  // value is a non-object primitive (number, boolean, bigint, symbol) — safe to stringify explicitly
+  return String(value as number | boolean | bigint | symbol);
 }
 
 /**

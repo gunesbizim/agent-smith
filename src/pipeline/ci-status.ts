@@ -8,6 +8,15 @@ export interface CiCheck {
   workflow?: string;
 }
 
+/** Shape of one element in the raw gh checks JSON array. */
+interface RawCiCheck {
+  name?: string;
+  bucket?: string;
+  state?: string;
+  link?: string;
+  workflow?: string;
+}
+
 export type CiStatus = "green" | "pending" | "failed";
 
 export interface CiEvaluation {
@@ -38,14 +47,14 @@ export function parseGhChecks(json: string): CiCheck[] {
     if (e === null || typeof e !== "object" || Array.isArray(e)) {
       throw new Error("Expected each check to be an object");
     }
-    const obj = e as Record<string, unknown>;
+    const obj = e as RawCiCheck;
     const check: CiCheck = {
-      name: obj.name !== undefined ? String(obj.name) : "",
-      bucket: obj.bucket !== undefined ? String(obj.bucket) : "",
+      name: obj.name ?? "",
+      bucket: obj.bucket ?? "",
     };
-    if (obj.state !== undefined) check.state = String(obj.state);
-    if (obj.link !== undefined) check.link = String(obj.link);
-    if (obj.workflow !== undefined) check.workflow = String(obj.workflow);
+    if (obj.state !== undefined) check.state = obj.state;
+    if (obj.link !== undefined) check.link = obj.link;
+    if (obj.workflow !== undefined) check.workflow = obj.workflow;
     return check;
   });
 }

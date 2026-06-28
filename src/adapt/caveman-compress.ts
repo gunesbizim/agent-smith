@@ -13,7 +13,7 @@ export function cavemanCompress(content: string): string {
   // Match indented code blocks (4-space prefix per line). Using a single-entry pattern
   // (\n followed by 4 spaces + content) with an optional-repeat suffix avoids the nested
   // quantifier that triggers Sonar S8786, while producing identical matches.
-  compressed = compressed.replace(/\n    [^\n]*(?:\n    [^\n]*)*/g, (match) => {
+  compressed = compressed.replace(/\n {4}[^\n]*(?:\n {4}[^\n]*)*/g, (match) => {
     codeBlocks.push(match);
     return `__CODEBLOCK_${codeBlocks.length - 1}__`;
   });

@@ -84,14 +84,18 @@ export interface WriteArchitectureOptions {
   onProgress?: (message: string) => void;
 }
 
-/** Write one doc to disk or log the dry-run action. */
-async function writeDoc(filePath: string, content: string, dryRun: boolean): Promise<void> {
-  if (dryRun) {
-    console.log(`  Would write: ${filePath}`);
-  } else {
-    await fs.writeFile(filePath, content, "utf-8");
-  }
-}
+/** A strategy for emitting one doc — either persists it or reports the dry-run action. */
+type DocWriter = (filePath: string, content: string) => Promise<void>;
+
+/** Persist one doc to disk. */
+const writeDocToDisk: DocWriter = async (filePath, content) => {
+  await fs.writeFile(filePath, content, "utf-8");
+};
+
+/** Report the dry-run action without writing. */
+const logDocDryRun: DocWriter = async (filePath) => {
+  console.log(`  Would write: ${filePath}`);
+};
 
 /** Ground a template doc through the LLM when enabled; returns the LLM output or the template. */
 function groundWithLlm(
@@ -112,6 +116,7 @@ export async function writeArchitectureDocs(
   opts: WriteArchitectureOptions = {},
 ): Promise<void> {
   const archDir = path.join(targetDir, "docs", "architecture");
+  const writeDoc: DocWriter = dryRun ? logDocDryRun : writeDocToDisk;
   if (!dryRun) {
     fs.ensureDirSync(archDir);
   }
@@ -121,16 +126,16 @@ export async function writeArchitectureDocs(
   // Backend: prefer LLM-authored (grounded in real code), fall back to template.
   let backendDoc = generateBackendArchitecture(vars);
   if (llmEnabled) backendDoc = groundWithLlm("backend", targetDir, opts.project!, backendDoc, opts.onProgress);
-  await writeDoc(path.join(archDir, "backend-architecture.md"), backendDoc, dryRun);
+  await writeDoc(path.join(archDir, "backend-architecture.md"), backendDoc);
 
   // Frontend: same pattern.
   let frontendDoc = generateFrontendArchitecture(vars);
   if (llmEnabled) frontendDoc = groundWithLlm("frontend", targetDir, opts.project!, frontendDoc, opts.onProgress);
-  await writeDoc(path.join(archDir, "frontend-architecture.md"), frontendDoc, dryRun);
+  await writeDoc(path.join(archDir, "frontend-architecture.md"), frontendDoc);
 
   // MCP tools guide — a deterministic, binding reference for correct MCP usage
   // (esp. Serena, whose exact tool names + name-path syntax are easy to get wrong).
-  await writeDoc(path.join(archDir, "mcp-tools.md"), generateMcpToolsGuide(), dryRun);
+  await writeDoc(path.join(archDir, "mcp-tools.md"), generateMcpToolsGuide());
 
   // Engineering best practices — a curated baseline (Followed vs Recommended). The LLM skill
   // generator (Phase 1.5) refreshes this with what THIS project actually follows; the template
@@ -151,7 +156,7 @@ export async function writeArchitectureDocs(
       "",
     ].join("\n");
   }
-  await writeDoc(path.join(archDir, "best-practices.md"), generateBestPracticesDoc(vars) + detected, dryRun);
+  await writeDoc(path.join(archDir, "best-practices.md"), generateBestPracticesDoc(vars) + detected);
 }
 
 // A curated engineering-standards baseline, framework-neutral with concrete examples. Two

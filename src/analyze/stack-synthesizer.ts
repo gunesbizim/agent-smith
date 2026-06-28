@@ -596,7 +596,7 @@ function parseGradleJavaVersion(gradle: string): string {
   const sc = "sourceCompatibility";
   const i = gradle.indexOf(sc);
   if (i !== -1) {
-    const line = gradle.slice(i, gradle.indexOf("\n", i) === -1 ? undefined : gradle.indexOf("\n", i));
+    const line = gradle.slice(i, gradle.includes("\n", i) ? gradle.indexOf("\n", i) : undefined);
     const digits = line.replace(/\D/g, "");
     if (digits) return digits;
   }

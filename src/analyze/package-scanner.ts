@@ -344,7 +344,9 @@ async function mergePythonDeps(rootPath: string, deps: Record<string, string>): 
   const reqTxt = await readFileSafe(rootPath, "requirements.txt");
   if (reqTxt) {
     for (const line of reqTxt.split("\n")) {
-      const m = line.trim().match(/^([^\s=<>!][^=<>!]*?)\s*[>=<~!]=\s*(\S+)/);
+      // Replace lazy [^=<>!]*? (overlaps with \s* after it) with greedy [^\s=<>!]* that
+      // also excludes whitespace — the package name has no spaces in valid requirements.txt.
+      const m = line.trim().match(/^([^\s=<>!]+)\s*[>=<~!]=\s*(\S+)/);
       if (m) deps[m[1]] = m[2];
     }
   }

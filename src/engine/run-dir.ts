@@ -48,8 +48,8 @@ export function makeRunId(seed: string, now: Date, rand?: () => string): string 
     seed
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+/, "")
-      .replace(/-+$/, "")
+      .replace(/^[^a-z0-9]*/, "")
+      .replace(/[^a-z0-9]*$/, "")
       .slice(0, 24) || "run";
   const suffix = rand ? rand() : Math.random().toString(36).slice(2, 8); // NOSONAR — id suffix, not security-sensitive
   return `${slug}-${ts}-${suffix}`;

@@ -45,8 +45,10 @@ export function fetchJiraTicket(ticketId: string, projectRoot: string): JiraTick
 
 function parseTicketJson(out: string | null): Record<string, any> | null {
   if (!out) return null;
-  // Use exec() and avoid [\s\S]*? backtracking: match content as non-fence characters.
-  const fence = /```(?:json)?[ \t]*(?:\r?\n)?((?:[^`]|`(?!``))*)```/i.exec(out);
+  // Avoid nested-quantifier super-linear paths: instead of ((?:[^`]|`(?!``))*), use a
+  // "non-backtick runs separated by lone backticks" structure — each outer iteration consumes
+  // at least one char, so the repetition is O(n) not O(n²).
+  const fence = /```(?:json)?[ \t]*(?:\r?\n)?([^`]*(?:`(?!``)[^`]*)*)```/i.exec(out);
   const text = fence ? fence[1] : out;
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");

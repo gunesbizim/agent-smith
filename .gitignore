@@ -34,3 +34,4 @@ docs/screenshots/
 
 # Claude Code session transcripts accidentally dropped at repo root
 /????-??-??-*.txt
+local_cache/

@@ -35,13 +35,13 @@ See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especi
 ## Step 1 — GitNexus impact analysis (mandatory before reading diffs)
 
 ```
-gitnexus_detect_changes()              # what changed since last index?
-gitnexus_api_impact()                  # which HTTP endpoints are affected?
-gitnexus_impact("ChangedClassName")    # what else does this change break?
+mcp__gitnexus__detect_changes()              # what changed since last index?
+mcp__gitnexus__api_impact()                  # which HTTP endpoints are affected?
+mcp__gitnexus__impact("ChangedClassName")    # what else does this change break?
 ```
 
 **Rules:**
-- Call `gitnexus_impact` on every symbol that was deleted or renamed.
+- Call `mcp__gitnexus__impact` on every symbol that was deleted or renamed.
 - If the index is stale, fall back to `mcp__serena__find_referencing_symbols`.
 
 ---
@@ -66,9 +66,9 @@ Do not proceed to Step 2 if either blocker is present. Report them under **Block
 ## Step 2 — Historical context (git-memory)
 
 ```
-commits_touching_file("path/to/file", limit=10)
-search_git_history("topic or bug description", limit=8)
-bug_fix_history("component name", limit=8)
+mcp__git-memory__commits_touching_file("path/to/file", limit=10)
+mcp__git-memory__search_git_history("topic or bug description", limit=8)
+mcp__git-memory__bug_fix_history("component name", limit=8)
 ```
 Score > 0.7 = highly relevant — the diff may be reverting a deliberate fix.
 
@@ -78,7 +78,7 @@ Score > 0.7 = highly relevant — the diff may be reverting a deliberate fix.
 
 1. `git diff origin/main...HEAD --stat -- {{BACKEND_DIR}}/`
 2. `git diff origin/main...HEAD -- {{BACKEND_DIR}}/`
-3. Cross-reference with `gitnexus_api_impact()`
+3. Cross-reference with `mcp__gitnexus__api_impact()`
 4. Read each changed file in full
 
 ---

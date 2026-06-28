@@ -40,12 +40,12 @@ Write each test BEFORE the implementation it covers and run it to confirm it FAI
 ## Step 1 — GitNexus code analysis (before writing tests)
 
 ```
-gitnexus_query("TargetClassName")          # locate symbol, file, methods
-gitnexus_impact("TargetClassName")         # what callers exist? what breaks if this fails?
-gitnexus_context("path/to/file")           # full module context
+mcp__gitnexus__query("TargetClassName")          # locate symbol, file, methods
+mcp__gitnexus__impact("TargetClassName")         # what callers exist? what breaks if this fails?
+mcp__gitnexus__context("path/to/file")           # full module context
 ```
 
-**Rule:** never duplicate an existing test; never test a symbol without first running `gitnexus_impact`.
+**Rule:** never duplicate an existing test; never test a symbol without first running `mcp__gitnexus__impact`.
 
 ---
 

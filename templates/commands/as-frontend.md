@@ -47,10 +47,10 @@ Before touching code, work through these four stages:
 ## Step 1 — GitNexus analysis
 
 ```
-gitnexus_query("TargetViewOrComponent")              # locate component + related backend symbols
-gitnexus_api_impact()                                # HTTP endpoints touched
-gitnexus_impact("SymbolBeingChanged")                # blast radius
-gitnexus_context("path/to/component")                # full component context
+mcp__gitnexus__query("TargetViewOrComponent")              # locate component + related backend symbols
+mcp__gitnexus__api_impact()                                # HTTP endpoints touched
+mcp__gitnexus__impact("SymbolBeingChanged")                # blast radius
+mcp__gitnexus__context("path/to/component")                # full component context
 ```
 
 ---
@@ -83,9 +83,9 @@ Use component library MCP tools to check the exact API before implementing. Neve
 ## Step 4 — Historical investigation
 
 ```
-search_git_history("topic or feature", limit=8)
-commits_touching_file("path/to/component", limit=10)
-bug_fix_history("component area", limit=8)
+mcp__git-memory__search_git_history("topic or feature", limit=8)
+mcp__git-memory__commits_touching_file("path/to/component", limit=10)
+mcp__git-memory__bug_fix_history("component area", limit=8)
 ```
 
 ---

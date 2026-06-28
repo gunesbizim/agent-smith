@@ -24,7 +24,9 @@ confidence rather than staying silent.
 
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
 2. For each changed area, ask: *how does this fail from a developer experience standpoint?* Look at the real
-   call sites and data flow, not just the diff hunk.
+   call sites and data flow, not just the diff hunk. Use `mcp__serena__find_referencing_symbols` or
+   `mcp__gitnexus__impact` to find every call site of a changed public API and confirm the ergonomics
+   hold for all callers, not just the one in the diff.
 3. For every finding, produce:
    `{ severity: critical|high|medium|low, file, line, problem, fix, falsePositive: boolean, fpReason?: string }`.
    - **critical** — data loss, security hole, breaks prod, corrupts state.

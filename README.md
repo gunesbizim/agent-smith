@@ -154,6 +154,7 @@ Now you (and the assistant) use the installed `/as-*` commands and skills. There
 | `agent-smith analyze [--json] [--llm]` | Detect the stack and print a report (and the synthesized `StackProfile`); changes nothing |
 | `agent-smith configure` | Re-run MCP configuration only |
 | `agent-smith doctor` | Health check: MCP connections, skill validity, git state |
+| `agent-smith dashboard [--run <id>]` | Local web UI tracking every agent / tool / MCP call across runs |
 | `agent-smith ticket <id> [--auto]` | Fetch a Jira ticket and run the gated pipeline |
 | `agent-smith pipeline` | Run the pipeline on the current branch's changes |
 

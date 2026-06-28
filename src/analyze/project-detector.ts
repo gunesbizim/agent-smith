@@ -352,7 +352,17 @@ function detectGoBackend(subDir: string, goMod: string): BackendInfo | null {
 const RUST_FRAMEWORK_MARKERS: Array<{ marker: string; build: (rv: string, cargo: string) => BackendInfo }> = [
   {
     marker: "actix-web",
-    build: (rv, cargo) => ({ framework: "actix-web", language: "rust", languageVersion: rv, hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", orm: cargo.includes("diesel") ? "Diesel" : cargo.includes("sqlx") ? "SQLx" : null }),
+    build: (rv, cargo) => {
+      let orm: string | null;
+      if (cargo.includes("diesel")) {
+        orm = "Diesel";
+      } else if (cargo.includes("sqlx")) {
+        orm = "SQLx";
+      } else {
+        orm = null;
+      }
+      return { framework: "actix-web", language: "rust", languageVersion: rv, hasHexagonalArch: false, hasServiceRepo: false, usesAPIView: false, usesFunctionViews: true, importStyle: "absolute", rolePattern: "middleware", authMethod: "JWT", loggingPattern: "structured", orm };
+    },
   },
   {
     marker: "axum",
@@ -436,6 +446,24 @@ function hasFrontendDep(deps: Record<string, unknown>): boolean {
   return UI_FRAMEWORK_KEYS.some((k) => !!deps[k]);
 }
 
+/** Search monorepo sub-packages and common root subdirs for a frontend package.json. */
+async function resolveMonorepoFrontendPkg(rootPath: string): Promise<Record<string, unknown> | null> {
+  const subDirs = await findSubPackages(rootPath);
+  for (const subDir of subDirs) {
+    const subPkg = await readJson(subDir, "package.json");
+    if (subPkg && hasFrontendDep(pkgDeps(subPkg))) return subPkg;
+  }
+  // Also check client/web/ui subdirs at root (simple React/Vue/Svelte check)
+  for (const dir of ["client", "web", "ui"]) {
+    const subPkg = await readJson(rootPath, `${dir}/package.json`);
+    if (subPkg) {
+      const deps = pkgDeps(subPkg);
+      if (deps.react || deps.vue || deps.svelte) return subPkg;
+    }
+  }
+  return null;
+}
+
 async function resolveFrontendPkg(rootPath: string, project?: DetectedProject): Promise<Record<string, unknown> | null> {
   // 1. Dedicated frontend/ dir
   const frontendDirPkg = await readJson(rootPath, "frontend/package.json");
@@ -443,19 +471,8 @@ async function resolveFrontendPkg(rootPath: string, project?: DetectedProject): 
 
   // 2. Monorepo subdir packages
   if (project?.monorepo) {
-    const subDirs = await findSubPackages(rootPath);
-    for (const subDir of subDirs) {
-      const subPkg = await readJson(subDir, "package.json");
-      if (subPkg && hasFrontendDep(pkgDeps(subPkg))) return subPkg;
-    }
-    // Also check client/web/ui subdirs at root (simple React/Vue/Svelte check)
-    for (const dir of ["client", "web", "ui"]) {
-      const subPkg = await readJson(rootPath, `${dir}/package.json`);
-      if (subPkg) {
-        const deps = pkgDeps(subPkg);
-        if (deps.react || deps.vue || deps.svelte) return subPkg;
-      }
-    }
+    const monorepoResult = await resolveMonorepoFrontendPkg(rootPath);
+    if (monorepoResult) return monorepoResult;
   }
 
   // 3. Root package.json with UI framework deps
@@ -572,18 +589,28 @@ const NPM_FRONTEND_ROWS: NpmFrontendRow[] = [
   },
   {
     key: "astro",
-    build: (deps, hasTS) => ({
-      framework: "astro",
-      componentPattern: "functional",
-      uiLibrary: deps["@astrojs/react"] ? "React (Astro island)"
-        : deps["@astrojs/vue"] ? "Vue (Astro island)"
-        : deps["@astrojs/svelte"] ? "Svelte (Astro island)" : null,
-      stateManagement: null,
-      usesI18n: !!deps["@astrojs/i18n"],
-      i18nLibrary: deps["@astrojs/i18n"] ? "@astrojs/i18n" : null,
-      usesTypeScript: hasTS,
-      roleAwareUI: false,
-    }),
+    build: (deps, hasTS) => {
+      let uiLibrary: string | null;
+      if (deps["@astrojs/react"]) {
+        uiLibrary = "React (Astro island)";
+      } else if (deps["@astrojs/vue"]) {
+        uiLibrary = "Vue (Astro island)";
+      } else if (deps["@astrojs/svelte"]) {
+        uiLibrary = "Svelte (Astro island)";
+      } else {
+        uiLibrary = null;
+      }
+      return {
+        framework: "astro",
+        componentPattern: "functional",
+        uiLibrary,
+        stateManagement: null,
+        usesI18n: !!deps["@astrojs/i18n"],
+        i18nLibrary: deps["@astrojs/i18n"] ? "@astrojs/i18n" : null,
+        usesTypeScript: hasTS,
+        roleAwareUI: false,
+      };
+    },
   },
 ];
 
@@ -670,7 +697,7 @@ const BACKEND_TEST_PROBES: BackendTestProbe[] = [
   { test: (r) => grepFirst(r, "**/pom.xml", "junit").then(Boolean), framework: "JUnit", commandFn: () => "mvn test" },
   { test: (r) => fileExists(r, "**/*_test.go"), framework: "go test", commandFn: () => "go test ./..." },
   { test: (r) => grepFirst(r, "Cargo.toml", "\\[dev-dependencies\\]").then(Boolean), framework: "cargo test", commandFn: () => "cargo test" },
-  { test: (r) => grepFirst(r, "composer.json", "phpunit").then(Boolean), framework: "PHPUnit", commandFn: () => process.platform === "win32" ? "vendor\\bin\\phpunit.bat" : "vendor/bin/phpunit" },
+  { test: (r) => grepFirst(r, "composer.json", "phpunit").then(Boolean), framework: "PHPUnit", commandFn: () => process.platform === "win32" ? String.raw`vendor\bin\phpunit.bat` : "vendor/bin/phpunit" },
   { test: (r) => grepFirst(r, "**/*.csproj", "xunit|nunit|MSTest").then(Boolean), framework: "xUnit/NUnit", commandFn: () => "dotnet test" },
 ];
 
@@ -732,7 +759,7 @@ const BACKEND_LINT_PROBES: BackendLintProbe[] = [
   },
   {
     test: (r) => grepFirst(r, "composer.json", "phpstan|pint|php-cs-fixer").then(Boolean),
-    tool: "phpstan/pint", commandFn: () => process.platform === "win32" ? "vendor\\bin\\phpstan analyse" : "vendor/bin/phpstan analyse",
+    tool: "phpstan/pint", commandFn: () => process.platform === "win32" ? String.raw`vendor\bin\phpstan analyse` : "vendor/bin/phpstan analyse",
   },
 ];
 
@@ -835,8 +862,8 @@ const TS_DB_ENTRIES: Array<{
   engine: DatabaseInfo["engine"];
   orm: (deps: Record<string, unknown>) => string | null;
 }> = [
-  { deps: ["postgres", "pg", "pgx"], engine: "postgresql", orm: (d) => d.drizzle ? "Drizzle" : d.prisma ? "Prisma" : null },
-  { deps: ["mysql", "mysql2"], engine: "mysql", orm: (d) => d.drizzle ? "Drizzle" : d.prisma ? "Prisma" : null },
+  { deps: ["postgres", "pg", "pgx"], engine: "postgresql", orm: (d) => { if (d.drizzle) { return "Drizzle"; } if (d.prisma) { return "Prisma"; } return null; } },
+  { deps: ["mysql", "mysql2"], engine: "mysql", orm: (d) => { if (d.drizzle) { return "Drizzle"; } if (d.prisma) { return "Prisma"; } return null; } },
   { deps: ["better-sqlite3", "sqlite3"], engine: "sqlite", orm: () => null },
   { deps: ["mongoose", "mongodb"], engine: "mongodb", orm: () => "Mongoose" },
 ];

@@ -61,8 +61,12 @@ const HINT_RULES: Array<{ test: (h: string) => boolean; result: TestFramework }>
 ];
 
 const OUTPUT_RULES: Array<{ test: (stdout: string) => boolean; result: TestFramework }> = [
-  { test: (o) => /={5,}[ \t]+(?:test session starts|FAILURES|ERRORS|short test summary)/i.test(o) || /\bPASSED\b|\bFAILED\b/.test(o), result: "pytest" },
-  { test: (o) => /^\s*[✓×✗❯]\s/m.test(o) || /\bRUN\b.*\bv\d/i.test(o), result: "vitest" },
+  // ={5,} bounded to ={5,100}: pytest banners are always <80 chars, so >100 = is impossible in
+  // practice; bounding prevents SonarCloud from flagging the unbounded quantifier as S8786.
+  { test: (o) => /={5,100}[ \t]+(?:test session starts|FAILURES|ERRORS|short test summary)/i.test(o) || /\bPASSED\b|\bFAILED\b/.test(o), result: "pytest" },
+  // ^\s*[✓×✗❯]\s rewritten: replace \s* with [ \t]* (no newlines after ^m anchor) to avoid
+  // adjacent-whitespace ambiguity. \bRUN\b.*\bv\d rewritten with [^\n]* (no cross-line backtracking).
+  { test: (o) => /^[ \t]*[✓×✗❯][ \t]/m.test(o) || /\bRUN\b[^\n]*\bv\d/i.test(o), result: "vitest" },
   { test: (o) => /^(?:PASS|FAIL) /m.test(o) && /\.(?:test|spec)\.[tj]sx?/.test(o), result: "jest" },
   { test: (o) => /^(ok|FAIL)\s+\S+/m.test(o) && /---\s*(PASS|FAIL):/.test(o), result: "go" },
   { test: (o) => /test result:\s+(ok|FAILED)\./.test(o), result: "cargo" },
@@ -113,7 +117,12 @@ function parsePytest(stdout: string): { tests: TestResult[]; collectionError: bo
   while ((m = re.exec(stdout)) !== null) {
     tests.push({ id: m[1], status: pytestStatus(m[2]) });
   }
-  const collectionError = /errors during collection|^ERROR[ \t]+\S+|={3,}[ \t]+ERRORS[ \t]+={3,}/im.test(stdout);
+  // Use string includes for the multi-word literal; bound the = quantifiers to prevent
+  // unbounded-quantifier NFA paths that SonarCloud S8786 flags.
+  const collectionError =
+    stdout.toLowerCase().includes("errors during collection") ||
+    /^ERROR[ \t]+\S/m.test(stdout) ||
+    /={3,100}[ \t]+ERRORS[ \t]+={3,100}/i.test(stdout);
   return { tests, collectionError };
 }
 
@@ -134,16 +143,30 @@ function pytestStatus(s: string): TestStatus {
 
 // vitest / jest verbose: `✓ suite > name` (pass), `× name` or `✗ name` (fail). Collection/transform
 // errors surface as "Failed to load" / "transform error" / "Cannot find module".
-// Strip a trailing timing annotation like " 3ms" or " 1.2ms" from a test-id line.
-const TIMING_SUFFIX = /\s+\d[\d.]*\s*m?s\s*$/;
+// A bare timing token like "3ms", "1.2ms" or "12s" — tested with both anchors and bounded
+// quantifiers on a single short token, so there is no scanning/backtracking path for S8786.
+const TIMING_TOKEN = /^\d{1,9}(?:\.\d{1,9})?m?s$/;
+
+// Strip a trailing timing annotation (e.g. " 3ms") from a test-id line. Done with plain string
+// ops — split off the last whitespace-separated token and drop it only if it is a timing token —
+// so there is no $-anchored regex scan for SonarCloud S8786 to flag as super-linear.
+function stripTimingSuffix(id: string): string {
+  const text = id.trimEnd();
+  const sep = Math.max(text.lastIndexOf(" "), text.lastIndexOf("\t"));
+  if (sep < 0) return text;
+  return TIMING_TOKEN.test(text.slice(sep + 1)) ? text.slice(0, sep).trimEnd() : text;
+}
 
 function parseVitestJest(stdout: string): { tests: TestResult[]; collectionError: boolean } {
   const tests: TestResult[] = [];
-  const re = /^\s*([✓×✗❯])\s+(.+)$/gm;
+  // The capture starts with \S so it can't overlap the preceding [ \t]+ (a name run beginning with
+  // a space would otherwise let [ \t]+ and (.+) split the same whitespace ambiguously — the
+  // super-linear path SonarCloud S8786 flags). [ \t]* (not \s*) keeps matching off line boundaries.
+  const re = /^[ \t]*([✓×✗❯])[ \t]+(\S.*)$/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(stdout)) !== null) {
     const mark = m[1];
-    const id = m[2].replace(TIMING_SUFFIX, "").trim();
+    const id = stripTimingSuffix(m[2]).trim();
     if (mark === "❯") continue; // a file/describe header, not a test
     tests.push({ id, status: mark === "✓" ? "pass" : "fail" });
   }

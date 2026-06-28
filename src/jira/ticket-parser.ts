@@ -45,9 +45,10 @@ export function fetchJiraTicket(ticketId: string, projectRoot: string): JiraTick
 
 function parseTicketJson(out: string | null): Record<string, any> | null {
   if (!out) return null;
-  // Use exec() and avoid [\s\S]*? backtracking: match content as non-fence characters.
-  const fence = /```(?:json)?[ \t]*(?:\r?\n)?((?:[^`]|`(?!``))*)```/i.exec(out);
-  const text = fence ? fence[1] : out;
+  // Narrow to a ```-fenced block when present, located with plain indexOf so there is no regex
+  // backtracking for SonarCloud S8786. Falls back to the whole output; the brace scan below
+  // extracts the JSON object either way.
+  const text = extractFenceBody(out);
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start < 0 || end <= start) return null;
@@ -56,6 +57,17 @@ function parseTicketJson(out: string | null): Record<string, any> | null {
   } catch {
     return null;
   }
+}
+
+// Return the body of the first ```-fenced block (skipping the fence's optional language tag line),
+// or the whole input when there is no closing fence. Plain indexOf — no regex, no backtracking.
+function extractFenceBody(out: string): string {
+  const open = out.indexOf("```");
+  if (open < 0) return out;
+  const lineEnd = out.indexOf("\n", open);
+  const bodyStart = lineEnd < 0 ? open + 3 : lineEnd + 1;
+  const close = out.indexOf("```", bodyStart);
+  return close < 0 ? out : out.slice(bodyStart, close);
 }
 
 export async function parseJiraTicket(ticketId: string): Promise<JiraTicket> {

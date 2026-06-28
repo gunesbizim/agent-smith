@@ -7,7 +7,7 @@ export function extractJson<T = unknown>(text: string | null): T | null {
   if (!text) return null;
 
   const fence = extractFenceContent(text);
-  const candidates = fence !== null ? [fence, text] : [text];
+  const candidates = fence === null ? [text] : [fence, text];
 
   for (const c of candidates) {
     const trimmed = c.trim();

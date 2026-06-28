@@ -21,6 +21,12 @@ describe("applyConfirmedOverrides (C2)", () => {
     expect(applyConfirmedOverrides(vars, ledger).ORM).toBe("none");
   });
 
+  it("stringifies a confirmed non-object primitive (e.g. boolean) value", () => {
+    const vars: TemplateVariables = { ...DEFAULT_TEMPLATE_VARS, ORM: "Prisma" };
+    const ledger = applyConfirmations(emptyLedger(), [{ key: "backend.orm", value: true as unknown as string }], "human", "t");
+    expect(applyConfirmedOverrides(vars, ledger).ORM).toBe("true");
+  });
+
   it("leaves detection untouched for keys not in the ledger", () => {
     const vars: TemplateVariables = { ...DEFAULT_TEMPLATE_VARS, BACKEND_LINT_CMD: "golangci-lint run" };
     expect(applyConfirmedOverrides(vars, emptyLedger()).BACKEND_LINT_CMD).toBe("golangci-lint run");

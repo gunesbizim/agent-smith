@@ -331,7 +331,7 @@ export function stripSettingsMcpServers(projectRoot: string): void {
   } catch {
     return;
   }
-  if (!Object.prototype.hasOwnProperty.call(settings, "mcpServers")) return;
+  if (!Object.hasOwn(settings, "mcpServers")) return;
   delete settings.mcpServers;
   fs.writeJsonSync(settingsPath, settings, { spaces: 2 });
 }

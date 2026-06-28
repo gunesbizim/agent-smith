@@ -538,4 +538,132 @@ describe("Project Detector — Testing & Linting", () => {
     const result = await detectProject(dir);
     expect(result.linting.frontend!.tool).toBe("biome");
   });
+
+  it("detects phpstan/pint as the backend linter from composer.json", async () => {
+    const dir = await makeProject("php-lint-app", {
+      "composer.json": JSON.stringify({ "require-dev": { "phpstan/phpstan": "^1.10" } }),
+    });
+    const result = await detectProject(dir);
+    expect(result.linting.backend).toBeDefined();
+    expect(result.linting.backend!.tool).toBe("phpstan/pint");
+  });
+});
+
+describe("Project Detector — Astro island UI libraries", () => {
+  const cases: Array<[string, string, string]> = [
+    ["@astrojs/react", "react-island", "React (Astro island)"],
+    ["@astrojs/vue", "vue-island", "Vue (Astro island)"],
+    ["@astrojs/svelte", "svelte-island", "Svelte (Astro island)"],
+  ];
+  for (const [dep, name, expected] of cases) {
+    it(`maps ${dep} to "${expected}"`, async () => {
+      const dir = await makeProject(`astro-${name}`, {
+        "package.json": JSON.stringify({ name: "web", dependencies: { astro: "^4", [dep]: "^4" } }),
+      });
+      const result = await detectProject(dir);
+      expect(result.frontend!.framework).toBe("astro");
+      expect(result.frontend!.uiLibrary).toBe(expected);
+    });
+  }
+});
+
+describe("Project Detector — TypeScript database engines", () => {
+  it("detects MySQL with Drizzle from a Node backend", async () => {
+    const dir = await makeProject("mysql-drizzle", {
+      "package.json": JSON.stringify({
+        name: "api",
+        dependencies: { fastify: "^4", mysql2: "^3", "drizzle-orm": "^0.30", drizzle: "^0.30", typescript: "^5" },
+      }),
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.framework).toBe("fastify");
+    expect(result.database).toBeDefined();
+    expect(result.database!.engine).toBe("mysql");
+    expect(result.database!.orm).toBe("Drizzle");
+  });
+});
+
+describe("Project Detector — monorepo subpackage resolution", () => {
+  const ws = JSON.stringify({ name: "root", private: true, workspaces: ["apps/*"] });
+
+  it("detects an actix-web + Diesel backend in a monorepo subpackage", async () => {
+    const dir = await makeProject("mono-actix-diesel", {
+      "package.json": ws,
+      "apps/api/Cargo.toml": '[package]\nname = "api"\n[dependencies]\nactix-web = "4"\ndiesel = "2"',
+    });
+    const result = await detectProject(dir);
+    expect(result.monorepo).toBeDefined();
+    expect(result.backend!.framework).toBe("actix-web");
+    expect(result.backend!.orm).toBe("Diesel");
+  });
+
+  it("detects an actix-web backend with no ORM in a monorepo subpackage", async () => {
+    const dir = await makeProject("mono-actix-noorm", {
+      "package.json": ws,
+      "apps/api/Cargo.toml": '[package]\nname = "api"\n[dependencies]\nactix-web = "4"',
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.framework).toBe("actix-web");
+    expect(result.backend!.orm).toBeNull();
+  });
+
+  it("detects an actix-web + SQLx backend in a monorepo subpackage", async () => {
+    const dir = await makeProject("mono-actix-sqlx", {
+      "package.json": ws,
+      "apps/api/Cargo.toml": '[package]\nname = "api"\n[dependencies]\nactix-web = "4"\nsqlx = "0.7"',
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.framework).toBe("actix-web");
+    expect(result.backend!.orm).toBe("SQLx");
+  });
+
+  it("detects an axum + SQLx backend in a monorepo subpackage", async () => {
+    const dir = await makeProject("mono-axum", {
+      "package.json": ws,
+      "apps/api/Cargo.toml": '[package]\nname = "api"\n[dependencies]\naxum = "0.7"\nsqlx = "0.7"',
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.framework).toBe("axum");
+    expect(result.backend!.orm).toBe("SQLx");
+  });
+
+  it("detects a rocket + Diesel backend in a monorepo subpackage", async () => {
+    const dir = await makeProject("mono-rocket", {
+      "package.json": ws,
+      "apps/api/Cargo.toml": '[package]\nname = "api"\n[dependencies]\nrocket = "0.5"\ndiesel = "2"',
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.framework).toBe("rocket");
+    expect(result.backend!.orm).toBe("Diesel");
+  });
+
+  it("falls back to a generic Rust server for an unknown framework subpackage", async () => {
+    const dir = await makeProject("mono-rust-generic", {
+      "package.json": ws,
+      "apps/core/Cargo.toml": '[package]\nname = "core"\n[dependencies]\nserde = "1"',
+    });
+    const result = await detectProject(dir);
+    expect(result.backend!.framework).toBe("generic-server");
+    expect(result.backend!.language).toBe("rust");
+  });
+
+  it("resolves a frontend package from a monorepo subpackage", async () => {
+    const dir = await makeProject("mono-frontend-app", {
+      "package.json": ws,
+      "apps/web/package.json": JSON.stringify({ name: "web", dependencies: { react: "^18" } }),
+    });
+    const result = await detectProject(dir);
+    expect(result.frontend).toBeDefined();
+    expect(result.frontend!.framework).toBe("react");
+  });
+
+  it("resolves a frontend package from a root client/ subdir", async () => {
+    const dir = await makeProject("mono-client-dir", {
+      "package.json": JSON.stringify({ name: "root", private: true, workspaces: ["packages/*"] }),
+      "client/package.json": JSON.stringify({ name: "client", dependencies: { vue: "^3" } }),
+    });
+    const result = await detectProject(dir);
+    expect(result.frontend).toBeDefined();
+    expect(result.frontend!.framework).toBe("vue3");
+  });
 });

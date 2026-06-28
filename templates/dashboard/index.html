@@ -65,6 +65,9 @@
 
 <script>
   var state = { runs: [], filter: "all" };
+  // Remembers which runs the user manually expanded/collapsed, keyed by runId, so a periodic
+  // SSE re-render (which rebuilds the DOM) does not reset the open/closed state of each row.
+  var openState = {};
 
   function fmtTokens(n){ return (n||0).toLocaleString(); }
   function fmtCost(c){ return c == null ? "—" : "$" + Number(c).toFixed(4); }
@@ -86,8 +89,10 @@
 
   function renderRun(r){
     var phases = r.phases.map(renderPhase).join("");
-    var open = r.status==="running" ? " open" : "";
-    return '<details class="run"'+open+'><summary>'+
+    // User choice (openState) wins; otherwise running runs default to expanded.
+    var isOpen = (r.runId in openState) ? openState[r.runId] : (r.status==="running");
+    var open = isOpen ? " open" : "";
+    return '<details class="run" data-run-id="'+esc(r.runId)+'"'+open+'><summary>'+
       '<span class="badge '+r.origin+'">'+r.origin+'</span>'+
       '<strong>'+esc(r.ticketId||r.task||r.runId)+'</strong>'+
       '<span class="st '+r.status+'">'+r.status+'</span>'+
@@ -138,6 +143,13 @@
       render();
     });
   });
+
+  // Persist manual expand/collapse across re-renders. `toggle` does not bubble, so listen in the
+  // capture phase on the stable #runs container (its innerHTML is rebuilt, but the element itself isn't).
+  document.getElementById("runs").addEventListener("toggle", function(e){
+    var d = e.target;
+    if(d && d.tagName==="DETAILS" && d.dataset && d.dataset.runId){ openState[d.dataset.runId] = d.open; }
+  }, true);
 
   function setLive(on){ document.getElementById("dot").className = "dot"+(on?" on":""); document.getElementById("livetext").textContent = on?"live":"disconnected"; }
 

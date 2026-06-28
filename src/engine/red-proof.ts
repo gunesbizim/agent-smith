@@ -143,10 +143,19 @@ function pytestStatus(s: string): TestStatus {
 
 // vitest / jest verbose: `✓ suite > name` (pass), `× name` or `✗ name` (fail). Collection/transform
 // errors surface as "Failed to load" / "transform error" / "Cannot find module".
-// Strip a trailing timing annotation like " 3ms" or " 1.2ms" from a test-id line.
-// Bounded quantifiers ({1,9}) keep this strictly O(1) backtracking — a real timing has only a
-// handful of digits — so SonarCloud S8786 can't flag a super-linear path.
-const TIMING_SUFFIX = /[ \t]+\d{1,9}(?:\.\d{1,9})?[ \t]*m?s[ \t]*$/;
+// A bare timing token like "3ms", "1.2ms" or "12s" — tested with both anchors and bounded
+// quantifiers on a single short token, so there is no scanning/backtracking path for S8786.
+const TIMING_TOKEN = /^\d{1,9}(?:\.\d{1,9})?m?s$/;
+
+// Strip a trailing timing annotation (e.g. " 3ms") from a test-id line. Done with plain string
+// ops — split off the last whitespace-separated token and drop it only if it is a timing token —
+// so there is no $-anchored regex scan for SonarCloud S8786 to flag as super-linear.
+function stripTimingSuffix(id: string): string {
+  const text = id.trimEnd();
+  const sep = Math.max(text.lastIndexOf(" "), text.lastIndexOf("\t"));
+  if (sep < 0) return text;
+  return TIMING_TOKEN.test(text.slice(sep + 1)) ? text.slice(0, sep).trimEnd() : text;
+}
 
 function parseVitestJest(stdout: string): { tests: TestResult[]; collectionError: boolean } {
   const tests: TestResult[] = [];
@@ -157,7 +166,7 @@ function parseVitestJest(stdout: string): { tests: TestResult[]; collectionError
   let m: RegExpExecArray | null;
   while ((m = re.exec(stdout)) !== null) {
     const mark = m[1];
-    const id = m[2].replace(TIMING_SUFFIX, "").trim();
+    const id = stripTimingSuffix(m[2]).trim();
     if (mark === "❯") continue; // a file/describe header, not a test
     tests.push({ id, status: mark === "✓" ? "pass" : "fail" });
   }

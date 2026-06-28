@@ -45,8 +45,8 @@ export async function configureCommand(opts: ConfigureOptions): Promise<void> {
   }
 
   // Obsidian (local scope) needs a per-repo vault path. Ask for it at install
-  // time — it is stored privately in ~/.claude.json, never committed — and
-  // create the directory so the mcp-obsidian server can actually start.
+  // time — it is written into the project's .mcp.json (gitignored per-developer,
+  // never committed) — and create the directory so the mcp-obsidian server can start.
   const vault = await setupObsidianVault(cwd, { interactive: true });
   if (vault.vaultPath && vault.created) {
     console.log(chalk.gray(`  Created Obsidian vault: ${vault.vaultPath}`));

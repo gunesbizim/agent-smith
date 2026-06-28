@@ -126,9 +126,9 @@ describe("runInstallStep", () => {
     expect(mockSetupObsidianVault).toHaveBeenCalledOnce();
   });
 
-  it("does not call registerLocalMCPs at all — local servers now go into .mcp.json via configureMCPs", async () => {
-    // registerLocalMCPs is no longer imported or called by install-step
-    // This test confirms the orchestration no longer does `claude mcp add --scope local`
+  it("configures all MCP scopes through configureMCPs (.mcp.json) — no `claude mcp add --scope local`", async () => {
+    // All scopes (project/user/local) are written into .mcp.json by configureMCPs.
+    // The orchestration never shells out to `claude mcp add --scope local`.
     await runInstallStep({ ...BASE_OPTS, dryRun: false });
     // configureMCPs is still called (it now handles all scopes)
     expect(mockConfigureMCPs).toHaveBeenCalledOnce();

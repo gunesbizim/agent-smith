@@ -60,7 +60,6 @@ vi.mock("../../install/dependency-checker.js", () => ({
 vi.mock("../../install/mcp-installer.js", () => ({
   installMCPs: vi.fn().mockResolvedValue({ installed: [], prewarmed: [], alreadyPresent: [], onDemand: [], manual: [], failed: [] }),
   configureMCPs: vi.fn().mockResolvedValue(undefined),
-  registerLocalMCPs: vi.fn().mockReturnValue({ registered: [], skipped: [] }),
   selectServersToInstall: vi.fn().mockReturnValue([]),
 }));
 

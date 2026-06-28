@@ -35,11 +35,12 @@ export interface GroundingMcp {
 
 /**
  * Collect the configured code-intelligence / documentation MCP servers to ground skill generation,
- * from BOTH `.mcp.json` AND `.claude/settings.json`. This matters because agent-smith writes
- * project-scoped non-browser servers (gitnexus, serena, git-memory) into settings.json — not
- * .mcp.json — so a generation spawn pointed only at .mcp.json (under --strict-mcp-config) would never
- * see them. Returns the servers to boot plus their `mcp__<server>` allowlist. Empty when none are
- * configured (generation then runs on file tools only).
+ * from BOTH `.mcp.json` AND `.claude/settings.json`. Current agent-smith writes ALL MCP servers
+ * into `.mcp.json` (and strips `mcpServers` from `settings.json`), so `.mcp.json` is normally the
+ * only source. The `settings.json` read is kept for **backward compatibility**: a repo configured
+ * before the consolidation (or one with an externally-added `mcpServers` block in settings.json
+ * that hasn't been re-configured) still has its servers picked up. Returns the servers to boot plus
+ * their `mcp__<server>` allowlist. Empty when none are configured (generation runs on file tools only).
  */
 export function buildGroundingMcp(projectRoot: string): GroundingMcp {
   const merged: Record<string, unknown> = {

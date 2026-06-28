@@ -312,7 +312,7 @@ export interface PlatformAdapter {
   name: string;
   displayName: string;
   mcpConfigPath: string;
-  mcpConfigFormat: "claude-settings" | "cursor-mcp" | "continue-config";
+  mcpConfigFormat: "claude-mcp" | "cursor-mcp" | "continue-config";
   skillsBasePath: string;
   commandsBasePath: string;
   architectureBasePath: string;

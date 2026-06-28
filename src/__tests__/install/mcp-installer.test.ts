@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { configureMCPs, hasRequiredEnv, registerLocalMCPs, ensureGitignore, installMCPs, runCommandAsync, commandSucceeds, presenceProbe } from "../../install/mcp-installer.js";
+import { configureMCPs, hasRequiredEnv, ensureGitignore, installMCPs, runCommandAsync, commandSucceeds, presenceProbe } from "../../install/mcp-installer.js";
 import { needsShellForCli } from "../../shared/platform-utils.js";
 import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
 import type { DetectedProject, FrontendInfo } from "../../shared/types.js";
@@ -419,25 +419,6 @@ describe("hasRequiredEnv", () => {
   it("returns true when a required var is set", () => {
     process.env[VAR] = "/some/path";
     expect(hasRequiredEnv([VAR])).toBe(true);
-  });
-});
-
-describe("registerLocalMCPs", () => {
-  afterEach(() => {
-    delete process.env.OBSIDIAN_VAULT_PATH;
-  });
-
-  it("reports local servers as skipped on non-claude-code platforms", () => {
-    const { registered, skipped } = registerLocalMCPs(DEFAULT_TEMPLATE_VARS, "cursor");
-    expect(registered).toEqual([]);
-    expect(skipped).toContain("obsidian");
-  });
-
-  it("skips obsidian when OBSIDIAN_VAULT_PATH is unset", () => {
-    delete process.env.OBSIDIAN_VAULT_PATH;
-    const { registered, skipped } = registerLocalMCPs(DEFAULT_TEMPLATE_VARS, "claude-code");
-    expect(registered).not.toContain("obsidian");
-    expect(skipped).toContain("obsidian");
   });
 });
 

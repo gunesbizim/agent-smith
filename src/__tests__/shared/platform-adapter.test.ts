@@ -32,14 +32,14 @@ describe("Platform Adapters", () => {
     const adapter = new ClaudeCodeAdapter();
 
     it("has correct paths", () => {
-      expect(adapter.mcpConfigPath).toBe(".claude/settings.json");
+      expect(adapter.mcpConfigPath).toBe(".mcp.json");
       expect(adapter.skillsBasePath).toBe(".claude/skills");
       expect(adapter.commandsBasePath).toBe(".claude/commands");
       expect(adapter.architectureBasePath).toBe("docs/architecture");
     });
 
     it("has correct config format", () => {
-      expect(adapter.mcpConfigFormat).toBe("claude-settings");
+      expect(adapter.mcpConfigFormat).toBe("claude-mcp");
     });
 
     it("installMCPs does not throw", async () => {

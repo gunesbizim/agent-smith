@@ -62,7 +62,7 @@ describe("configureCommand", () => {
     expect(configureMCPs).not.toHaveBeenCalled();
   });
 
-  it("installs, configures, and gitignores playwright output (no separate registerLocalMCPs step)", async () => {
+  it("installs, configures, and gitignores playwright output (all scopes via .mcp.json)", async () => {
     await configureCommand({});
     expect(installMCPs).toHaveBeenCalled();
     // configureMCPs now also receives dryRun + the detected project (for stack-aware MCP gating).
@@ -76,7 +76,7 @@ describe("configureCommand", () => {
     expect(ensureGitignore).toHaveBeenCalledWith(expect.any(String), [".playwright-mcp/"]);
   });
 
-  it("completes without error (no registerLocalMCPs call expected)", async () => {
+  it("completes without error (single .mcp.json write path)", async () => {
     await expect(configureCommand({})).resolves.toBeUndefined();
   });
 

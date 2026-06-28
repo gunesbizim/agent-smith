@@ -1,12 +1,11 @@
 // MCP installer — downloads and configures MCP servers
-import { spawn, execFileSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import fs from "fs-extra";
 import chalk from "chalk";
 import cliProgress from "cli-progress";
 import { MCP_REGISTRY, getMCPServer } from "./registry.js";
 import { detectionEnv } from "../shared/exec-env.js";
-import { needsShellForCli } from "../shared/platform-utils.js";
 import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall, MCPServerDefinition, DetectedProject } from "../shared/types.js";
 
 /** True when the detected project uses Vuetify on the frontend. */
@@ -359,60 +358,6 @@ function resolveEnvVars(template: string, vars: TemplateVariables): string {
 /** True when every required env var is set to a non-empty value (none required → true). */
 export function hasRequiredEnv(requiredEnvVars: string[]): boolean {
   return requiredEnvVars.every((name) => (process.env[name] ?? "").trim().length > 0);
-}
-
-/**
- * Register "local" scope MCP servers into Claude Code's per-project private config
- * (~/.claude.json) via `claude mcp add --scope local`. These are per-repo and never
- * committed, so a single agent-smith install serves many repos, each with its own
- * config (e.g. a distinct Obsidian vault path). Only runs on the claude-code platform.
- *
- * Servers with unmet required env vars are skipped (prompt for them before calling).
- */
-export function registerLocalMCPs(
-  vars: TemplateVariables,
-  platform: string = "claude-code",
-): { registered: string[]; skipped: string[] } {
-  const registered: string[] = [];
-  const skipped: string[] = [];
-
-  if (platform !== "claude-code") {
-    // Other platforms have no equivalent of Claude Code local scope.
-    return { registered, skipped: MCP_REGISTRY.filter((s) => s.scope === "local").map((s) => s.name) };
-  }
-
-  for (const server of MCP_REGISTRY) {
-    if (server.scope !== "local") continue;
-
-    if (!hasRequiredEnv(server.requiredEnvVars)) {
-      skipped.push(server.name);
-      continue;
-    }
-
-    const config = resolveConfigEnv(server.configTemplate, vars);
-    // execFileSync passes args as an array (no shell), so no quoting/injection
-    // concerns. Env vars are forwarded with --env so local servers that need
-    // credentials register correctly.
-    const envFlags = Object.entries(config.env).flatMap(([k, v]) => ["--env", `${k}=${v}`]);
-    const addArgs = [
-      "mcp", "add", "--scope", "local", "--transport", "stdio", server.name,
-      ...envFlags, "--", config.command, ...config.args,
-    ];
-
-    try {
-      // Resolving the `claude` CLI via PATH is intentional — it's the user's
-      // installed Claude Code binary. On Windows `claude` is a `.cmd` shim Node can't launch
-      // directly, so shell:true routes through cmd.exe (the args here are structured — server name,
-      // env pairs, and config paths — not arbitrary free text). On POSIX shell stays off.
-      // The S4036 hotspot is excluded for this file in sonar-project.properties.
-      execFileSync("claude", addArgs, { stdio: "pipe", shell: needsShellForCli() });
-      registered.push(server.name);
-    } catch {
-      skipped.push(server.name);
-    }
-  }
-
-  return { registered, skipped };
 }
 
 /**

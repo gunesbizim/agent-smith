@@ -5,7 +5,7 @@
 // create one itself. If the path does not exist the server fails to start —
 // which is why `init`/`configure` appeared to "not create a vault". This helper
 // closes that gap by creating the directory, and exports OBSIDIAN_VAULT_PATH so
-// registerLocalMCPs() picks it up.
+// configureMCPs() resolves it into the obsidian entry written to .mcp.json.
 import path from "node:path";
 import readline from "node:readline";
 import chalk from "chalk";

@@ -45,8 +45,9 @@ export async function configureCommand(opts: ConfigureOptions): Promise<void> {
   }
 
   // Obsidian (local scope) needs a per-repo vault path. Ask for it at install
-  // time — it is written into the project's .mcp.json (gitignored per-developer,
-  // never committed) — and create the directory so the mcp-obsidian server can start.
+  // time — it is written into the project's .mcp.json, which configureMCPs adds
+  // to .gitignore so the path is never committed — and create the directory so
+  // the mcp-obsidian server can start.
   const vault = await setupObsidianVault(cwd, { interactive: true });
   if (vault.vaultPath && vault.created) {
     console.log(chalk.gray(`  Created Obsidian vault: ${vault.vaultPath}`));
@@ -55,8 +56,9 @@ export async function configureCommand(opts: ConfigureOptions): Promise<void> {
   const configSpinner = ora("Writing MCP configurations...").start();
   await configureMCPs(cwd, DEFAULT_TEMPLATE_VARS, "claude-code", false, project);
   await scaffoldConfigs(cwd, "claude-code");
-  // Keep Playwright screenshot artifacts out of version control.
-  ensureGitignore(cwd, [`${PLAYWRIGHT_OUTPUT_DIR}/`]);
+  // Keep Playwright screenshot artifacts out of version control. (.mcp.json is
+  // gitignored separately by configureMCPs, right after the file is written.)
+  ensureGitignore(cwd, [`${PLAYWRIGHT_OUTPUT_DIR}/`], "Playwright MCP screenshots/traces — generated artifacts, never commit");
   configSpinner.succeed("MCP configurations written — all servers (project, user, local) in .mcp.json");
 
   console.log(chalk.bold.green("\n✓ MCP configuration complete\n"));

@@ -192,8 +192,8 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
     description: "Read/write the Obsidian knowledge vault",
     category: "documentation",
     // local scope: per-repo, private to each developer. Written into the project's
-    // .mcp.json (which is gitignored per-developer), so the vault path stays private
-    // and is never committed. Each repo points at its own vault path.
+    // .mcp.json, which agent-smith adds to .gitignore, so the vault path stays
+    // private and is never committed. Each repo points at its own vault path.
     scope: "local",
     installType: "npx",
     installCommand: "",

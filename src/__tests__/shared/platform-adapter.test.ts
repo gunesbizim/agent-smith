@@ -45,7 +45,7 @@ describe("Platform Adapters", () => {
     it("installMCPs does not throw", async () => {
       // Should not throw even with empty config
       await expect(
-        adapter.installMCPs({ projectSettings: {}, projectMcp: {}, userMcp: {} }),
+        adapter.installMCPs({ projectMcp: {} }),
       ).resolves.not.toThrow();
     });
   });
@@ -60,7 +60,7 @@ describe("Platform Adapters", () => {
     });
 
     it("installMCPs handles gracefully", async () => {
-      const result = adapter.installMCPs({ projectSettings: {}, projectMcp: {}, userMcp: {} });
+      const result = adapter.installMCPs({ projectMcp: {} });
       await expect(result).resolves.toBeUndefined();
     });
   });
@@ -74,7 +74,7 @@ describe("Platform Adapters", () => {
     });
 
     it("installMCPs handles gracefully", async () => {
-      const result = adapter.installMCPs({ projectSettings: {}, projectMcp: {}, userMcp: {} });
+      const result = adapter.installMCPs({ projectMcp: {} });
       await expect(result).resolves.toBeUndefined();
     });
   });

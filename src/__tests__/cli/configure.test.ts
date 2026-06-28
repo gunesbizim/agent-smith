@@ -73,7 +73,11 @@ describe("configureCommand", () => {
       false,
       expect.anything(),
     );
-    expect(ensureGitignore).toHaveBeenCalledWith(expect.any(String), [".playwright-mcp/"]);
+    expect(ensureGitignore).toHaveBeenCalledWith(
+      expect.any(String),
+      [".playwright-mcp/"],
+      expect.stringContaining("Playwright"),
+    );
   });
 
   it("completes without error (single .mcp.json write path)", async () => {

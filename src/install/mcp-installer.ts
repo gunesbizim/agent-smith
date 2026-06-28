@@ -6,6 +6,7 @@ import chalk from "chalk";
 import cliProgress from "cli-progress";
 import { MCP_REGISTRY, getMCPServer } from "./registry.js";
 import { detectionEnv } from "../shared/exec-env.js";
+import { homeDir } from "../shared/platform-utils.js";
 import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall, MCPServerDefinition, DetectedProject } from "../shared/types.js";
 
 /** True when the detected project uses Vuetify on the frontend. */
@@ -246,9 +247,7 @@ export async function configureMCPs(
   project: DetectedProject | null = null,
 ): Promise<MCPConfigBundle> {
   const bundle: MCPConfigBundle = {
-    projectSettings: {},
     projectMcp: {},
-    userMcp: {},
   };
 
   // Stack-aware selection: only configure MCPs that make sense for the detected stack.
@@ -264,7 +263,12 @@ export async function configureMCPs(
 
   if (!dryRun) {
     writeProjectMcp(projectRoot, bundle);
+    // The file may carry credentials (e.g. SONARQUBE_TOKEN, JIRA_API_TOKEN) and
+    // private paths (Obsidian vault) resolved from the environment, so it must
+    // never be committed. Add it to .gitignore immediately after creation.
+    ensureGitignore(projectRoot, [".mcp.json"], MCP_GITIGNORE_COMMENT);
     stripSettingsMcpServers(projectRoot);
+    warnStaleUserMcpDuplicates(Object.keys(bundle.projectMcp));
   }
 
   return bundle;
@@ -290,7 +294,8 @@ function addServerToBundle(
   }
 
   // All scopes (project, both, user, local) are consolidated into projectMcp (.mcp.json).
-  // .mcp.json is gitignored per-developer, so private values (vault paths, credentials) are safe.
+  // configureMCPs adds .mcp.json to .gitignore right after writing it (see ensureGitignore
+  // call there), so private values (vault paths, credentials) stay local and uncommitted.
   // mcpServers is never written to .claude/settings.json.
   const entry = { type: "stdio" as const, ...resolveConfigEnv(server.configTemplate, vars) };
   bundle.projectMcp[server.name] = entry;
@@ -360,12 +365,21 @@ export function hasRequiredEnv(requiredEnvVars: string[]): boolean {
   return requiredEnvVars.every((name) => (process.env[name] ?? "").trim().length > 0);
 }
 
+/** Header comment written above the `.mcp.json` entry in the target repo's .gitignore. */
+export const MCP_GITIGNORE_COMMENT =
+  "agent-smith MCP config — may contain credentials/private paths, never commit";
+
 /**
- * Idempotently append entries to the target repo's .gitignore. Used to ensure
- * Playwright screenshot output (.playwright-mcp/) is never committed. Returns the
- * entries that were newly added.
+ * Idempotently append entries to the target repo's .gitignore, under a header
+ * comment describing why. Used to keep generated artifacts and the
+ * credential-bearing `.mcp.json` out of version control. Returns the entries
+ * that were newly added.
  */
-export function ensureGitignore(projectRoot: string, entries: string[]): string[] {
+export function ensureGitignore(
+  projectRoot: string,
+  entries: string[],
+  comment = "agent-smith — generated artifacts, never commit",
+): string[] {
   const gitignorePath = path.join(projectRoot, ".gitignore");
   // Read directly and treat a missing file as empty — avoids an exists()/read()
   // time-of-check/time-of-use race.
@@ -383,9 +397,52 @@ export function ensureGitignore(projectRoot: string, entries: string[]): string[
   if (toAdd.length === 0) return [];
 
   const prefix = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
-  const block = `${prefix}\n# Playwright MCP screenshots/traces — generated artifacts, never commit\n${toAdd.join("\n")}\n`;
+  const block = `${prefix}\n# ${comment}\n${toAdd.join("\n")}\n`;
   fs.appendFileSync(gitignorePath, block);
   return toAdd;
+}
+
+/**
+ * Warn (without mutating anything) when a server we just wrote to the project
+ * `.mcp.json` is ALSO registered in a global Claude config (`~/.claude/.mcp.json`
+ * or the legacy `~/.claude.json`). Such a server launches twice — once globally,
+ * once per-project — which is the double-launch this consolidation set out to
+ * remove. We deliberately do NOT auto-edit the user's home configs (they may keep
+ * those servers globally on purpose); we surface the conflict and the manual fix.
+ */
+export function warnStaleUserMcpDuplicates(writtenServerNames: string[], home: string = homeDir()): void {
+  if (writtenServerNames.length === 0) return;
+  const globalConfigs = [
+    path.join(home, ".claude", ".mcp.json"),
+    path.join(home, ".claude.json"),
+  ];
+  const written = new Set(writtenServerNames);
+  const dupes = new Set<string>();
+  for (const cfgPath of globalConfigs) {
+    if (!fs.existsSync(cfgPath)) continue;
+    let cfg: Record<string, unknown>;
+    try {
+      cfg = fs.readJsonSync(cfgPath);
+    } catch {
+      continue;
+    }
+    const servers = (cfg.mcpServers ?? {}) as Record<string, unknown>;
+    for (const name of Object.keys(servers)) {
+      if (written.has(name)) dupes.add(name);
+    }
+  }
+  if (dupes.size === 0) return;
+  console.warn(
+    chalk.yellow(
+      `  ⚠ ${[...dupes].join(", ")} ${dupes.size === 1 ? "is" : "are"} also registered globally ` +
+        `(~/.claude/.mcp.json or ~/.claude.json) and will launch twice in this project.`,
+    ),
+  );
+  console.warn(
+    chalk.gray(
+      "    Remove the duplicate(s) from the global config to avoid double-launches.",
+    ),
+  );
 }
 
 /** Directory where the playwright MCP writes screenshots/traces (gitignored). */

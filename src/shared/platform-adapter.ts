@@ -28,7 +28,6 @@ export class ClaudeCodeAdapter implements PlatformAdapter {
     }
     mcpConfig.mcpServers = {
       ...(mcpConfig.mcpServers as Record<string, unknown> ?? {}),
-      ...configs.projectSettings,
       ...configs.projectMcp,
     };
     await fs.writeJson(mcpPath, mcpConfig, { spaces: 2 });
@@ -59,9 +58,8 @@ export class CursorAdapter implements PlatformAdapter {
     const cursorDir = path.join(projectRoot, ".cursor");
     fs.ensureDirSync(cursorDir);
 
-    const allMcps = { ...configs.projectSettings, ...configs.projectMcp };
     const mcpPath = path.join(cursorDir, "mcp.json");
-    await fs.writeJson(mcpPath, { mcpServers: allMcps }, { spaces: 2 });
+    await fs.writeJson(mcpPath, { mcpServers: configs.projectMcp }, { spaces: 2 });
   }
 
   async scaffoldSkills(skills: SkillFile[]): Promise<void> {
@@ -104,8 +102,7 @@ export class ContinueAdapter implements PlatformAdapter {
 
     config.mcpServers = {
       ...(config.mcpServers as Record<string, unknown> ?? {}),
-      ...configs.projectSettings,
-      ...configs.userMcp,
+      ...configs.projectMcp,
     };
 
     await fs.writeJson(configPath, config, { spaces: 2 });

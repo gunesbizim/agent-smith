@@ -40,6 +40,13 @@ export interface HookConfig {
       statusMessage?: string;
     }>;
   }>;
+  SessionEnd?: Array<{
+    hooks: Array<{
+      type: "command";
+      command: string;
+      statusMessage?: string;
+    }>;
+  }>;
   PreCompact?: Array<{
     hooks: Array<{
       type: "command";
@@ -59,6 +66,7 @@ export interface HookConfig {
 export function buildHookConfig(projectRoot: string, hooksDir: string): HookConfig {
   const doctorHook = path.join(hooksDir, "session-start-doctor.js");
   const dashboardAutostartHook = path.join(hooksDir, "session-start-dashboard.js");
+  const dashboardAutostopHook = path.join(hooksDir, "session-end-dashboard.js");
   const permissionGuardHook = path.join(hooksDir, "pre-tool-permission-guard.js");
   const gitGuardHook = path.join(hooksDir, "pre-tool-git-guard.js");
   const sentruxGateHook = path.join(hooksDir, "pre-tool-sentrux-gate.js");
@@ -178,6 +186,20 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
             type: "command",
             command: `node "${changeDetectorHook}"`,
             statusMessage: "Agent Smith — checking for uncommitted changes...",
+          },
+        ],
+      },
+    ],
+    SessionEnd: [
+      {
+        hooks: [
+          {
+            // Tear down the auto-started dashboard once the last using session ends, so killing the
+            // Claude session also stops the detached dashboard process. Refcounted + best-effort;
+            // a hand-started dashboard is left alone. Opt-out: AGENT_SMITH_DASHBOARD_AUTOSTART=0.
+            type: "command",
+            command: `node "${dashboardAutostopHook}"`,
+            statusMessage: "Agent Smith — stopping dashboard...",
           },
         ],
       },

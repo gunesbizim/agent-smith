@@ -24,6 +24,7 @@ import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { addSession, readState, writeState } from "./lib/dashboard-state.js";
 
 const DEFAULT_PORT = 4575;
 
@@ -80,6 +81,33 @@ function isPortOpen(port, timeoutMs = 400) {
   });
 }
 
+/**
+ * Refcount this session into the shared dashboard state so SessionEnd can stop the server once the
+ * last using session ends.
+ *
+ *  - When we just spawned the dashboard (`autostarted` true, real `pid`): take ownership, replacing
+ *    any stale entry left by a previously-dead server on the same port.
+ *  - When we found one already running (`autostarted` false, `pid` null): only register if existing
+ *    state shows we auto-started a server on this port. A dashboard the user launched by hand has no
+ *    such state and is left entirely alone.
+ */
+function registerSession(cwd, sessionId, port, pid, autostarted) {
+  if (!sessionId) return; // nothing to refcount against
+  try {
+    const prior = readState(cwd);
+    if (autostarted) {
+      writeState(cwd, { pid, port, autostarted: true, sessions: [{ id: sessionId, ppid: process.ppid }] });
+      return;
+    }
+    // Found an already-running server: only refcount onto one we own.
+    if (prior && prior.autostarted && prior.port === port) {
+      writeState(cwd, { ...prior, sessions: addSession(prior.sessions, sessionId, process.ppid) });
+    }
+  } catch {
+    /* best-effort — never block session start */
+  }
+}
+
 function readStdin() {
   try {
     const raw = fs.readFileSync(0, "utf-8").trim();
@@ -108,10 +136,14 @@ async function main() {
   try {
     const payload = readStdin();
     const cwd = payload.cwd || process.cwd();
+    const sessionId = payload.session_id || "";
     const port = parsePort(env);
 
     if (await isPortOpen(port)) {
-      // Already running — point the user at it, do not spawn a second server.
+      // Already running — point the user at it, do not spawn a second server. If we own this
+      // dashboard (we auto-started it earlier), refcount this session so SessionEnd keeps it alive
+      // until every using session has ended.
+      registerSession(cwd, sessionId, port, /* pid */ null, /* autostarted */ false);
       emit(`▸ Agent Smith dashboard already running at http://127.0.0.1:${port}`);
       return;
     }
@@ -126,6 +158,8 @@ async function main() {
       /* binary not found / not installed — best-effort, swallow */
     });
     child.unref();
+    // Record the spawned pid + this session so SessionEnd can stop it once the last session ends.
+    registerSession(cwd, sessionId, port, child.pid ?? null, /* autostarted */ true);
     note = `▸ Agent Smith dashboard starting at http://127.0.0.1:${port} (auto-start; set AGENT_SMITH_DASHBOARD_AUTOSTART=0 to disable)`;
   } catch {
     /* never block session start */

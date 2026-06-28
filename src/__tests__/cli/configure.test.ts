@@ -6,7 +6,6 @@ vi.mock("../../install/dependency-checker.js", () => ({
 vi.mock("../../install/mcp-installer.js", () => ({
   installMCPs: vi.fn(async () => ({ installed: [], prewarmed: [], alreadyPresent: [], onDemand: [], manual: [], failed: [] })),
   configureMCPs: vi.fn(async () => ({})),
-  registerLocalMCPs: vi.fn(() => ({ registered: [], skipped: [] })),
   ensureGitignore: vi.fn(() => []),
   selectServersToInstall: vi.fn(() => [{ name: "gitnexus" }]),
   PLAYWRIGHT_OUTPUT_DIR: ".playwright-mcp",
@@ -31,14 +30,12 @@ import { checkDependencies } from "../../install/dependency-checker.js";
 import {
   installMCPs,
   configureMCPs,
-  registerLocalMCPs,
   ensureGitignore,
 } from "../../install/mcp-installer.js";
 import { setupObsidianVault } from "../../install/obsidian-vault.js";
 import { resolveConsent } from "../../install/install-consent.js";
 
 const mockedCheck = vi.mocked(checkDependencies);
-const mockedRegister = vi.mocked(registerLocalMCPs);
 const mockedConsent = vi.mocked(resolveConsent);
 
 describe("configureCommand", () => {
@@ -50,7 +47,6 @@ describe("configureCommand", () => {
     delete process.env.OBSIDIAN_VAULT_PATH;
     (process.stdin as { isTTY?: boolean }).isTTY = false;
     mockedCheck.mockResolvedValue({ ok: true } as Awaited<ReturnType<typeof checkDependencies>>);
-    mockedRegister.mockReturnValue({ registered: [], skipped: [] });
     mockedConsent.mockResolvedValue({ approved: true });
   });
 
@@ -66,8 +62,7 @@ describe("configureCommand", () => {
     expect(configureMCPs).not.toHaveBeenCalled();
   });
 
-  it("installs, configures, gitignores playwright output, and registers local servers", async () => {
-    mockedRegister.mockReturnValue({ registered: ["obsidian"], skipped: [] });
+  it("installs, configures, and gitignores playwright output (no separate registerLocalMCPs step)", async () => {
     await configureCommand({});
     expect(installMCPs).toHaveBeenCalled();
     // configureMCPs now also receives dryRun + the detected project (for stack-aware MCP gating).
@@ -79,11 +74,9 @@ describe("configureCommand", () => {
       expect.anything(),
     );
     expect(ensureGitignore).toHaveBeenCalledWith(expect.any(String), [".playwright-mcp/"]);
-    expect(registerLocalMCPs).toHaveBeenCalled();
   });
 
-  it("reports skipped servers when none registered", async () => {
-    mockedRegister.mockReturnValue({ registered: [], skipped: ["obsidian"] });
+  it("completes without error (no registerLocalMCPs call expected)", async () => {
     await expect(configureCommand({})).resolves.toBeUndefined();
   });
 

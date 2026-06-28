@@ -1,6 +1,5 @@
 // MCP installer — downloads and configures MCP servers
 import { spawn, execFileSync } from "node:child_process";
-import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
 import chalk from "chalk";
@@ -246,7 +245,6 @@ export async function configureMCPs(
   platform: string = "claude-code",
   dryRun: boolean = false,
   project: DetectedProject | null = null,
-  userMcpPath: string = path.join(os.homedir(), ".claude", ".mcp.json"),
 ): Promise<MCPConfigBundle> {
   const bundle: MCPConfigBundle = {
     projectSettings: {},
@@ -267,13 +265,13 @@ export async function configureMCPs(
 
   if (!dryRun) {
     writeProjectMcp(projectRoot, bundle);
-    writeUserMcp(userMcpPath, bundle);
+    stripSettingsMcpServers(projectRoot);
   }
 
   return bundle;
 }
 
-/** Add a single registry server to the bundle under its file-based scope(s). */
+/** Add a single registry server to the bundle — all applicable scopes go into projectMcp. */
 function addServerToBundle(
   bundle: MCPConfigBundle,
   server: MCPServerDefinition,
@@ -292,17 +290,11 @@ function addServerToBundle(
     return;
   }
 
-  // "local" scope is not file-based — it lives in ~/.claude.json, registered
-  // separately via registerLocalMCPs(). Skip it here.
-  if (server.scope === "local") return;
-
+  // All scopes (project, both, user, local) are consolidated into projectMcp (.mcp.json).
+  // .mcp.json is gitignored per-developer, so private values (vault paths, credentials) are safe.
+  // mcpServers is never written to .claude/settings.json.
   const entry = { type: "stdio" as const, ...resolveConfigEnv(server.configTemplate, vars) };
-  if (server.scope === "project" || server.scope === "both") {
-    bundle.projectMcp[server.name] = entry;
-  }
-  if (server.scope === "user" || server.scope === "both") {
-    bundle.userMcp[server.name] = entry;
-  }
+  bundle.projectMcp[server.name] = entry;
 }
 
 /** Merge bundle.projectMcp into the repo's .mcp.json. */
@@ -320,22 +312,24 @@ function writeProjectMcp(projectRoot: string, bundle: MCPConfigBundle): void {
 }
 
 /**
- * Merge bundle.userMcp into the user-level MCP config file
- * (default: ~/.claude/.mcp.json). Pass a custom path in tests
- * so the real user file is never touched.
+ * Migration cleanup: remove the `mcpServers` key from `.claude/settings.json`
+ * if it exists. All MCP servers are now consolidated into `.mcp.json`. Other
+ * keys (`permissions`, `hooks`, etc.) are preserved untouched.
+ *
+ * Safe to call idempotently — no-ops when the file or key do not exist.
  */
-function writeUserMcp(userMcpPath: string, bundle: MCPConfigBundle): void {
-  if (Object.keys(bundle.userMcp).length === 0) return;
-  fs.ensureDirSync(path.dirname(userMcpPath));
-  let existing: Record<string, unknown> = {};
-  if (fs.existsSync(userMcpPath)) {
-    existing = fs.readJsonSync(userMcpPath);
+export function stripSettingsMcpServers(projectRoot: string): void {
+  const settingsPath = path.join(projectRoot, ".claude", "settings.json");
+  if (!fs.existsSync(settingsPath)) return;
+  let settings: Record<string, unknown>;
+  try {
+    settings = fs.readJsonSync(settingsPath);
+  } catch {
+    return;
   }
-  existing.mcpServers = {
-    ...(existing.mcpServers as Record<string, unknown> ?? {}),
-    ...bundle.userMcp,
-  };
-  fs.writeJsonSync(userMcpPath, existing, { spaces: 2 });
+  if (!Object.prototype.hasOwnProperty.call(settings, "mcpServers")) return;
+  delete settings.mcpServers;
+  fs.writeJsonSync(settingsPath, settings, { spaces: 2 });
 }
 
 function resolveConfigEnv(

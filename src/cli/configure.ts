@@ -2,7 +2,7 @@
 import chalk from "chalk";
 import ora from "ora";
 import { checkDependencies } from "../install/dependency-checker.js";
-import { configureMCPs, registerLocalMCPs, ensureGitignore, PLAYWRIGHT_OUTPUT_DIR } from "../install/mcp-installer.js";
+import { configureMCPs, ensureGitignore, PLAYWRIGHT_OUTPUT_DIR } from "../install/mcp-installer.js";
 import { installWithConsent } from "../install/install-flow.js";
 import { setupObsidianVault } from "../install/obsidian-vault.js";
 import { scaffoldConfigs } from "../scaffold/configs.js";
@@ -57,17 +57,7 @@ export async function configureCommand(opts: ConfigureOptions): Promise<void> {
   await scaffoldConfigs(cwd, "claude-code");
   // Keep Playwright screenshot artifacts out of version control.
   ensureGitignore(cwd, [`${PLAYWRIGHT_OUTPUT_DIR}/`]);
-  configSpinner.succeed("MCP configurations written");
-
-  // Register local-scope servers (e.g. obsidian) into ~/.claude.json for this repo.
-  const localSpinner = ora("Registering local-scope MCP servers...").start();
-  const { registered, skipped } = registerLocalMCPs(DEFAULT_TEMPLATE_VARS, "claude-code");
-  if (registered.length > 0) {
-    localSpinner.succeed(`Registered local MCP servers: ${registered.join(", ")}`);
-  } else {
-    const skippedNote = skipped.length ? ` (skipped: ${skipped.join(", ")})` : "";
-    localSpinner.info(`No local MCP servers registered${skippedNote}`);
-  }
+  configSpinner.succeed("MCP configurations written — all servers (project, user, local) in .mcp.json");
 
   console.log(chalk.bold.green("\n✓ MCP configuration complete\n"));
 }

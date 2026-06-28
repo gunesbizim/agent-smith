@@ -6,6 +6,7 @@ import { configureMCPs, hasRequiredEnv, registerLocalMCPs, ensureGitignore, inst
 import { needsShellForCli } from "../../shared/platform-utils.js";
 import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
 import type { DetectedProject, FrontendInfo } from "../../shared/types.js";
+import { stripSettingsMcpServers } from "../../install/mcp-installer.js";
 
 const FRONTEND: FrontendInfo = {
   framework: "vue3", componentPattern: "script-setup", uiLibrary: "Vuetify 3",
@@ -55,11 +56,9 @@ describe("needsShellForCli — launch .cmd/.bat shims via shell on Windows (M2/M
 
 describe("configureMCPs — dryRun: false — correct file targets", () => {
   let tmpDir: string;
-  let tmpUserMcp: string;
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-installer-"));
-    tmpUserMcp = path.join(tmpDir, "user-mcp.json");
     fs.ensureDirSync(path.join(tmpDir, ".claude"));
   });
 
@@ -68,7 +67,7 @@ describe("configureMCPs — dryRun: false — correct file targets", () => {
   });
 
   it("creates .mcp.json with project-scope servers (gitnexus, sentrux, serena, git-memory)", async () => {
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null, tmpUserMcp);
+    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null);
     const mcp = fs.readJsonSync(path.join(tmpDir, ".mcp.json"));
     expect(mcp.mcpServers).toBeDefined();
     expect(mcp.mcpServers.gitnexus).toBeDefined();
@@ -78,14 +77,37 @@ describe("configureMCPs — dryRun: false — correct file targets", () => {
   });
 
   it("creates .mcp.json with browser servers (playwright, chrome-devtools) when no project given", async () => {
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null, tmpUserMcp);
+    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null);
     const mcp = fs.readJsonSync(path.join(tmpDir, ".mcp.json"));
     expect(mcp.mcpServers.playwright).toBeDefined();
     expect(mcp.mcpServers["chrome-devtools"]).toBeDefined();
   });
 
+  it("writes user-scope servers (mempalace, vuetify) into .mcp.json — NOT a separate user file", async () => {
+    const projectWithVuetify = makeProject({ projectType: "web-app", frontend: FRONTEND });
+    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, projectWithVuetify);
+    const mcp = fs.readJsonSync(path.join(tmpDir, ".mcp.json"));
+    expect(mcp.mcpServers).toBeDefined();
+    expect(mcp.mcpServers.mempalace).toBeDefined();
+    expect(mcp.mcpServers.vuetify).toBeDefined();
+  });
+
+  it("writes local-scope servers (obsidian) into .mcp.json when OBSIDIAN_VAULT_PATH is set", async () => {
+    const savedVault = process.env.OBSIDIAN_VAULT_PATH;
+    process.env.OBSIDIAN_VAULT_PATH = "/tmp/test-vault";
+    try {
+      await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null);
+      const mcp = fs.readJsonSync(path.join(tmpDir, ".mcp.json"));
+      expect(mcp.mcpServers.obsidian).toBeDefined();
+      expect(mcp.mcpServers.obsidian.command).toBe("npx");
+    } finally {
+      if (savedVault === undefined) delete process.env.OBSIDIAN_VAULT_PATH;
+      else process.env.OBSIDIAN_VAULT_PATH = savedVault;
+    }
+  });
+
   it("does NOT write mcpServers into .claude/settings.json", async () => {
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null, tmpUserMcp);
+    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null);
     const settingsPath = path.join(tmpDir, ".claude", "settings.json");
     if (fs.existsSync(settingsPath)) {
       const settings = fs.readJsonSync(settingsPath);
@@ -99,45 +121,26 @@ describe("configureMCPs — dryRun: false — correct file targets", () => {
     fs.writeJsonSync(settingsPath, {
       permissions: { allow: ["mcp__some__other_tool"] },
     });
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null, tmpUserMcp);
+    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null);
     const settings = fs.readJsonSync(settingsPath);
     expect(settings.permissions.allow).toContain("mcp__some__other_tool");
     expect(settings.mcpServers).toBeUndefined();
   });
 
-  it("writes user-scope servers (mempalace, vuetify) to the user-mcp path", async () => {
-    const projectWithVuetify = makeProject({ projectType: "web-app", frontend: FRONTEND });
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, projectWithVuetify, tmpUserMcp);
-    const userMcp = fs.readJsonSync(tmpUserMcp);
-    expect(userMcp.mcpServers).toBeDefined();
-    expect(userMcp.mcpServers.mempalace).toBeDefined();
-    expect(userMcp.mcpServers.vuetify).toBeDefined();
-  });
-
-  it("merges user-mcp with a pre-existing entry (ouroboros survives)", async () => {
-    fs.writeJsonSync(tmpUserMcp, {
-      mcpServers: { ouroboros: { type: "stdio", command: "ouroboros", args: [], env: {} } },
-    });
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null, tmpUserMcp);
-    const userMcp = fs.readJsonSync(tmpUserMcp);
-    expect(userMcp.mcpServers.ouroboros).toBeDefined();
-    expect(userMcp.mcpServers.mempalace).toBeDefined();
-  });
-
   it("merges into existing .mcp.json without overwriting other entries", async () => {
     const mcpPath = path.join(tmpDir, ".mcp.json");
     fs.writeJsonSync(mcpPath, { mcpServers: { "my-custom-server": { type: "stdio", command: "foo", args: [] } } });
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null, tmpUserMcp);
+    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null);
     const mcp = fs.readJsonSync(mcpPath);
     expect(mcp.mcpServers["my-custom-server"]).toBeDefined();
     expect(mcp.mcpServers.playwright).toBeDefined();
   });
 
-  it("never writes to the real ~/.claude/.mcp.json (uses injected tmpUserMcp path)", async () => {
+  it("never writes to the real ~/.claude/.mcp.json", async () => {
     const realUserMcp = path.join(os.homedir(), ".claude", ".mcp.json");
     const beforeExists = fs.existsSync(realUserMcp);
     const beforeContent = beforeExists ? fs.readJsonSync(realUserMcp) : null;
-    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null, tmpUserMcp);
+    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null);
     if (beforeExists) {
       const afterContent = fs.readJsonSync(realUserMcp);
       expect(afterContent).toEqual(beforeContent);
@@ -178,13 +181,18 @@ describe("configureMCPs — stack-aware MCP selection", () => {
     const reactish: FrontendInfo = { ...FRONTEND, framework: "react", uiLibrary: "MUI" };
     const project = makeProject({ projectType: "web-app", frontend: reactish });
     const bundle = await configureMCPs("/tmp/x", DEFAULT_TEMPLATE_VARS, "claude-code", true, project);
-    expect(bundle.userMcp.vuetify).toBeUndefined();
+    expect(bundle.projectMcp.vuetify).toBeUndefined();
   });
 
-  it("includes the vuetify MCP when the frontend uses Vuetify", async () => {
+  it("includes the vuetify MCP in projectMcp when the frontend uses Vuetify", async () => {
     const project = makeProject({ projectType: "web-app", frontend: FRONTEND });
     const bundle = await configureMCPs("/tmp/x", DEFAULT_TEMPLATE_VARS, "claude-code", true, project);
-    expect(bundle.userMcp.vuetify).toBeDefined();
+    expect(bundle.projectMcp.vuetify).toBeDefined();
+  });
+
+  it("includes mempalace (user-scope) in projectMcp — all scopes consolidated", async () => {
+    const bundle = await configureMCPs("/tmp/x", DEFAULT_TEMPLATE_VARS, "claude-code", true, null);
+    expect(bundle.projectMcp.mempalace).toBeDefined();
   });
 
   it("excludes laravel-boost for a non-Laravel project", async () => {
@@ -235,11 +243,68 @@ describe("configureMCPs — dryRun: true — no files written", () => {
     expect(bundle.projectSettings.sentrux).toBeUndefined();
   });
 
-  it("never writes obsidian (local scope) into project files", async () => {
-    const bundle = await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", true);
-    expect(bundle.projectSettings.obsidian).toBeUndefined();
-    expect(bundle.projectMcp.obsidian).toBeUndefined();
-    expect(bundle.userMcp.obsidian).toBeUndefined();
+  it("skips obsidian (local scope) when OBSIDIAN_VAULT_PATH is unset (requiredEnv not met)", async () => {
+    const savedVault = process.env.OBSIDIAN_VAULT_PATH;
+    delete process.env.OBSIDIAN_VAULT_PATH;
+    try {
+      const bundle = await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", true);
+      expect(bundle.projectSettings.obsidian).toBeUndefined();
+      expect(bundle.projectMcp.obsidian).toBeUndefined();
+    } finally {
+      if (savedVault !== undefined) process.env.OBSIDIAN_VAULT_PATH = savedVault;
+    }
+  });
+});
+
+describe("stripSettingsMcpServers — migration cleanup", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-strip-"));
+    fs.ensureDirSync(path.join(tmpDir, ".claude"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("removes only mcpServers from settings.json, leaving permissions and hooks intact", async () => {
+    const settingsPath = path.join(tmpDir, ".claude", "settings.json");
+    fs.writeJsonSync(settingsPath, {
+      mcpServers: { gitnexus: { type: "stdio", command: "gitnexus", args: ["mcp"], env: {} } },
+      permissions: { allow: ["Bash(git:*)"], deny: [] },
+      hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo hi" }] }] },
+    });
+    stripSettingsMcpServers(tmpDir);
+    const settings = fs.readJsonSync(settingsPath);
+    expect(settings.mcpServers).toBeUndefined();
+    expect(settings.permissions.allow).toContain("Bash(git:*)");
+    expect(settings.hooks).toBeDefined();
+  });
+
+  it("is a no-op when settings.json has no mcpServers key", async () => {
+    const settingsPath = path.join(tmpDir, ".claude", "settings.json");
+    fs.writeJsonSync(settingsPath, { permissions: { allow: ["Bash(git:*)"] } });
+    const before = fs.readFileSync(settingsPath, "utf-8");
+    stripSettingsMcpServers(tmpDir);
+    const after = fs.readFileSync(settingsPath, "utf-8");
+    expect(after).toBe(before);
+  });
+
+  it("is a no-op when settings.json does not exist", async () => {
+    expect(() => stripSettingsMcpServers(tmpDir)).not.toThrow();
+  });
+
+  it("configureMCPs calls stripSettingsMcpServers: mcpServers key gone after run", async () => {
+    const settingsPath = path.join(tmpDir, ".claude", "settings.json");
+    fs.writeJsonSync(settingsPath, {
+      mcpServers: { old: { type: "stdio", command: "old", args: [], env: {} } },
+      permissions: { allow: ["Bash(npm:*)"] },
+    });
+    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null);
+    const settings = fs.readJsonSync(settingsPath);
+    expect(settings.mcpServers).toBeUndefined();
+    expect(settings.permissions.allow).toContain("Bash(npm:*)");
   });
 });
 

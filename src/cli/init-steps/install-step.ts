@@ -4,7 +4,7 @@
  */
 import chalk from "chalk";
 import ora from "ora";
-import { configureMCPs, registerLocalMCPs } from "../../install/mcp-installer.js";
+import { configureMCPs } from "../../install/mcp-installer.js";
 import { installWithConsent } from "../../install/install-flow.js";
 import { setupObsidianVault } from "../../install/obsidian-vault.js";
 import { writeClaudeMd } from "../../adapt/claude-md-writer.js";
@@ -46,20 +46,13 @@ export async function runInstallStep(opts: InstallStepOptions): Promise<void> {
   await configureMCPs(targetDir, templateVars, platform, dryRun, project);
   mcpSpinner.succeed("MCP servers configured");
 
-  // Step 10d — Register local-scope MCP servers (obsidian) + create vault
+  // Step 10d — Set up Obsidian vault (prompt + directory creation)
+  // Local-scope MCP servers (obsidian) are now written to .mcp.json via configureMCPs above.
   if (!dryRun && platform === "claude-code") {
     const interactive = !auto && !noInterview;
     const vault = await setupObsidianVault(targetDir, { interactive });
     if (vault.vaultPath && vault.created) {
       console.log(chalk.gray(`  Created Obsidian vault: ${vault.vaultPath}`));
-    }
-    const localSpinner = ora("Registering local-scope MCP servers...").start();
-    const { registered, skipped } = registerLocalMCPs(templateVars, platform);
-    if (registered.length > 0) {
-      localSpinner.succeed(`Registered local MCP servers: ${registered.join(", ")}`);
-    } else {
-      const skippedNote = skipped.length ? ` (skipped: ${skipped.join(", ")})` : "";
-      localSpinner.info(`No local MCP servers registered${skippedNote}`);
     }
   }
 

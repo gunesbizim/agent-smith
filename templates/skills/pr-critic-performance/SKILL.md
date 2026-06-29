@@ -23,7 +23,11 @@ confidence rather than staying silent.
 ## Method (smith-mode applies for multi-file diffs)
 
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
-2. For each changed area, ask: *how does this fail from a performance standpoint?* Look at the real
+2. **Use MCP for ground truth — before judging any finding:** call `gitnexus` (`impact`,
+   `route_map`, or callers via `find_referencing_symbols`) to confirm whether changed code sits on
+   a hot or looping path. Call `sentrux` (`dsm`) to surface coupling hot-spots. A suspected N+1 or
+   unbounded loop that is never exercised on a real request path must be marked `falsePositive: true`.
+3. For each changed area, ask: *how does this fail from a performance standpoint?* Look at the real
    call sites and data flow, not just the diff hunk.
 3. For every finding, produce:
    `{ severity: critical|high|medium|low, file, line, problem, fix, falsePositive: boolean, fpReason?: string }`.

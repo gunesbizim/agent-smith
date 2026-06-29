@@ -45,6 +45,8 @@ gitnexus_context("path/to/component")                    # full component contex
 gitnexus_api_impact()                                    # backend endpoints the component consumes
 ```
 
+Use the `gitnexus_query` result to identify which props, emits, and store interactions to test. Then call `git-memory.commits_touching_file(<path>)` and `git-memory.bug_fix_history(<component>)` — past regressions in this component surface edge cases (async race conditions, role-gate bypasses, broken i18n keys) that must be covered.
+
 **Rule:** never duplicate an existing test — check test directories first.
 
 ---
@@ -77,7 +79,7 @@ Verify by running the tests / type-check (`{{FRONTEND_TYPE_CHECK_CMD}}`).
 
 ## Step 3 — Component API lookup (when asserting on library internals)
 
-Use the component library MCP to look up class names, slot structures, and ARIA roles. Never guess.
+Use the wired UI-library MCP for `{{FRONTEND_UI_LIBRARY}}` (if available) to look up class names, slot structures, and ARIA roles — never guess. If no UI-library MCP is configured for this project, fall back to reading the component source directly with Read/Grep.
 
 ---
 

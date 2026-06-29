@@ -19,6 +19,12 @@ These MCP servers are configured for this project — use the ones relevant to t
 Prefer these over blind file search when answering "what/why/impact" questions.
 See `docs/architecture/mcp-tools.md` for exact tool names and signatures.
 
+## Test-driven development (enforced)
+
+This project follows **RED-first TDD**: a failing test is written and confirmed failing before the
+implementation that makes it pass. As a reviewer, enforce it — new business logic that ships without
+covering tests (happy path + failure paths) is a blocker, not a suggestion (see checklist §8).
+
 ---
 
 
@@ -156,6 +162,36 @@ section — do NOT escalate it. Only confirmed findings are reported.
 
 ---
 
+## Step 4 — Adversarial critic panel (sub-skills)
+
+After the checklist, run the five single-lens critic **sub-skills** against the **backend** diff.
+Each one tries to REFUTE the change from its own angle (not a balanced review). Spawn one Agent per
+critic, in parallel:
+
+> Read `.claude/skills/pr-critic-<lens>/SKILL.md` and execute it exactly on the backend diff
+> (`git diff origin/main...HEAD -- {{BACKEND_DIR}}/`). `$ARGUMENTS` = `<scope>`. Return ONLY your
+> `{severity, file, line, problem, fix, falsePositive, fpReason?}` findings.
+
+Lenses: `pr-critic-security`, `pr-critic-performance`, `pr-critic-simplicity`,
+`pr-critic-maintainability`, `pr-critic-dx`.
+
+### Synthesis (consensus, not raw dump)
+
+After the critics return, consolidate — do NOT dump every critic verbatim:
+
+**Step A — False-positive triage (first, always):** drop every finding where `falsePositive: true`;
+list them under **Dropped as false positive** with each `fpReason` for human audit. Dropped findings
+are not counted toward the verdict and not auto-fixed.
+
+**Step B — Severity-driven handling of confirmed findings:**
+1. **Dedup** confirmed findings pointing at the same file/line across lenses.
+2. **Rank** by severity; a finding flagged by ≥2 lenses is high-confidence-real — surface first.
+3. **critical / high** → fold into **Blockers** (and auto-fix when confident and run standalone).
+4. **medium / low** → list under **Required changes** / **Suggestions**; never block the verdict.
+5. A lone single-lens finding with no corroboration is **medium** at most.
+
+---
+
 ## Output format
 
 ```
@@ -175,8 +211,11 @@ Should fix (arch violations, missing codes, test gaps).
 ## Suggestions
 Non-blocking improvements.
 
+## Critic panel (synthesized)
+Confirmed critic findings folded in by severity (critical/high under Blockers; medium/low under Required/Suggestions), with cross-lens corroboration noted.
+
 ## Dropped as false positive
-Findings confirmed as false positives, with reason (fpReason) for each — listed here for human audit; not counted toward verdict, not auto-fixed.
+Findings confirmed as false positives, with reason (fpReason) for each — from both the review and the critic panel — listed here for human audit; not counted toward verdict, not auto-fixed.
 
 ## Approved sections
 What looks correct.

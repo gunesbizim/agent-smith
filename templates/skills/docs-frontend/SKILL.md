@@ -79,6 +79,19 @@ mcp__playwright__browser_wait_for(...)           # wait for async states (job po
 
 **Console check:** `mcp__playwright__browser_console_messages` after each flow — flag errors as a smoke test but continue documenting.
 
+**When a flow misbehaves** (blank screen, unexpected error state, slow load), switch to chrome-devtools for deeper inspection before writing the docs step:
+
+```
+mcp__chrome-devtools__list_console_messages()      # capture JS errors and warnings in the flow
+mcp__chrome-devtools__list_network_requests()      # identify failed or slow API calls
+mcp__chrome-devtools__performance_start_trace()    # start a performance trace
+# reproduce the misbehaving action
+mcp__chrome-devtools__performance_stop_trace()     # stop and capture the trace
+mcp__chrome-devtools__performance_analyze_insight() # surface rendering bottlenecks or long tasks
+```
+
+Document findings inline in the guide under a "Known issues" callout or "Things to know" bullet so users understand what they may encounter. Fix broken flows with the dev team before publishing if the error is blocking.
+
 ---
 
 ## Step 4 — Write the guide (Obsidian MCP)

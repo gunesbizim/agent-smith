@@ -158,3 +158,11 @@ thinner than it should have been. Fix it or flag it to the user.
   before a context compaction. That snapshot is a safety net, not a substitute for this skill:
   the hook cannot reason about which work is done or delegate it. Run this skill deliberately
   while you still have context to write a good handoff.
+
+---
+
+## Test-driven development (mandatory)
+
+Follow RED-first TDD: write the failing test(s) first and run them to confirm they fail for the right reason, then implement until green. Never write tests after the code. This is the failable-verification stage of smith-mode.
+
+The handoff document MUST report test status honestly: record whether the suite is RED or green at the time of handoff, list any known failing tests by name, and include the exact test command so the receiving agent starts from a verified baseline — never assume green without running the tests.

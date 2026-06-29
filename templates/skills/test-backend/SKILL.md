@@ -44,6 +44,8 @@ gitnexus_impact("TargetClassName")         # what callers exist? what breaks if 
 gitnexus_context("path/to/file")           # full module context
 ```
 
+Use the `gitnexus_query` result to identify which methods and references to target in your tests. Then call `git-memory.commits_touching_file(<path>)` and `git-memory.bug_fix_history(<component>)` on the file — past bug-fix history surfaces edge cases and regression risks that should drive your test plan.
+
 **Rule:** never duplicate an existing test; never test a symbol without first running `gitnexus_impact`.
 
 ---

@@ -41,11 +41,23 @@ describe("critic panel scaffolding (A5)", () => {
     for (const lens of LENSES) expect(GENERATED_SKILLS).toContain(`pr-critic-${lens}`);
   });
 
-  it("/as-pr-review references the critic panel and a synthesis step", () => {
+  it("the pr-review skills own the critic panel + synthesis (sub-skill nesting)", () => {
+    for (const side of ["backend", "frontend"]) {
+      const skill = fs.readFileSync(
+        path.join(repoRoot, "templates", "skills", `pr-review-${side}`, "SKILL.md"),
+        "utf-8",
+      );
+      expect(skill, `${side} review references the critic panel`).toMatch(/critic .*panel|critic sub-skill/i);
+      expect(skill, `${side} review synthesizes`).toMatch(/Synthesis/);
+      for (const lens of LENSES) expect(skill).toContain(`pr-critic-${lens}`);
+    }
+  });
+
+  it("/as-pr-review is a thin dispatcher that delegates to the review skills (not the critics)", () => {
     const cmd = fs.readFileSync(path.join(repoRoot, "templates", "commands", "as-pr-review.md"), "utf-8");
-    expect(cmd).toContain("critic panel");
-    expect(cmd).toContain("Synthesis");
-    expect(cmd).toMatch(/consensus/i);
-    for (const lens of LENSES) expect(cmd).toContain(`pr-critic-${lens}`);
+    expect(cmd).toContain("pr-review-backend");
+    expect(cmd).toContain("pr-review-frontend");
+    // The command no longer fans out the critic panel itself — that moved into the review skills.
+    expect(cmd).not.toMatch(/Read `\.claude\/skills\/pr-critic-/);
   });
 });

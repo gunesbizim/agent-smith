@@ -23,7 +23,10 @@ confidence rather than staying silent.
 ## Method (smith-mode applies for multi-file diffs)
 
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
-2. For each changed area, ask: *how does this fail from a developer experience standpoint?* Look at the real
+2. **Use MCP for ground truth — before judging any finding:** call `gitnexus`
+   (`find_referencing_symbols`) to locate real call sites of any changed public API. Judge
+   ergonomics against what callers actually pass — not hypothetical usage.
+3. For each changed area, ask: *how does this fail from a developer experience standpoint?* Look at the real
    call sites and data flow, not just the diff hunk.
 3. For every finding, produce:
    `{ severity: critical|high|medium|low, file, line, problem, fix, falsePositive: boolean, fpReason?: string }`.

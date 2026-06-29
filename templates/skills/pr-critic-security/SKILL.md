@@ -23,7 +23,12 @@ confidence rather than staying silent.
 ## Method (smith-mode applies for multi-file diffs)
 
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
-2. For each changed area, ask: *how does this fail from a security standpoint?* Look at the real
+2. **Use MCP for ground truth — before judging any finding:** call `gitnexus` (`impact`,
+   `find_referencing_symbols`, or `route_map`) to trace how changed auth/validation/input-handling
+   symbols are actually called in the live codebase. Call `sentrux` (`check_rules`) for rule
+   violations flagged by the quality gate. A vulnerability that is not reachable from any real
+   call site must be marked `falsePositive: true`.
+3. For each changed area, ask: *how does this fail from a security standpoint?* Look at the real
    call sites and data flow, not just the diff hunk.
 3. For every finding, produce:
    `{ severity: critical|high|medium|low, file, line, problem, fix, falsePositive: boolean, fpReason?: string }`.

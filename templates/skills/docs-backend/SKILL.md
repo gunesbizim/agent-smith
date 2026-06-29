@@ -134,6 +134,14 @@ these as suggestions in the output; never block the doc run on them.
 
 Validate the API schema before finishing. Fix all warnings.
 
+Any code annotations added (docstrings, decorator arguments, schema descriptions) must survive the project's type-check and test gate — run `{{BACKEND_TYPE_CHECK_CMD}}` and `{{BACKEND_TEST_CMD}}` after annotating and fix any failures before writing the Obsidian note.
+
+---
+
+## Test-driven development (mandatory)
+
+Follow RED-first TDD: write the failing test(s) first and run them to confirm they fail for the right reason, then implement until green. Never write tests after the code. This is the failable-verification stage of smith-mode.
+
 ---
 
 ## Output format

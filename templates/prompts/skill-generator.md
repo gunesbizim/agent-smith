@@ -52,9 +52,16 @@ the MCP-tool usage steps; swap every stack assumption for what this repo actuall
    so plainly and covers only what exists; it never invents a tier.
 5. **Resolve every `{{VAR}}`** to a concrete value — the output must contain zero `{{...}}`.
 6. **Real commands/paths only** (from the manifests/CI, per the rule below) — never a placeholder.
+7. **Keep the TDD discipline.** Every implementation and test skill states **RED-first TDD**: write
+   the failing test first, confirm it fails for the right reason, then implement until green —
+   never tests after the code. Review skills enforce it (missing tests for new logic = blocker).
+8. **Keep the execution-chain wiring** — command → main skill → sub-skill → MCP tool. Preserve any
+   sub-skill dispatch (e.g. the `pr-review-*` skills must keep running their `pr-critic-*` panel),
+   and keep each skill's MCP-tool usage steps (gitnexus / git-memory / playwright / chrome-devtools
+   / sentrux / obsidian) — prefer the wired MCP over ad-hoc shell/Read.
 
-A skill that still contains a `{{placeholder}}`, a wrong-stack rule, or is so short it clearly
-wasn't decorated FAILS the contract and is reported ✗.
+A skill that still contains a `{{placeholder}}`, a wrong-stack rule, drops the TDD/critic wiring,
+or is so short it clearly wasn't decorated FAILS the contract and is reported ✗.
 
 ```markdown
 {{STUB_EXAMPLE}}
@@ -97,7 +104,14 @@ Run them concurrently where possible. Each subagent rewrites its ONE file in pla
   it is **unconfirmed** (and that it can be settled via `agent-smith confirm`) rather than
   inventing one.
 - Keep the skill's workflow shape (Plan → analyze → act → verify) and its MCP-tool usage
-  steps, but make every command and path correct for this repo.
+  steps, but make every command and path correct for this repo. Prefer the wired MCP servers
+  (gitnexus / git-memory / playwright / chrome-devtools / sentrux / obsidian) over ad-hoc
+  shell/Read whenever an MCP can answer the question — keep those tool-usage steps concrete.
+- Keep the TDD discipline: implementation/test skills carry a RED-first test-first section;
+  review skills treat missing tests for new logic as a blocker.
+- Preserve sub-skill dispatch: the `pr-review-backend`/`pr-review-frontend` skills must keep
+  running their `pr-critic-*` critic panel (security/performance/simplicity/maintainability/dx)
+  scoped to their side, plus the synthesis step — do not flatten the panel back into the command.
 - Resolve any remaining {{TEMPLATE_VARS}} to concrete values; leave no unresolved braces.
 - Reference sibling commands by their as-* names (e.g. /as-pr-review, /as-test).
 - Reference the smith-mode execution-discipline skill (.claude/skills/smith-mode/SKILL.md):
@@ -119,8 +133,10 @@ Run them concurrently where possible. Each subagent rewrites its ONE file in pla
 ## Phase 3 — Verify
 
 After all subagents finish, re-read each file and confirm: valid frontmatter, no leftover
-{{...}} placeholders, no wrong-stack rules, real commands, and a 'Recommended best practices'
-section present in each. Confirm docs/architecture/best-practices.md was written. Fix shortfalls.
+{{...}} placeholders, no wrong-stack rules, real commands, a 'Recommended best practices'
+section present in each, the RED-first TDD discipline intact, and the `pr-review-*` skills still
+dispatch their `pr-critic-*` panel. Confirm docs/architecture/best-practices.md was written. Fix
+shortfalls.
 
 ## Final output — the skills report (machine-parseable)
 

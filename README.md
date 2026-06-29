@@ -176,7 +176,7 @@ Useful flags: `--llm` / `--no-llm` (force or skip the Claude pass), `--dry-run` 
 | **sentrux** | Architectural sensor + quality gate | brew / curl / winget (shell) | always | [sentrux/sentrux](https://github.com/sentrux/sentrux) |
 | **vuetify** | Vuetify 3 component API lookup | npx on first use | Vuetify frontend | [vuetifyjs/mcp](https://github.com/vuetifyjs/mcp) |
 | **laravel-boost** | Laravel app intelligence — routes, models, schema | manual (`composer require laravel/boost --dev`) | Laravel backend | [laravel/boost](https://github.com/laravel/boost) |
-| **obsidian** | Read/write a knowledge vault (**local scope, private**) | npx on first use | you provide a vault path | npm: `mcp-obsidian` |
+| **obsidian** | Read/write a knowledge vault (vault path is private per-machine, kept in gitignored `.mcp.json`) | npx on first use | you provide a vault path | npm: `mcp-obsidian` |
 | **mempalace** | Persistent knowledge-graph memory | `pipx install mempalace` (needs Python) | always | pip: `mempalace` *(no public repo listed)* |
 | **jira** | Jira/Confluence issue tracking | npx on first use | `JIRA_API_TOKEN` set | npm: `@anthropic/jira-mcp` *(not yet published)* |
 
@@ -237,7 +237,7 @@ hooks/        # the hook scripts copied into your project
 .sentrux/     # this repo's own quality baseline
 ```
 
-In-depth, code-grounded docs live in the Obsidian vault under `vault/agent-smith/` (private per-developer).
+In-depth, code-grounded docs live in the Obsidian vault under `vault/agent-smith/` (committed public documentation — see the vault files in this repo).
 
 ---
 
@@ -297,7 +297,7 @@ npx @gunesbizim/agent-smith init
 
 1. **Detection** — it reads your manifests and reports the stack it found. Anything it can't determine is shown as `none`, never guessed.
 2. **Interview** (~11 questions; skip with `--auto` / `--no-interview`) — branch naming, commit format, ticket prefix, PR checklist, architecture rules, complexity limits, and so on. Each has a smart default: press Enter to accept, type `?` for a Claude elaboration, or `skip` to leave blank. Answers are saved to `docs/architecture/decisions.md`.
-3. **MCP approval** — a single batch prompt lists every server and the exact install command. Approve it (or pass `--yes`) and a live progress bar shows what's installing. Selection is **stack-gated** — you only get servers relevant to your project.
+3. **MCP approval** — a single batch prompt lists every server and the exact install command. Approve it (or pass `--yes`) and a live progress bar shows what's installing. Selection is **stack-gated** — you only get servers relevant to your project. After install, `init` automatically runs each server's index command in the project root (`gitnexus analyze`, `git-memory index --repo-path .`) so the MCP tools are populated and ready in the very first session — no manual indexing step required.
 4. **Generation** — when `claude` is present, it writes architecture docs and rewrites the worker skills grounded in your real code. This runs **last** and can take up to ~20 min on a large monorepo; raise the cap with `AGENT_SMITH_SKILLS_TIMEOUT_MS` (milliseconds) if it times out.
 
 When it finishes, **restart Claude Code**. Your repository now has:

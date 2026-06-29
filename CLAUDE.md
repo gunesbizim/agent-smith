@@ -13,9 +13,9 @@ initializes (via `templates/skills/smith-mode/`).
 # Project Documentation (Obsidian vault)
 
 Full, code-grounded documentation for this project lives in the Obsidian vault at
-**`vault/agent-smith/`** (served by the `obsidian` MCP; vault contents are gitignored and
-private per-developer). Start at **`vault/agent-smith/index.md`** — it is the Map of Content
-that links every note.
+**`vault/agent-smith/`** (served by the `obsidian` MCP; the vault is committed to the repo as the
+project's public documentation). Start at **`vault/agent-smith/index.md`** — it is the Map of
+Content that links every note.
 
 | Topic | Note |
 |---|---|

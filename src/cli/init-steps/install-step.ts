@@ -8,6 +8,7 @@ import { configureMCPs } from "../../install/mcp-installer.js";
 import { installWithConsent } from "../../install/install-flow.js";
 import { setupObsidianVault } from "../../install/obsidian-vault.js";
 import { writeClaudeMd } from "../../adapt/claude-md-writer.js";
+import { removeGitnexusAgentsMd } from "../../install/agents-md-cleanup.js";
 import type { TemplateVariables } from "../../shared/types.js";
 
 // Minimal type alias to avoid a direct import of analyze-project just for the shape
@@ -60,4 +61,10 @@ export async function runInstallStep(opts: InstallStepOptions): Promise<void> {
   const claudeMdSpinner = ora("Writing CLAUDE.md (agent-smith managed block)...").start();
   const claudeMd = writeClaudeMd(targetDir, dryRun);
   claudeMdSpinner.succeed(`CLAUDE.md ${claudeMd.created ? "created" : "updated"} (commands + skills documented)`);
+
+  // Step 12b — Remove the gitnexus-authored AGENTS.md now that its tool/skill pointers are
+  // consolidated into the CLAUDE.md managed block (the file Claude Code reads each session).
+  if (!dryRun && removeGitnexusAgentsMd(targetDir)) {
+    console.log(chalk.gray("  Removed gitnexus AGENTS.md (consolidated into CLAUDE.md)."));
+  }
 }

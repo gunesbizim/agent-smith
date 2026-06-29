@@ -20,7 +20,6 @@ const COMMAND_FILES = [
   ".claude/commands/as-test.md",
   ".claude/commands/as-pr-review.md",
   ".claude/commands/as-documentation.md",
-  ".claude/commands/as-git.md",
 ];
 
 export async function customizeSkills(

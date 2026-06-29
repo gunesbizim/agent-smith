@@ -4,6 +4,8 @@ Invoke this when you judge the user's task is **fully complete** (code written, 
 
 > **You** (the model) run this — not the Stop hook. The Stop hook only *nudges* you to consider shipping. Only ship when the task is genuinely done, never mid-task.
 
+> **Just want to commit + push?** This command also covers the plain commit/push path (there is no separate `/as-git`). When the hint is "just commit" / "commit and push" (no PR/CI wanted), run the branch-hygiene + safety-scan + conventional-commit + push steps (1–5) and stop after the push — skip PR creation, review, and CI polling.
+
 > **Requires the GitHub CLI (`gh`).** Steps 5–8 (open PR, detect/poll CI) all shell out to `gh`. `agent-smith init` auto-installs `gh` when a no-sudo package manager is available (Homebrew on macOS/Linux, winget/choco on Windows); otherwise install it manually (https://github.com/cli/cli#installation). Either way, `gh` must be authenticated once with `gh auth login` before it can create PRs — if `gh auth status` fails, stop and ask the user to authenticate.
 
 ---

@@ -18,6 +18,10 @@ the file-type examples below are illustrative, not exhaustive.
 
 ## Step 2 — Dispatch (fresh subagent per side, parallel when both)
 
+**Dispatch only the side(s) that actually changed / are targeted.** A frontend-only target runs
+**only** `test-frontend`; a backend-only target runs **only** `test-backend`. Run both only when
+the work genuinely spans both sides. Never dispatch a side with no changes.
+
 - Backend → spawn an Agent with:
   > Read `.claude/skills/test-backend/SKILL.md` and execute it exactly. `$ARGUMENTS` = `<target + context>`. Write tests, run them, return results.
 

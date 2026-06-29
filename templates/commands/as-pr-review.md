@@ -55,6 +55,10 @@ git diff origin/main...HEAD --stat
 | **Frontend** | `{{FRONTEND_DIR}}/` |
 | Both / docs-only | run both / report "no reviewable code" |
 
+**Dispatch only the side(s) that actually changed.** If the diff touches only `{{FRONTEND_DIR}}/`,
+run **only** `pr-review-frontend` — do not spawn the backend reviewer (and vice versa). Run both
+only when both sides changed. A side with zero changed files is never dispatched.
+
 ## Step 2 — Dispatch the main review skill per side (fresh subagent, parallel when both)
 
 Each main review skill runs its own checklist **and** its `pr-critic-*` sub-skill panel scoped to

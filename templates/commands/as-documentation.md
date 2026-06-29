@@ -22,6 +22,10 @@ git diff origin/main...HEAD --name-only
 
 ## Step 2 — Dispatch (fresh subagent per skill, parallel when both)
 
+**Dispatch only the side(s) that actually changed.** Frontend-only changes trigger **only**
+`docs-frontend`; backend-only changes trigger **only** `docs-backend`. Run both only when both
+changed; if neither changed, report "no documentation impact" and stop.
+
 - Backend docs → spawn an Agent with:
   > Read `.claude/skills/docs-backend/SKILL.md` and execute it exactly. `$ARGUMENTS` = `<latest | all | path>`. Annotate, validate, write Obsidian note.
 

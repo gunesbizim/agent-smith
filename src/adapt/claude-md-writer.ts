@@ -138,18 +138,48 @@ function table(rows: Entry[]): string {
   return head + rows.map((r) => `| \`${cell(r.name)}\` | ${cell(r.description)} |`).join("\n") + "\n";
 }
 
+// The MCP servers agent-smith wires, and when to reach for each. Authoritative usage guidance
+// (the exact configured set lives in `.mcp.json`; exact tool signatures in
+// `docs/architecture/mcp-tools.md`). Kept here so Claude Code sees it every session.
+const MCP_USAGE: Entry[] = [
+  { name: "gitnexus", description: "Code graph — impact/blast-radius, callers, route maps. Use before editing or renaming a public symbol, and to understand architecture." },
+  { name: "git-memory", description: "Commit history & rationale — why code changed, bug-fix history, file timelines. Use when investigating a regression or a non-obvious design." },
+  { name: "playwright", description: "Drive the running app — navigate, fill, snapshot, screenshot. Use to verify frontend flows and capture real UI for docs." },
+  { name: "chrome-devtools", description: "Deep browser inspection — console messages, network requests, performance traces. Use when a flow misbehaves or to profile the UI." },
+  { name: "sentrux", description: "Architectural quality gate — scan, rules, DSM, test-gaps. Use to check structural health before commit and to find weak spots." },
+  { name: "obsidian", description: "Project knowledge vault — read/write the docs notes. Use to record and retrieve human-readable documentation." },
+];
+
 // Build the managed block (markers included).
 export function buildManagedBlock(commands: Entry[], skills: Entry[]): string {
   return [
     START_MARKER,
     "<!-- Managed by agent-smith. Do not edit by hand — re-run `agent-smith init` to refresh. -->",
     "",
-    "# Agent Smith — Commands & Skills",
+    "# Agent Smith — Commands, Skills & Tools",
     "",
-    "This project is set up with agent-smith. The commands and skills below are available to",
-    "every session. For any task spanning multiple files, sources, or sessions, follow the",
-    "**smith-mode** execution discipline (`.claude/skills/smith-mode/SKILL.md`): stage map →",
+    "This project is set up with agent-smith. The commands, skills, and MCP tools below are",
+    "available to every session. For any task spanning multiple files, sources, or sessions, follow",
+    "the **smith-mode** execution discipline (`.claude/skills/smith-mode/SKILL.md`): stage map →",
     "delegate → failable verification → self-critique.",
+    "",
+    "## Execution structure",
+    "",
+    "Work flows through a fixed chain — **command → main skill → sub-skill → MCP tool**:",
+    "",
+    "- **Slash commands** (`/as-*`) are thin orchestrators: they detect scope and dispatch to the",
+    "  matching **main skill(s)** by reading `.claude/skills/<name>/SKILL.md` and executing them.",
+    "- **Main skills** (implementation, testing, pr-review, docs) own the workflow and, where",
+    "  applicable, dispatch **sub-skills** — e.g. the pr-review skills run the `pr-critic-*` panel.",
+    "- **Skills call MCP tools** for ground truth. Always prefer the wired MCP servers",
+    "  (gitnexus, git-memory, playwright, chrome-devtools, sentrux, obsidian) over ad-hoc shell or",
+    "  blind file reads whenever an MCP can answer the question.",
+    "",
+    "## Test-driven development (mandatory)",
+    "",
+    "Every implementation and test skill follows **RED-first TDD**: write the failing test(s) first,",
+    "run them to confirm they fail for the right reason, then implement until green. Never write",
+    "tests after the code. This is the failable-verification stage of smith-mode.",
     "",
     "## Slash commands",
     "",
@@ -157,6 +187,12 @@ export function buildManagedBlock(commands: Entry[], skills: Entry[]): string {
     "## Skills",
     "",
     table(skills),
+    "## Available MCP tools",
+    "",
+    "See `docs/architecture/mcp-tools.md` for exact tool names and signatures; `.mcp.json` for the",
+    "configured set in this project.",
+    "",
+    table(MCP_USAGE),
     END_MARKER,
   ].join("\n");
 }

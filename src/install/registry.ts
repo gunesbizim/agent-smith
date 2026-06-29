@@ -1,6 +1,14 @@
 // MCP Registry — all known MCP servers with install methods
 import type { MCPServerDefinition } from "../shared/types.js";
 
+/**
+ * Servers agent-smith used to configure but has since retired. They are pruned from a project's
+ * `.mcp.json` on the next `configure` run (see `pruneRetiredServers`) so existing installs stop
+ * launching a server agent-smith no longer supports. Add a name here when removing it from
+ * MCP_REGISTRY; never reuse a retired name for a new server.
+ */
+export const RETIRED_SERVERS: string[] = ["serena"];
+
 export const MCP_REGISTRY: MCPServerDefinition[] = [
   // ---- Code Intelligence ----
   {
@@ -37,27 +45,6 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
       env: {},
     },
   },
-  {
-    name: "serena",
-    description: "LSP-backed symbol navigation — find symbols, callers, diagnostics inline",
-    category: "code-intelligence",
-    scope: "project",
-    installType: "pipx",
-    installCommand: "pipx install serena",
-    checkCommand: "serena",
-    requiredEnvVars: [],
-    requiresPackageManager: ["pipx", "python"],
-    configTemplate: {
-      type: "stdio",
-      command: "serena",
-      // --context claude-code is REQUIRED: serena defaults to the `desktop-app`
-      // context, which misconfigures it for Claude Code (wrong tool surface /
-      // behavior). Without this serena connects but does not operate correctly.
-      args: ["start-mcp-server", "--context", "claude-code", "--project-from-cwd"],
-      env: {},
-    },
-  },
-
   // ---- Browser Automation ----
   {
     name: "playwright",

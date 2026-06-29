@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { configureMCPs, hasRequiredEnv, ensureGitignore, installMCPs, runCommandAsync, commandSucceeds, presenceProbe, warnStaleUserMcpDuplicates } from "../../install/mcp-installer.js";
+import { configureMCPs, hasRequiredEnv, ensureGitignore, installMCPs, runCommandAsync, commandSucceeds, presenceProbe, warnStaleUserMcpDuplicates, pruneRetiredServers, warnRetiredServerLeftovers } from "../../install/mcp-installer.js";
 import { vi } from "vitest";
 import { needsShellForCli } from "../../shared/platform-utils.js";
 import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
@@ -33,7 +33,6 @@ function makeProject(overrides: Partial<DetectedProject> = {}): DetectedProject 
 describe("presenceProbe — cross-platform PATH check (C1 Windows fix)", () => {
   it("uses `command -v` for a bare token on POSIX", () => {
     expect(presenceProbe("gitnexus", "linux")).toBe("command -v gitnexus");
-    expect(presenceProbe("serena", "darwin")).toBe("command -v serena");
   });
 
   it("uses `where` for a bare token on Windows (cmd.exe has no `command -v`)", () => {
@@ -67,13 +66,12 @@ describe("configureMCPs — dryRun: false — correct file targets", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("creates .mcp.json with project-scope servers (gitnexus, sentrux, serena, git-memory)", async () => {
+  it("creates .mcp.json with project-scope servers (gitnexus, sentrux, git-memory)", async () => {
     await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null);
     const mcp = fs.readJsonSync(path.join(tmpDir, ".mcp.json"));
     expect(mcp.mcpServers).toBeDefined();
     expect(mcp.mcpServers.gitnexus).toBeDefined();
     expect(mcp.mcpServers.sentrux).toBeDefined();
-    expect(mcp.mcpServers.serena).toBeDefined();
     expect(mcp.mcpServers["git-memory"]).toBeDefined();
   });
 
@@ -319,6 +317,103 @@ describe("stripSettingsMcpServers — migration cleanup", () => {
     const settings = fs.readJsonSync(settingsPath);
     expect(settings.mcpServers).toBeUndefined();
     expect(settings.permissions.allow).toContain("Bash(npm:*)");
+  });
+});
+
+describe("pruneRetiredServers — remove retired servers from .mcp.json", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-prune-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("removes a retired server (serena) while leaving current + user-added servers intact", () => {
+    const mcpPath = path.join(tmpDir, ".mcp.json");
+    fs.writeJsonSync(mcpPath, {
+      mcpServers: {
+        gitnexus: { type: "stdio", command: "gitnexus", args: ["mcp"], env: {} },
+        serena: { type: "stdio", command: "serena", args: ["start-mcp-server"], env: {} },
+        "my-custom": { type: "stdio", command: "custom", args: [], env: {} },
+      },
+    });
+    const removed = pruneRetiredServers(tmpDir);
+    expect(removed).toEqual(["serena"]);
+    const mcp = fs.readJsonSync(mcpPath);
+    expect(mcp.mcpServers.serena).toBeUndefined();
+    expect(mcp.mcpServers.gitnexus).toBeDefined();
+    expect(mcp.mcpServers["my-custom"]).toBeDefined();
+  });
+
+  it("is a no-op (returns []) when no retired server is present", () => {
+    const mcpPath = path.join(tmpDir, ".mcp.json");
+    fs.writeJsonSync(mcpPath, {
+      mcpServers: { gitnexus: { type: "stdio", command: "gitnexus", args: ["mcp"], env: {} } },
+    });
+    const before = fs.readFileSync(mcpPath, "utf-8");
+    expect(pruneRetiredServers(tmpDir)).toEqual([]);
+    expect(fs.readFileSync(mcpPath, "utf-8")).toBe(before);
+  });
+
+  it("does not throw when .mcp.json is missing or malformed", () => {
+    expect(pruneRetiredServers(tmpDir)).toEqual([]);
+    fs.writeFileSync(path.join(tmpDir, ".mcp.json"), "{ not valid json");
+    expect(() => pruneRetiredServers(tmpDir)).not.toThrow();
+    expect(pruneRetiredServers(tmpDir)).toEqual([]);
+  });
+
+  it("configureMCPs prunes a pre-existing serena entry on a real run", async () => {
+    const mcpPath = path.join(tmpDir, ".mcp.json");
+    fs.writeJsonSync(mcpPath, {
+      mcpServers: { serena: { type: "stdio", command: "serena", args: [], env: {} } },
+    });
+    await configureMCPs(tmpDir, DEFAULT_TEMPLATE_VARS, "claude-code", false, null);
+    const mcp = fs.readJsonSync(mcpPath);
+    expect(mcp.mcpServers.serena).toBeUndefined();
+    expect(mcp.mcpServers.gitnexus).toBeDefined();
+  });
+});
+
+describe("warnRetiredServerLeftovers — surface what we don't auto-remove", () => {
+  let tmpDir: string;
+  let home: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-leftover-proj-"));
+    home = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-leftover-home-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  it("warns when a retired server is registered in a global config", () => {
+    fs.outputJsonSync(path.join(home, ".claude.json"), {
+      mcpServers: { serena: { type: "stdio", command: "serena", args: [], env: {} } },
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    warnRetiredServerLeftovers(tmpDir, home);
+    expect(warn.mock.calls.flat().join("\n")).toMatch(/serena/);
+    warn.mockRestore();
+  });
+
+  it("warns about a leftover .serena cache dir in the project", () => {
+    fs.ensureDirSync(path.join(tmpDir, ".serena"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    warnRetiredServerLeftovers(tmpDir, home);
+    expect(warn.mock.calls.flat().join("\n")).toMatch(/rm -rf \.serena/);
+    warn.mockRestore();
+  });
+
+  it("is silent when there is nothing to clean up", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    warnRetiredServerLeftovers(tmpDir, home);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 

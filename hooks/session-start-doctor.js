@@ -62,7 +62,7 @@ report.setup = {
 
 // MCP health check
 const mcpStatus = [];
-const mcpServers = ["gitnexus", "git-memory", "serena", "sentrux"];
+const mcpServers = ["gitnexus", "git-memory", "sentrux"];
 for (const server of mcpServers) {
   mcpStatus.push({
     server,

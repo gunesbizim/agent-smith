@@ -15,7 +15,6 @@ items; surface relevant **Recommended** items under Suggestions.
 
 - **gitnexus** — code graph: impact, callers, blast radius before/after changes.
 - **git-memory** — why code changed: commit history, bug-fix history, file timelines.
-- **serena** — LSP symbol navigation & symbolic editing.
 - **sentrux** — architectural quality gate: `sentrux check .` / `sentrux gate .`.
 
 ## Step 0 — Plan first (mandatory)

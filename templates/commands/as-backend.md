@@ -62,28 +62,25 @@ gitnexus_detect_changes()                 # map current git diff to affected flo
 
 ---
 
-## Step 2 — Serena symbol navigation + editing (implementation phase)
+## Step 2 — Symbol navigation + editing (implementation phase)
 
-**Handshake first (once per session).** Before any Serena call, run `mcp__serena__check_onboarding_performed`. If Serena tools are deferred/unloaded, load them via tool-search before using them. Serena line numbers are **0-based**.
-
-Navigation — name paths use `/` (not `.`), and `find_referencing_symbols` requires BOTH `name_path` and `relative_path`:
+Navigation — find symbols and call sites with Grep/Glob over the source tree, and cross-check blast radius with gitnexus (Step 1):
 
 ```
-mcp__serena__get_symbols_overview(relative_path="path/to/file")                                   # symbols in a file (start here)
-mcp__serena__find_symbol(name_path_pattern="ClassName/method_name")                               # exact file + line
-mcp__serena__find_symbol(name_path_pattern="ClassName", depth=1)                                  # a class + its methods
-mcp__serena__find_referencing_symbols(name_path="function_name", relative_path="path/to/file")    # all call sites
+Glob("path/to/**/*.ts")                        # locate files by pattern
+Grep("class ClassName", include="**/*.ts")     # find a class definition
+Grep("methodName", include="**/*.ts")          # find all call sites
+Read("path/to/file")                           # read the file once located
 ```
 
-Editing — when you change code you discovered via Serena, edit with Serena (built-in Edit is refused after a Serena read):
+Editing — make changes with the built-in Edit/Write tools:
 
 ```
-mcp__serena__replace_symbol_body(...)     # rewrite a whole function/method/class
-mcp__serena__insert_after_symbol(...)     # add a new symbol after another
-mcp__serena__replace_content(...)         # regex/string edit for a few lines within a symbol
+Edit("path/to/file", old_string="...", new_string="...")   # targeted line/block replacement
+Write("path/to/file", content="...")                       # create or fully rewrite a file
 ```
 
-There is **no** `find_implementations` or `get_diagnostics_for_file` tool. For implementations, use `find_referencing_symbols` on the base symbol. To catch errors after editing, run the type-check gate: `{{BACKEND_TYPE_CHECK_CMD}}`.
+To catch errors after editing, run the type-check gate: `{{BACKEND_TYPE_CHECK_CMD}}`.
 
 ---
 

@@ -30,12 +30,6 @@ describe("loadSkillGeneratorPrompt (P1)", () => {
     expect(prompt).not.toContain("{{STUB_EXAMPLE}}");
   });
 
-  it("preserves the Serena-correctness sentinel (content not dropped in the lift)", () => {
-    const prompt = loadSkillGeneratorPrompt();
-    expect(prompt).toContain("There is NO find_implementations");
-    expect(prompt).toMatch(/Serena correctness/i);
-  });
-
   it("buildMasterSkillPrompt remains a working alias", () => {
     expect(buildMasterSkillPrompt("/proj")).toBe(loadSkillGeneratorPrompt());
   });

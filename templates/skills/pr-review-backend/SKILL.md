@@ -14,11 +14,10 @@ These MCP servers are configured for this project — use the ones relevant to t
 
 - **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
 - **git-memory** — why code changed: commit history, bug-fix history, file timelines.
-- **serena** — LSP symbol navigation & symbolic editing: overview, find symbols/references, replace/insert symbols (0-based lines).
 - **sentrux** — architectural quality gate: run `sentrux check .` and `sentrux gate .` to confirm the diff introduces no layer/cycle/coupling violations or quality regression.
 
 Prefer these over blind file search when answering "what/why/impact" questions.
-See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especially Serena).
+See `docs/architecture/mcp-tools.md` for exact tool names and signatures.
 
 ---
 
@@ -42,7 +41,7 @@ gitnexus_impact("ChangedClassName")    # what else does this change break?
 
 **Rules:**
 - Call `gitnexus_impact` on every symbol that was deleted or renamed.
-- If the index is stale, fall back to `mcp__serena__find_referencing_symbols`.
+- If the index is stale, fall back to a Grep over the source tree for the symbol's references.
 
 ---
 

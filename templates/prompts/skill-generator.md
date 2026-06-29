@@ -8,9 +8,8 @@ You are running in the project root with Read, Glob, Grep, Write, and Task tools
 or documentation MCP tools are available, use them BEFORE raw file reads — they are faster and far
 more precise. Preference order when gathering understanding:
 1. **gitnexus** — architecture map, call graphs, dependencies, change impact (the big-picture structure).
-2. **serena** — symbol overview / find_symbol / find_referencing_symbols (precise code navigation).
-3. **git-memory** — why code changed / historical context for a component.
-4. **documentation MCP** (obsidian / context7 / similar) — project notes and library docs.
+2. **git-memory** — why code changed / historical context for a component.
+3. **documentation MCP** (obsidian / context7 / similar) — project notes and library docs.
 Fall back to Read / Glob / Grep ONLY when no MCP tool can answer or none are configured. (Some of
 these may be absent in a given project — silently skip the ones that are not available.)
 
@@ -21,7 +20,7 @@ these may be absent in a given project — silently skip the ones that are not a
    - docs/architecture/frontend-architecture.md
    - docs/architecture/best-practices.md   (existing + recommended engineering standards)
    - docs/architecture/decisions.md         (team conventions captured at init)
-2. Explore the real structure — **MCP-first** (gitnexus/serena for layout, layering, symbols, call
+2. Explore the real structure — **MCP-first** (gitnexus for layout, layering, symbols, call
    graphs, impact), falling back to Glob/Grep/Read: directory layout, layering, naming,
    test setup, lint/build commands, auth/permissions, i18n, state management, logging.
 3. Identify the engineering best practices the project ALREADY follows. **Start from the
@@ -33,7 +32,7 @@ these may be absent in a given project — silently skip the ones that are not a
    API boundaries, fixture/mount-factory test patterns). These become ENFORCED rules.
 4. Read every existing stub you will rewrite so you preserve its INTENT and structure:
 {{SKILL_LIST}}
-5. Note the configured MCP tools mentioned in the stubs (gitnexus, git-memory, serena,
+5. Note the configured MCP tools mentioned in the stubs (gitnexus, git-memory,
    sentrux, obsidian, playwright, chrome-devtools) and keep references accurate.
 
 ## Reference — the shape and intent of a skill stub
@@ -101,20 +100,6 @@ Run them concurrently where possible. Each subagent rewrites its ONE file in pla
   steps, but make every command and path correct for this repo.
 - Resolve any remaining {{TEMPLATE_VARS}} to concrete values; leave no unresolved braces.
 - Reference sibling commands by their as-* names (e.g. /as-pr-review, /as-test).
-- Serena correctness (CRITICAL — only emit calls that actually exist):
-    * Real tools: mcp__serena__get_symbols_overview, find_symbol, find_referencing_symbols,
-      replace_symbol_body, insert_after_symbol, insert_before_symbol, rename_symbol,
-      replace_content, check_onboarding_performed. There is NO find_implementations and NO
-      get_diagnostics_for_file — never emit those.
-    * Name paths use '/' not '.', e.g. find_symbol(name_path_pattern="ClassName/method").
-    * find_referencing_symbols requires BOTH name_path AND relative_path.
-    * Instruct: run check_onboarding_performed once before Serena; load deferred Serena
-      tools via tool-search first; edit code discovered via Serena with Serena's symbolic
-      edit tools (built-in Edit is refused after a Serena read); Serena line numbers are 0-based.
-    * To verify after edits, run the project's type-check/test gate — not a diagnostics tool.
-    * PREFER symbolic edits (replace_symbol_body / insert_after_symbol / insert_before_symbol)
-      over blunt full-file rewrites for code changes — they are AST-level and surgical (A6). Never
-      instruct rewriting an entire source file when a symbolic edit targets the change.
 - Reference the smith-mode execution-discipline skill (.claude/skills/smith-mode/SKILL.md):
   add a short note that, for work spanning multiple files/sources/sessions, the skill's
   staged loop applies (stage map → delegate → failable verification → self-critique). Do

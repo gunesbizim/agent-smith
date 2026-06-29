@@ -12,7 +12,6 @@ Complete reference for all MCP servers, Claude Code skills, and workflow pattern
 |--------|---------|
 | **gitnexus** | Code intelligence graph — impact analysis, execution flows, blast radius |
 | **git-memory** | Semantic search over git history — past decisions, bug fixes, file timelines |
-| **serena** | LSP-backed symbol navigation — find symbols, callers, diagnostics inline |
 | **sentrux** | Real-time architectural sensor — quality signal, cycle detection, coupling grades, test gaps; REVIEW-phase session gate |
 
 ### Global User-Level (`~/.claude.json`)
@@ -21,7 +20,6 @@ Complete reference for all MCP servers, Claude Code skills, and workflow pattern
 |--------|---------|
 | **gitnexus** | Same as above — loaded globally as fallback |
 | **git-memory** | Same as above — loaded globally as fallback |
-| **serena** | Same as above — global fallback |
 | **ouroboros** | PM agent framework — seed-based product interviews, AC generation, evolve/rewind |
 | **mempalace** | Persistent knowledge graph memory — drawers, tunnels, kg_add, kg_query |
 | **sonarqube** | Static analysis — issues, quality gates, hotspots, coverage metrics |
@@ -82,21 +80,6 @@ Complete reference for all MCP servers, Claude Code skills, and workflow pattern
 | `bug_fix_history` | Fix/security/hotfix commits for a component. |
 | `architecture_decisions` | Refactor/migration/arch commits — "why was this designed this way?" |
 | `latest_commits` | N most recent indexed commits — for regression investigation. |
-
-### serena
-
-| Tool | Usage |
-|------|-------|
-| `find_symbol` | Exact file + line for a class or method. |
-| `find_implementations` | All concrete implementations of an abstract base. |
-| `find_referencing_symbols` | All call sites for a function. |
-| `get_symbols_overview` | All symbols defined in a file. |
-| `get_diagnostics_for_file` | LSP diagnostics — catch import errors and type issues immediately. |
-| `find_declaration` | Jump to declaration of a symbol. |
-| `replace_symbol_body` | Replace the body of a symbol in-place. |
-| `insert_after_symbol` / `insert_before_symbol` | Insert code relative to a symbol. |
-| `safe_delete_symbol` | Delete only if no references exist. |
-| `rename_symbol` | Rename across all referencing files (LSP-backed). |
 
 ### sonarqube
 
@@ -241,9 +224,9 @@ Phase 1 — PLANNING (GitNexus)
   gitnexus_context("SymbolName")
   gitnexus_detect_changes()
 
-Phase 2 — IMPLEMENTATION (Serena + GitNexus)
-  serena: find_symbol, find_implementations, find_referencing_symbols
-  After each file edit: serena get_diagnostics_for_file
+Phase 2 — IMPLEMENTATION (native edit tools + GitNexus)
+  Grep / Glob / Read to locate symbols and references
+  After each file edit: run the project type-check / lint gate
   Mid-impl: gitnexus_detect_changes() to verify blast radius unchanged
 
 Phase 3 — HISTORICAL CONTEXT (git-memory, when touching code with prior fixes)

@@ -69,7 +69,7 @@ One command turns a plain repository into a Claude-Code-ready workspace with:
 |---|---|
 | **Slash commands** (`/as-backend`, `/as-test`, `/as-ship`, …) | One-word shortcuts for everyday jobs, pre-loaded with your stack |
 | **Skills** (review, test, docs writers — plus **smith-mode**) | Detailed playbooks the assistant follows for specific tasks |
-| **MCP servers** (gitnexus, git-memory, serena, …) | Give the assistant memory: code structure, git history, symbol search |
+| **MCP servers** (gitnexus, git-memory, …) | Give the assistant memory: code structure, git history, symbol search |
 | **Hooks** (session start, pre-tool, pre-compact, prompt-submit, stop) | Automatic checks around the assistant's actions — including a **handoff snapshot** saved before the context window fills, so long sessions can hand off cleanly |
 | **Sentrux quality gate** | A guardrail that blocks changes which make the architecture worse |
 | **A managed `CLAUDE.md` section** | A living cheat-sheet of every command and skill, refreshed on each run |
@@ -170,7 +170,6 @@ Useful flags: `--llm` / `--no-llm` (force or skip the Claude pass), `--dry-run` 
 |---|---|---|---|---|
 | **gitnexus** | Code-intelligence graph: impact/blast-radius, call chains | `npm i -g gitnexus` | always | [abhigyanpatwari/GitNexus](https://github.com/abhigyanpatwari/GitNexus) |
 | **git-memory** | Semantic search over git history | `npm i -g git-memory` | always | npm: `git-memory` *(no public repo listed)* |
-| **serena** | LSP symbol navigation + symbolic edits | `pipx install serena` (needs Python) | always | pip: `serena` |
 | **playwright** | Browser automation — drive app, screenshot | npx (cache pre-warmed at install) | frontend detected | [microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp) |
 | **chrome-devtools** | Console/network/perf/lighthouse debugging | npx (cache pre-warmed at install) | frontend detected | [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) |
 | **sonarqube** | Static analysis — issues, quality gate, coverage | `npm i -g sonarqube-mcp-server` | `SONARQUBE_TOKEN` set | [sapientpants/sonarqube-mcp-server](https://github.com/sapientpants/sonarqube-mcp-server) |
@@ -183,7 +182,7 @@ Useful flags: `--llm` / `--no-llm` (force or skip the Claude pass), `--dry-run` 
 
 > Links marked *(no public repo listed)* / *(not yet published)* could not be verified against a public registry at the time of writing — they are ecosystem/internal or placeholder packages; the package name is shown so you can confirm before relying on it.
 
-**Package managers used across these servers** (detected, never installed with `sudo`): **npm/npx** (Node — required), **Python + pipx** (serena, mempalace — pipx is the only one auto-bootstrappable, via `pip --user`), **Homebrew** (sentrux on macOS/Linux), **winget/choco** (sentrux/gh on Windows), **Composer + PHP** (laravel-boost). The **GitHub CLI (`gh`)** is also auto-installed best-effort for the PR workflows and needs a one-time `gh auth login`. If a required manager is missing, agent-smith prints how to install it and skips that server — it never blocks or prompts for a password.
+**Package managers used across these servers** (detected, never installed with `sudo`): **npm/npx** (Node — required), **Python + pipx** (mempalace — pipx is the only one auto-bootstrappable, via `pip --user`), **Homebrew** (sentrux on macOS/Linux), **winget/choco** (sentrux/gh on Windows), **Composer + PHP** (laravel-boost). The **GitHub CLI (`gh`)** is also auto-installed best-effort for the PR workflows and needs a one-time `gh auth login`. If a required manager is missing, agent-smith prints how to install it and skips that server — it never blocks or prompts for a password.
 
 ---
 
@@ -269,12 +268,12 @@ Agent Smith itself only needs Node, but a **full** `init` installs MCP servers a
 | **Node 20+** & npm | Running agent-smith; the npm-based MCP servers (gitnexus, git-memory) | **Required** |
 | **git** ≥ 2.30 | Detection, hooks, git-memory, every PR flow | **Required** |
 | **`claude` CLI** | The smart setup — LLM stack classification, skill generation, and running the `/as-*` commands | **Strongly recommended** (works without it, just less customized) |
-| **Python + pipx** | **serena** *and* **mempalace** MCP servers (both install via `pipx`) | Needed for those two servers; pipx is the one manager agent-smith can auto-bootstrap (via `pip --user`) |
+| **Python + pipx** | **mempalace** MCP server (installs via `pipx`) | Needed for that server; pipx is the one manager agent-smith can auto-bootstrap (via `pip --user`) |
 | **A system package manager** — Homebrew (macOS/Linux), `curl`, or winget/choco (Windows) | Installing the **Sentrux** binary (and `gh` on Windows) | Needed for the quality gate |
 | **GitHub CLI (`gh`)** | `/as-git` and `/as-ship` PR workflows | Optional (auto-installed best-effort; run `gh auth login` once) |
 | **Composer + PHP** | Laravel Boost MCP | Only for Laravel backends |
 
-> **Python version caveat (mempalace):** mempalace depends on chromadb, which lags the newest Python releases. **Python 3.12** is the safe target; the very latest interpreters (3.13+) can break chromadb's install. serena is less picky. If mempalace won't install, check your Python version first.
+> **Python version caveat (mempalace):** mempalace depends on chromadb, which lags the newest Python releases. **Python 3.12** is the safe target; the very latest interpreters (3.13+) can break chromadb's install. If mempalace won't install, check your Python version first.
 
 ### Windows notes
 

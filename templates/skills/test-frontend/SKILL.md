@@ -15,11 +15,10 @@ These MCP servers are configured for this project — use the ones relevant to t
 
 - **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
 - **git-memory** — why code changed: commit history, bug-fix history, file timelines.
-- **serena** — LSP symbol navigation & symbolic editing: overview, find symbols/references, replace/insert symbols (0-based lines).
 - **sentrux** — after adding tests, run `sentrux gate .` to confirm coverage/complexity did not regress the baseline.
 
 Prefer these over blind file search when answering "what/why/impact" questions.
-See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especially Serena).
+See `docs/architecture/mcp-tools.md` for exact tool names and signatures.
 
 ---
 
@@ -61,17 +60,18 @@ Use the returned list to **prioritize** which modules to cover first. Modules fl
 
 ---
 
-## Step 2 — Serena symbol navigation
+## Step 2 — Symbol navigation
 
-Run `mcp__serena__check_onboarding_performed` once before using Serena; load its tools via tool-search if deferred. Name paths use `/` (not `.`); `find_referencing_symbols` requires BOTH `name_path` and `relative_path`.
+Locate symbols and call sites with Grep/Glob over the source tree.
 
 ```
-mcp__serena__get_symbols_overview(relative_path="path/to/component")                                # component surface (start here)
-mcp__serena__find_symbol(name_path_pattern="useStoreName")                                          # store definition
-mcp__serena__find_referencing_symbols(name_path="apiFunction", relative_path="src/api/foo.ts")      # all call sites
+Glob("src/components/**/*.vue")                          # locate component files by pattern
+Grep("useStoreName\|defineStore", include="**/*.ts")     # find store definition
+Grep("apiFunction", include="**/*.ts")                   # all call sites
+Read("path/to/component")                                # read the file once located
 ```
 
-There is no `get_diagnostics_for_file` tool — verify by running the tests / type-check (`{{FRONTEND_TYPE_CHECK_CMD}}`).
+Verify by running the tests / type-check (`{{FRONTEND_TYPE_CHECK_CMD}}`).
 
 ---
 

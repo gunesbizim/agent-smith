@@ -123,7 +123,7 @@ export interface AgentCallFinishedEvent extends EngineEventBase {
  */
 export interface ToolCallEvent extends EngineEventBase {
   type: "tool_call";
-  /** Full tool name, e.g. "Bash", "mcp__serena__find_symbol". */
+  /** Full tool name, e.g. "Bash", "mcp__gitnexus__impact". */
   tool: string;
   /** True when tool name starts with "mcp__". */
   isMcp: boolean;

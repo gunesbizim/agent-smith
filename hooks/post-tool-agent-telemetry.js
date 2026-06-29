@@ -26,7 +26,7 @@ import path from "node:path";
 // ---- pure, testable helpers ----
 
 /**
- * Given a tool name like "mcp__serena__find_symbol", return the server segment ("serena").
+ * Given a tool name like "mcp__gitnexus__impact", return the server segment ("gitnexus").
  * Returns null for non-MCP tools.
  */
 export function parseMcpServer(name) {

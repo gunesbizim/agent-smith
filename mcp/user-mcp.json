@@ -31,12 +31,6 @@
       "args": ["-y", "@vuetify/mcp"],
       "env": {}
     },
-    "serena": {
-      "type": "stdio",
-      "command": "<userprofile>/.serena/venv/Scripts/serena.exe",
-      "args": ["start-mcp-server", "--project-from-cwd"],
-      "env": {}
-    },
     "sonarqube": {
       "type": "stdio",
       "command": "npx",

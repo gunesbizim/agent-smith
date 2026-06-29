@@ -41,7 +41,7 @@ These plans shipped their **buildable-now** scope; the remaining scope waits for
 
 ## Not building here (wrong layer / scope)
 
-- **A6** AST patching → belongs in serena/GitNexus. In this repo it is a *checked invariant*
-  (generated skills prefer serena symbolic edits over blind rewrites) — already enforced by a test.
+- **A6** AST-aware patching → out of scope for this repo. Generated skills use native Edit/Write
+  tools for file edits rather than a dedicated AST-patching layer.
 - **A8** preview-envs / canary / rollback orchestration → owned infrastructure, out of scope for a
   scaffolder. A8 ships generated CI + post-PR verification skills instead.

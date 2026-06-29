@@ -25,7 +25,7 @@ beforeEach(() => {
   fs.writeFileSync(path.join(pdir, `${SID}.jsonl`), [jline("claude-opus-4-8", ["Read", "Task", "Task"])].join("\n"));
   fs.writeFileSync(
     path.join(pdir, SID, "subagents", "agent-aaa.jsonl"),
-    [jline("claude-sonnet-4-6", ["Read", "Read", "mcp__serena__find_symbol", "mcp__gitnexus__impact"])].join("\n"),
+    [jline("claude-sonnet-4-6", ["Read", "Read", "mcp__git-memory__search_git_history", "mcp__gitnexus__impact"])].join("\n"),
   );
 });
 afterEach(() => {
@@ -49,7 +49,7 @@ describe("collectSkillGenUsage", () => {
     const orchestrator = usage.calls.find((c) => c.label === "orchestrator")!;
     expect(orchestrator.tools).toEqual({ Read: 1, Task: 2 });
     const sub = usage.calls.find((c) => c.label === "agent-aaa")!;
-    expect(sub.tools["mcp__serena__find_symbol"]).toBe(1);
+    expect(sub.tools["mcp__git-memory__search_git_history"]).toBe(1);
     expect(sub.tools["mcp__gitnexus__impact"]).toBe(1);
   });
 
@@ -68,6 +68,6 @@ describe("writeSkillGenRun", () => {
     expect(dto.status).toBe("done");
     const gen = dto.phases.find((p) => p.name === "generate")!;
     const subCall = gen.calls.find((c) => c.subtaskKey === "agent-aaa")!;
-    expect(subCall.tools?.["mcp__serena__find_symbol"]).toBe(1);
+    expect(subCall.tools?.["mcp__git-memory__search_git_history"]).toBe(1);
   });
 });

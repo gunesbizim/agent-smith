@@ -24,11 +24,10 @@ These MCP servers are configured for this project — use the ones relevant to t
 
 - **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
 - **git-memory** — why code changed: commit history, bug-fix history, file timelines.
-- **serena** — LSP symbol navigation & symbolic editing: overview, find symbols/references, replace/insert symbols (0-based lines).
 - **obsidian** — write the technical summary note into the configured Obsidian vault.
 
 Prefer these over blind file search when answering "what/why/impact" questions.
-See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especially Serena).
+See `docs/architecture/mcp-tools.md` for exact tool names and signatures.
 
 ---
 
@@ -68,17 +67,17 @@ gitnexus_api_impact()                  # which endpoints are affected?
 
 ---
 
-## Step 3 — Serena implementation
+## Step 3 — Annotation implementation
 
-Run `mcp__serena__check_onboarding_performed` once before using Serena; load its tools via tool-search if deferred. Name paths use `/` (not `.`). Locate the symbol, then edit with Serena's symbolic tools (built-in Edit is refused after a Serena read):
+Locate the handler/symbol with Grep/Glob, then add the annotation with the built-in Edit tool:
 
 ```
-mcp__serena__get_symbols_overview(relative_path="path/to/handler")
-mcp__serena__find_symbol(name_path_pattern="HandlerName/method", relative_path="path/to/handler")
-mcp__serena__insert_before_symbol(name_path="HandlerName/method", relative_path="path/to/handler", body="<annotation>")
+Grep("class HandlerName\|def method_name", include="**/*.py")   # locate the handler
+Read("path/to/handler")                                          # read to confirm location
+Edit("path/to/handler", old_string="...", new_string="...")      # insert the annotation immediately before the handler
 ```
 
-There is no `get_diagnostics_for_file` tool — after edits, verify with the type-check (`{{BACKEND_TYPE_CHECK_CMD}}`).
+After edits, verify with the type-check (`{{BACKEND_TYPE_CHECK_CMD}}`).
 
 ---
 

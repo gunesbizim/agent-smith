@@ -126,7 +126,7 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
       // Caveman: suspend before MemPalace or claude-memory writes
       // This ensures stored memories are in full English prose — readable in future sessions
       {
-        matcher: "mcp__plugin_mempalace_mempalace__|mcp__serena__write_memory|mempalace_add_drawer|mempalace_diary_write|mempalace_kg_add|claude-memory",
+        matcher: "mcp__plugin_mempalace_mempalace__|mempalace_add_drawer|mempalace_diary_write|mempalace_kg_add|claude-memory",
         hooks: [
           {
             type: "command",
@@ -152,7 +152,7 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
         ],
       },
       {
-        matcher: "mcp__plugin_mempalace_mempalace__|mcp__serena__write_memory|mempalace_add_drawer|mempalace_diary_write|mempalace_kg_add|claude-memory",
+        matcher: "mcp__plugin_mempalace_mempalace__|mempalace_add_drawer|mempalace_diary_write|mempalace_kg_add|claude-memory",
         hooks: [
           {
             type: "command",

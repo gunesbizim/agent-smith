@@ -10,7 +10,6 @@ dist/
 .claude/
 .cursor/
 .mcp.json
-.serena/
 .sentrux/*
 !.sentrux/rules.toml
 !.sentrux/baseline.json

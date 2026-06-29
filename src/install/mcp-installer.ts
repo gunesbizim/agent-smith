@@ -4,7 +4,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import chalk from "chalk";
 import cliProgress from "cli-progress";
-import { MCP_REGISTRY, getMCPServer, RETIRED_SERVERS } from "./registry.js";
+import { MCP_REGISTRY, RETIRED_SERVERS } from "./registry.js";
 import { detectionEnv } from "../shared/exec-env.js";
 import { homeDir } from "../shared/platform-utils.js";
 import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall, MCPServerDefinition, DetectedProject } from "../shared/types.js";
@@ -268,10 +268,9 @@ export async function configureMCPs(
     // never be committed. Add it to .gitignore immediately after creation.
     ensureGitignore(projectRoot, [".mcp.json"], MCP_GITIGNORE_COMMENT);
     stripSettingsMcpServers(projectRoot);
-    // Prune servers we've retired (e.g. serena) from the project .mcp.json — writeProjectMcp
-    // only merges/adds, so a retired server would otherwise linger in existing installs forever.
-    // Runs AFTER the merge write so it removes the stale key the merge preserved.
-    pruneRetiredServers(projectRoot);
+    // Retired servers (e.g. serena) are stripped inside writeProjectMcp before it writes, so an
+    // existing install loses them on the next configure. Here we only *warn* about leftovers we
+    // deliberately don't auto-remove (global configs, the .serena cache).
     warnRetiredServerLeftovers(projectRoot);
     warnStaleUserMcpDuplicates(Object.keys(bundle.projectMcp));
   }
@@ -280,26 +279,15 @@ export async function configureMCPs(
 }
 
 /**
- * Migration cleanup: remove any RETIRED_SERVERS entry from the project `.mcp.json`. Only the
- * known-retired names are touched — user-added servers and current registry servers are left
- * untouched. Returns the names actually removed. Safe to call idempotently (no-ops when the file,
- * the `mcpServers` key, or the retired entries are absent).
+ * Remove any RETIRED_SERVERS entry from a `mcpServers` map IN PLACE. Pure (no I/O) so it can be
+ * folded into the single `.mcp.json` write in `writeProjectMcp` — this is how a retired server
+ * (e.g. serena) is dropped from an existing install on the next configure, without adding a second
+ * file-write site. Only known-retired names are touched; user-added/current servers are left alone.
+ * Returns the names actually removed.
  */
-export function pruneRetiredServers(projectRoot: string): string[] {
-  const mcpPath = path.join(projectRoot, ".mcp.json");
-  if (!fs.existsSync(mcpPath)) return [];
-  let mcp: Record<string, unknown>;
-  try {
-    mcp = fs.readJsonSync(mcpPath);
-  } catch {
-    return [];
-  }
-  const servers = mcp.mcpServers as Record<string, unknown> | undefined;
-  if (!servers) return [];
+export function stripRetiredServers(servers: Record<string, unknown>): string[] {
   const removed = RETIRED_SERVERS.filter((name) => Object.hasOwn(servers, name));
-  if (removed.length === 0) return [];
   for (const name of removed) delete servers[name];
-  fs.writeJsonSync(mcpPath, mcp, { spaces: 2 });
   return removed;
 }
 
@@ -375,10 +363,14 @@ function writeProjectMcp(projectRoot: string, bundle: MCPConfigBundle): void {
   if (fs.existsSync(mcpPath)) {
     existingMcp = fs.readJsonSync(mcpPath);
   }
-  existingMcp.mcpServers = {
+  const merged: Record<string, unknown> = {
     ...(existingMcp.mcpServers as Record<string, unknown> ?? {}),
     ...bundle.projectMcp,
   };
+  // Drop servers we've retired (e.g. serena) from the merged set so they don't linger in an
+  // existing install — done before the single write, no extra file-write site.
+  stripRetiredServers(merged);
+  existingMcp.mcpServers = merged;
   fs.writeJsonSync(mcpPath, existingMcp, { spaces: 2 });
 }
 

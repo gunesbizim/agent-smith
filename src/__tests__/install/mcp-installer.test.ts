@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
-import { configureMCPs, hasRequiredEnv, ensureGitignore, installMCPs, runCommandAsync, commandSucceeds, presenceProbe, warnStaleUserMcpDuplicates, pruneRetiredServers, warnRetiredServerLeftovers } from "../../install/mcp-installer.js";
+import { configureMCPs, hasRequiredEnv, ensureGitignore, installMCPs, runCommandAsync, commandSucceeds, presenceProbe, warnStaleUserMcpDuplicates, stripRetiredServers, warnRetiredServerLeftovers } from "../../install/mcp-installer.js";
 import { vi } from "vitest";
 import { needsShellForCli } from "../../shared/platform-utils.js";
 import { DEFAULT_TEMPLATE_VARS } from "../../shared/templates.js";
@@ -320,7 +320,30 @@ describe("stripSettingsMcpServers — migration cleanup", () => {
   });
 });
 
-describe("pruneRetiredServers — remove retired servers from .mcp.json", () => {
+describe("stripRetiredServers — drop retired servers from a servers map (pure)", () => {
+  it("removes a retired server (serena) in place, leaving current + user-added servers intact", () => {
+    const servers: Record<string, unknown> = {
+      gitnexus: { type: "stdio", command: "gitnexus", args: ["mcp"], env: {} },
+      serena: { type: "stdio", command: "serena", args: ["start-mcp-server"], env: {} },
+      "my-custom": { type: "stdio", command: "custom", args: [], env: {} },
+    };
+    const removed = stripRetiredServers(servers);
+    expect(removed).toEqual(["serena"]);
+    expect(servers.serena).toBeUndefined();
+    expect(servers.gitnexus).toBeDefined();
+    expect(servers["my-custom"]).toBeDefined();
+  });
+
+  it("returns [] and mutates nothing when no retired server is present", () => {
+    const servers: Record<string, unknown> = {
+      gitnexus: { type: "stdio", command: "gitnexus", args: ["mcp"], env: {} },
+    };
+    expect(stripRetiredServers(servers)).toEqual([]);
+    expect(Object.keys(servers)).toEqual(["gitnexus"]);
+  });
+});
+
+describe("configureMCPs — retired-server pruning on a real run", () => {
   let tmpDir: string;
 
   beforeEach(() => {
@@ -331,41 +354,7 @@ describe("pruneRetiredServers — remove retired servers from .mcp.json", () => 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("removes a retired server (serena) while leaving current + user-added servers intact", () => {
-    const mcpPath = path.join(tmpDir, ".mcp.json");
-    fs.writeJsonSync(mcpPath, {
-      mcpServers: {
-        gitnexus: { type: "stdio", command: "gitnexus", args: ["mcp"], env: {} },
-        serena: { type: "stdio", command: "serena", args: ["start-mcp-server"], env: {} },
-        "my-custom": { type: "stdio", command: "custom", args: [], env: {} },
-      },
-    });
-    const removed = pruneRetiredServers(tmpDir);
-    expect(removed).toEqual(["serena"]);
-    const mcp = fs.readJsonSync(mcpPath);
-    expect(mcp.mcpServers.serena).toBeUndefined();
-    expect(mcp.mcpServers.gitnexus).toBeDefined();
-    expect(mcp.mcpServers["my-custom"]).toBeDefined();
-  });
-
-  it("is a no-op (returns []) when no retired server is present", () => {
-    const mcpPath = path.join(tmpDir, ".mcp.json");
-    fs.writeJsonSync(mcpPath, {
-      mcpServers: { gitnexus: { type: "stdio", command: "gitnexus", args: ["mcp"], env: {} } },
-    });
-    const before = fs.readFileSync(mcpPath, "utf-8");
-    expect(pruneRetiredServers(tmpDir)).toEqual([]);
-    expect(fs.readFileSync(mcpPath, "utf-8")).toBe(before);
-  });
-
-  it("does not throw when .mcp.json is missing or malformed", () => {
-    expect(pruneRetiredServers(tmpDir)).toEqual([]);
-    fs.writeFileSync(path.join(tmpDir, ".mcp.json"), "{ not valid json");
-    expect(() => pruneRetiredServers(tmpDir)).not.toThrow();
-    expect(pruneRetiredServers(tmpDir)).toEqual([]);
-  });
-
-  it("configureMCPs prunes a pre-existing serena entry on a real run", async () => {
+  it("prunes a pre-existing serena entry from .mcp.json via writeProjectMcp", async () => {
     const mcpPath = path.join(tmpDir, ".mcp.json");
     fs.writeJsonSync(mcpPath, {
       mcpServers: { serena: { type: "stdio", command: "serena", args: [], env: {} } },

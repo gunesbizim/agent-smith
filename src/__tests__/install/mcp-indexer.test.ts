@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { runMcpIndexing } from "../../install/mcp-indexer.js";
+import os from "node:os";
+import { runMcpIndexing, runInDir } from "../../install/mcp-indexer.js";
 
 describe("runMcpIndexing", () => {
   it("runs the indexCommand for installed servers that declare one (gitnexus, git-memory)", async () => {
@@ -48,5 +49,40 @@ describe("runMcpIndexing", () => {
     );
     expect(summary.failed.map((f) => f.name)).toContain("gitnexus");
     expect(summary.indexed).toContain("git-memory");
+  });
+
+  it("renders spinners + summary footer when showProgress is on (indexed + failed branches)", async () => {
+    const summary = await runMcpIndexing(
+      "/proj",
+      { project: null },
+      {
+        showProgress: true,
+        check: async () => true,
+        run: async (command) => {
+          if (command.startsWith("git-memory")) throw new Error("nope");
+        },
+      },
+    );
+    expect(summary.indexed).toContain("gitnexus");
+    expect(summary.failed.map((f) => f.name)).toContain("git-memory");
+  });
+
+  it("renders the skipped branch of the summary when binaries are absent", async () => {
+    const summary = await runMcpIndexing(
+      "/proj",
+      { project: null },
+      { showProgress: true, check: async () => false, run: async () => undefined },
+    );
+    expect(summary.skipped.length).toBeGreaterThan(0);
+  });
+});
+
+describe("runInDir", () => {
+  it("resolves when the command exits 0", async () => {
+    await expect(runInDir(`node -e "process.exit(0)"`, os.tmpdir())).resolves.toBeUndefined();
+  });
+
+  it("rejects when the command exits non-zero", async () => {
+    await expect(runInDir(`node -e "process.exit(3)"`, os.tmpdir())).rejects.toThrow();
   });
 });

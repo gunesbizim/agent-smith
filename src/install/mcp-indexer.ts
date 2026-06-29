@@ -16,8 +16,9 @@ function resolvePlatformCommand(cmd: PlatformInstall): string {
   return cmd[process.platform as "darwin" | "linux" | "win32"] ?? "";
 }
 
-/** Run a command in `cwd`, resolving on exit 0 and rejecting otherwise. Non-blocking (spawn). */
-function runInDir(command: string, cwd: string): Promise<void> {
+/** Run a command in `cwd`, resolving on exit 0 and rejecting otherwise. Non-blocking (spawn).
+ *  Exported for unit testing. */
+export function runInDir(command: string, cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, { shell: true, cwd, stdio: ["ignore", "ignore", "pipe"], env: detectionEnv() });
     let stderr = "";

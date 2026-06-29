@@ -27,6 +27,8 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
       args: ["mcp"],
       env: {},
     },
+    // Build/refresh the code graph at init; this is also what writes AGENTS.md (cleaned up later).
+    indexCommand: "gitnexus analyze",
   },
   {
     name: "git-memory",
@@ -44,6 +46,8 @@ export const MCP_REGISTRY: MCPServerDefinition[] = [
       args: ["serve"],
       env: {},
     },
+    // Index the commit history at init so search_git_history/bug_fix_history work immediately.
+    indexCommand: "git-memory index --repo-path .",
   },
   // ---- Browser Automation ----
   {

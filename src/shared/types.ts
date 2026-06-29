@@ -140,6 +140,12 @@ export interface MCPServerDefinition {
   /** Package managers this server needs present; consumed by detection + consent UX. */
   requiresPackageManager?: PackageManager[];
   configTemplate: MCPConfigEntry;
+  /**
+   * Optional one-shot command that builds/refreshes this server's index of the project, run during
+   * `init`/`configure` (e.g. `gitnexus analyze`, `git-memory index`). Runs in the project root,
+   * best-effort, only when the binary is present. Omit for servers that need no indexing.
+   */
+  indexCommand?: PlatformInstall;
 }
 
 export interface MCPConfigEntry {

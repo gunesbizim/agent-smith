@@ -63,6 +63,10 @@ vi.mock("../../install/mcp-installer.js", () => ({
   selectServersToInstall: vi.fn().mockReturnValue([]),
 }));
 
+vi.mock("../../install/mcp-indexer.js", () => ({
+  runMcpIndexing: vi.fn().mockResolvedValue({ indexed: [], skipped: [], failed: [] }),
+}));
+
 vi.mock("../../install/install-consent.js", () => ({
   resolveConsent: vi.fn().mockResolvedValue({ approved: true }),
 }));

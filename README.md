@@ -270,7 +270,7 @@ Agent Smith itself only needs Node, but a **full** `init` installs MCP servers a
 | **`claude` CLI** | The smart setup — LLM stack classification, skill generation, and running the `/as-*` commands | **Strongly recommended** (works without it, just less customized) |
 | **Python + pipx** | **mempalace** MCP server (installs via `pipx`) | Needed for that server; pipx is the one manager agent-smith can auto-bootstrap (via `pip --user`) |
 | **A system package manager** — Homebrew (macOS/Linux), `curl`, or winget/choco (Windows) | Installing the **Sentrux** binary (and `gh` on Windows) | Needed for the quality gate |
-| **GitHub CLI (`gh`)** | `/as-git` and `/as-ship` PR workflows | Optional (auto-installed best-effort; run `gh auth login` once) |
+| **GitHub CLI (`gh`)** | `/as-ship` PR workflow (commit → PR → CI) | Optional (auto-installed best-effort; run `gh auth login` once) |
 | **Composer + PHP** | Laravel Boost MCP | Only for Laravel backends |
 
 > **Python version caveat (mempalace):** mempalace depends on chromadb, which lags the newest Python releases. **Python 3.12** is the safe target; the very latest interpreters (3.13+) can break chromadb's install. If mempalace won't install, check your Python version first.
@@ -330,7 +330,6 @@ Once set up, drive the work from inside Claude Code with the `/as-*` slash comma
 | `/as-test <target>` | Write or extend tests; dispatches test-backend / test-frontend in fresh subagents | `/as-test "OrderService.charge"` |
 | `/as-pr-review [PR# \| path]` | Review through an adversarial critic panel (security, performance, simplicity, maintainability, DX) with graded severity (critical/high/medium/low) + a false-positive gate per finding; drops FPs, auto-fixes confirmed critical/high, leaves low for follow-up | `/as-pr-review 42` |
 | `/as-documentation [latest\|all\|path]` | Detect what changed and regenerate the matching docs | `/as-documentation latest` |
-| `/as-git [hint]` | Commit current work and push, following your commit conventions | `/as-git "PROJ-123"` |
 | `/as-ship [hint]` | The gated path from finished work to a green PR: commit → PR → review → drive CI green | `/as-ship` |
 | `/as-insights` | Read your architecture docs + config and suggest concrete improvements | `/as-insights` |
 | `/as-handoff` | Write a structured `HANDOFF.md` and hand the remaining work to fresh-context subagents | `/as-handoff` |
@@ -342,9 +341,24 @@ Commands invoked with no argument (`/as-backend`, `/as-test`) ask you for the ta
 
 Skills are detailed playbooks the assistant follows automatically when a task matches — you rarely invoke them by name. After `init` your repo has:
 
-- **Worker skills**, rewritten to match your code: `pr-review-backend` / `pr-review-frontend`, `test-backend` / `test-frontend`, `docs-backend` / `docs-frontend`. The implementation commands (`/as-backend`, `/as-frontend`) follow an explore → triage → TDD-plan → **RED-first** implement loop, and the `test-*` skills require a failing test before the code it covers.
+- **Worker skills**, rewritten to match your code: `pr-review-backend` / `pr-review-frontend`, `test-backend` / `test-frontend`, `docs-backend` / `docs-frontend`. The implementation commands (`/as-backend`, `/as-frontend`) follow an explore → triage → TDD-plan → **RED-first** implement loop, and the `test-*` skills enforce a failing test before any implementation (write red → confirm failure → implement to green).
 - **smith-mode** — the execution discipline (stage map → delegate → failable verification → self-critique) applied to any task spanning multiple files, sources, or sessions.
 - **handoff** — captures a session-continuity snapshot and hands work to fresh subagents when the context window gets crowded.
+
+#### Execution chain
+
+Commands are thin dispatchers — they invoke a main skill which owns the workflow:
+
+```
+command (/as-pr-review) → main skill (pr-review-backend / pr-review-frontend)
+  → critic sub-skill panel (pr-critic-security, pr-critic-performance,
+                            pr-critic-simplicity, pr-critic-maintainability, pr-critic-dx)
+    → MCP tools (gitnexus for impact/blast-radius, git-memory for commit history,
+                 sentrux for architecture gate, playwright / chrome-devtools for browser,
+                 obsidian for vault writes)
+```
+
+The `pr-review-*` skills run an **adversarial critic panel** scoped per side of the stack: each critic tries to refute the change from its own lens (security, performance, simplicity, maintainability, developer experience), findings are graded (critical / high / medium / low), and a false-positive gate filters noise before the results are synthesized. All implementation and test skills follow **RED-first TDD**: the failing test is written and confirmed to fail before any implementation is added.
 
 ### Guardrails in practice
 

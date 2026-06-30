@@ -23,6 +23,15 @@ for a CLI/service, invoke it and inspect output/exit code.
 - Exercise one critical happy-path flow end-to-end.
 - A check that cannot fail is not a check — assert a concrete observable, never "looks fine".
 
+For a web app, run these chrome-devtools checks immediately after the app loads:
+
+```
+mcp__chrome-devtools__list_console_messages()   # assert zero errors / uncaught exceptions
+mcp__chrome-devtools__list_network_requests()   # assert no failed (4xx/5xx) API requests
+```
+
+Both must be clean before the health check passes. Any console error or failed network request is a no-go finding — log it in the output with the exact message and request URL.
+
 ## Step 3 — Post-merge checklist (guidance)
 
 Walk these as guidance (you execute via Claude Code; agent-smith does not own infra):

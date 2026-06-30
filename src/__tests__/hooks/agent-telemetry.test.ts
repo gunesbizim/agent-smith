@@ -49,7 +49,7 @@ describe("buildCallEvent", () => {
 
 describe("parseMcpServer", () => {
   it("extracts server name from mcp__<server>__<tool> names", () => {
-    expect(parseMcpServer("mcp__serena__find_symbol")).toBe("serena");
+    expect(parseMcpServer("mcp__gitnexus__impact")).toBe("gitnexus");
     expect(parseMcpServer("mcp__sentrux__check")).toBe("sentrux");
     expect(parseMcpServer("mcp__plugin_mempalace_mempalace__mempalace_search")).toBe("plugin_mempalace_mempalace");
   });

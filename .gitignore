@@ -10,7 +10,6 @@ dist/
 .claude/
 .cursor/
 .mcp.json
-.serena/
 .sentrux/*
 !.sentrux/rules.toml
 !.sentrux/baseline.json
@@ -26,9 +25,7 @@ docs/architecture/
 a
 coverage/
 
-# Obsidian vault — keep dir scaffold, ignore private notes
-vault/*
-!vault/README.md
+# Obsidian vault — now committed (public project documentation); see vault/agent-smith/index.md
 
 # Playwright MCP screenshots/traces — generated artifacts, never commit
 .playwright-mcp/

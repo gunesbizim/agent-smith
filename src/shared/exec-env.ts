@@ -1,10 +1,10 @@
 // Shared subprocess environment for tool detection/installation.
 //
-// When agent-smith shells out to check for or install a tool (sentrux, serena, pipx, gitnexus,
+// When agent-smith shells out to check for or install a tool (sentrux, pipx, gitnexus,
 // …), the child inherits whatever PATH the parent had — which, under `npx`/CI/non-login shells,
 // often omits the dirs where user-installed CLIs actually live (~/.local/bin, /opt/homebrew/bin,
 // ~/.cargo/bin, ~/go/bin). That made presence checks miss installed tools and report false
-// "not available"/"failed" (e.g. serena, sentrux). detectionEnv() prepends those common bin dirs
+// "not available"/"failed" (e.g. sentrux). detectionEnv() prepends those common bin dirs
 // so checks and installs find tools wherever they were installed.
 import os from "node:os";
 import path from "node:path";

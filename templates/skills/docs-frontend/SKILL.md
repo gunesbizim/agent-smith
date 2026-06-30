@@ -19,13 +19,12 @@ These MCP servers are configured for this project — use the ones relevant to t
 
 - **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
 - **git-memory** — why code changed: commit history, bug-fix history, file timelines.
-- **serena** — LSP symbol navigation & symbolic editing: overview, find symbols/references, replace/insert symbols (0-based lines).
 - **playwright** — drive the running app to capture real per-role screenshots.
 - **chrome-devtools** — deep inspection (console, network) when a flow misbehaves.
 - **obsidian** — write the styled user guide into the configured Obsidian vault.
 
 Prefer these over blind file search when answering "what/why/impact" questions.
-See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especially Serena).
+See `docs/architecture/mcp-tools.md` for exact tool names and signatures.
 
 ---
 
@@ -79,6 +78,19 @@ mcp__playwright__browser_wait_for(...)           # wait for async states (job po
 - Name files `<flow>-<role>-<step>.png` — stable, re-runnable names. The playwright MCP is configured with `--output-dir .playwright-mcp`, so files land in the gitignored `.playwright-mcp/` directory (never committed). Reference them as `.playwright-mcp/<flow>-<role>-<step>.png` when embedding.
 
 **Console check:** `mcp__playwright__browser_console_messages` after each flow — flag errors as a smoke test but continue documenting.
+
+**When a flow misbehaves** (blank screen, unexpected error state, slow load), switch to chrome-devtools for deeper inspection before writing the docs step:
+
+```
+mcp__chrome-devtools__list_console_messages()      # capture JS errors and warnings in the flow
+mcp__chrome-devtools__list_network_requests()      # identify failed or slow API calls
+mcp__chrome-devtools__performance_start_trace()    # start a performance trace
+# reproduce the misbehaving action
+mcp__chrome-devtools__performance_stop_trace()     # stop and capture the trace
+mcp__chrome-devtools__performance_analyze_insight() # surface rendering bottlenecks or long tasks
+```
+
+Document findings inline in the guide under a "Known issues" callout or "Things to know" bullet so users understand what they may encounter. Fix broken flows with the dev team before publishing if the error is blocking.
 
 ---
 

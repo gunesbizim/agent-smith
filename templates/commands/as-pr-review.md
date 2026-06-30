@@ -1,6 +1,8 @@
-You are the PR review orchestrator. Detect which sides of the stack changed, dispatch matching review skills each in a fresh subagent, and merge their reports.
+You are the PR review orchestrator. Detect which sides of the stack changed, dispatch the matching **main review skill** for each side in a fresh subagent, and merge their reports.
 
-> **This command may modify the working tree.** Beyond reporting, the orchestrator auto-fixes confirmed critical/high findings (Step 3.5 synthesis) and runs the Step 0 architecture remediation loop. When invoked from `/as-ship`, the ship workflow owns the fix/commit/push cycle; when run standalone, this command applies fixes directly to the working tree.
+> **Structure:** this command is a thin dispatcher — `command → main skill → sub-skill`. Each main review skill (`pr-review-backend` / `pr-review-frontend`) owns its workflow **and** runs its own adversarial **critic sub-skill panel** (`pr-critic-*`) scoped to that side, returning an already-synthesized report. The orchestrator does not run critics itself.
+
+> **This command may modify the working tree.** Beyond reporting, the review skills auto-fix confirmed critical/high findings, and this command runs the Step 0 architecture remediation loop. When invoked from `/as-ship`, the ship workflow owns the fix/commit/push cycle; when run standalone, fixes are applied directly to the working tree.
 
 `$ARGUMENTS` may be a PR number, a path, or empty (= full branch diff against main).
 
@@ -53,57 +55,28 @@ git diff origin/main...HEAD --stat
 | **Frontend** | `{{FRONTEND_DIR}}/` |
 | Both / docs-only | run both / report "no reviewable code" |
 
-## Step 2 — Dispatch (fresh subagent per side, parallel when both)
+**Dispatch only the side(s) that actually changed.** If the diff touches only `{{FRONTEND_DIR}}/`,
+run **only** `pr-review-frontend` — do not spawn the backend reviewer (and vice versa). Run both
+only when both sides changed. A side with zero changed files is never dispatched.
+
+## Step 2 — Dispatch the main review skill per side (fresh subagent, parallel when both)
+
+Each main review skill runs its own checklist **and** its `pr-critic-*` sub-skill panel scoped to
+that side, returning an already-synthesized report (critic findings folded in by severity).
 
 - Backend changes → spawn an Agent with:
-  > Read `.claude/skills/pr-review-backend/SKILL.md` and execute it exactly. `$ARGUMENTS` = `<scope>`. Return the full structured report.
+  > Read `.claude/skills/pr-review-backend/SKILL.md` and execute it exactly, including its critic sub-skill panel. `$ARGUMENTS` = `<scope>`. Return the full structured report.
 
 - Frontend changes → spawn an Agent with:
-  > Read `.claude/skills/pr-review-frontend/SKILL.md` and execute it exactly. `$ARGUMENTS` = `<scope>`. Return the full structured report.
+  > Read `.claude/skills/pr-review-frontend/SKILL.md` and execute it exactly, including its critic sub-skill panel. `$ARGUMENTS` = `<scope>`. Return the full structured report.
 
-## Step 3 — Cross-cutting checks
+## Step 3 — Cross-cutting checks (orchestrator-only)
+
+These span both sides, so the orchestrator runs them after the side reports return:
 
 - **API contract drift**: backend endpoint signature changes vs frontend API callers — flag mismatches.
 - **Commit hygiene**: every commit contains a ticket reference, format `type(scope): TICKET-XX description` (≤ 72 chars).
 - **Migration ↔ frontend coupling**: new backend fields surfaced in UI without i18n keys, or vice versa.
-
-## Step 3.5 — Adversarial critic panel (perspective-diverse verification)
-
-Beyond the per-side reviews, fan out the **critic panel** — five single-lens adversarial
-reviewers, each trying to REFUTE the change from its own angle (not a balanced review). Run them
-as parallel subagents on the same diff:
-
-- `pr-critic-security` — injection, authz, secrets, SSRF, unsafe deserialization.
-- `pr-critic-performance` — N+1, unbounded loops/allocations, blocking I/O, missing indexes.
-- `pr-critic-simplicity` — unnecessary abstraction, dead code, simpler equivalents.
-- `pr-critic-maintainability` — naming, cohesion/coupling, test gaps, undocumented decisions.
-- `pr-critic-dx` — API ergonomics, error messages, hidden config, surprising defaults.
-
-Spawn one Agent per critic:
-> Read `.claude/skills/pr-critic-<lens>/SKILL.md` and execute it exactly on the branch diff.
-> `$ARGUMENTS` = `<scope>`. Return ONLY your `{severity, file, line, problem, fix, falsePositive, fpReason?}` findings.
-
-### Synthesis (consensus, not raw dump)
-
-After the critics return, a synthesis pass consolidates — do NOT dump every critic verbatim:
-
-**Step A — False-positive triage (first, always):**
-Drop every finding where `falsePositive: true`. Collect them under a **"Dropped as false positive"**
-section with each finding's `fpReason` so the human can audit the triage. These dropped findings
-are NOT counted toward the verdict, NOT auto-fixed, and NOT listed in any action section.
-
-**Step B — Severity-driven action on confirmed findings:**
-1. **Dedup** confirmed findings that point at the same file/line across lenses.
-2. **Rank** by severity; a finding is **high-confidence-real** when ≥2 lenses independently flag
-   the same issue — surface those first.
-3. **critical and high** severity confirmed findings → **auto-fix** (you are confident; apply
-   the fix directly). These block the PR verdict.
-4. **medium and low** severity confirmed findings → do NOT fix; list them as non-blocking under
-   **"Left for follow-up"** in the output. They do NOT affect the PR verdict.
-5. **Uncertain** findings (confirmed real but fix unclear) → escalate to the human with the
-   specific question; do not auto-fix and do not block on them.
-6. A single critic's lone finding with no cross-lens corroboration is treated as **medium** at
-   most — this prevents one noisy lens from blocking the merge.
 
 ## Step 4 — Merged output
 
@@ -111,19 +84,13 @@ are NOT counted toward the verdict, NOT auto-fixed, and NOT listed in any action
 ## PR Review — <branch or PR number>
 
 ### Verdict
-mergeable / needs changes / blocked   (worst of: side verdicts + confirmed critical/high findings from critic panel; medium/low never block)
+mergeable / needs changes / blocked   (worst of the side verdicts; each side already folds in its confirmed critical/high critic findings; medium/low never block)
 
 ### Backend report
-<verbatim from the backend subagent, or "no backend changes">
+<verbatim from the backend subagent (incl. its critic panel), or "no backend changes">
 
 ### Frontend report
-<verbatim from the frontend subagent, or "no frontend changes">
-
-### Critic panel (synthesized)
-<triage: dropped-as-false-positive findings with reasons>
-<auto-fixed: critical/high confirmed findings that were applied>
-<left for follow-up: medium/low confirmed findings, non-blocking>
-<escalated-to-human: uncertain findings>
+<verbatim from the frontend subagent (incl. its critic panel), or "no frontend changes">
 
 ### Cross-cutting findings
 <contract drift, commit hygiene, coupling issues>

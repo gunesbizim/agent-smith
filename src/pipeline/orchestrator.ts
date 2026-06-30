@@ -104,8 +104,7 @@ async function executeImplementPhase(ctx: PipelineContext): Promise<PhaseResult>
   //    The baseline captured here is compared by session_end() in the review phase
   //    to detect regressions introduced during implementation.
   //
-  // 2. serena find_symbol + insert_before_symbol + replace_symbol_body + get_diagnostics
-  //    — perform the actual code changes.
+  // 2. native Edit/Write (with Grep/Glob/gitnexus for discovery) — perform the actual code changes.
   //
   // 3. mcp__sentrux__rescan() — re-analyse the working tree mid-implementation so the
   //    DSM and root_causes reflect the post-edit state before tests run.  Useful for

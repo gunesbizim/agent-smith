@@ -5,9 +5,11 @@
 import chalk from "chalk";
 import ora from "ora";
 import { configureMCPs } from "../../install/mcp-installer.js";
+import { runMcpIndexing } from "../../install/mcp-indexer.js";
 import { installWithConsent } from "../../install/install-flow.js";
 import { setupObsidianVault } from "../../install/obsidian-vault.js";
 import { writeClaudeMd } from "../../adapt/claude-md-writer.js";
+import { removeGitnexusAgentsMd } from "../../install/agents-md-cleanup.js";
 import type { TemplateVariables } from "../../shared/types.js";
 
 // Minimal type alias to avoid a direct import of analyze-project just for the shape
@@ -56,8 +58,23 @@ export async function runInstallStep(opts: InstallStepOptions): Promise<void> {
     }
   }
 
+  // Step 11b — Build each configured server's initial index of the project (gitnexus analyze,
+  // git-memory index, …) so its MCP tools work in the first session. Best-effort; a missing binary
+  // or failing scan is skipped. Runs BEFORE the AGENTS.md cleanup below because `gitnexus analyze`
+  // is what writes AGENTS.md — we create the index, then clear the redundant file.
+  if (!dryRun) {
+    await runMcpIndexing(targetDir, { project });
+  }
+
   // Step 12 — Write/refresh CLAUDE.md managed block
   const claudeMdSpinner = ora("Writing CLAUDE.md (agent-smith managed block)...").start();
   const claudeMd = writeClaudeMd(targetDir, dryRun);
   claudeMdSpinner.succeed(`CLAUDE.md ${claudeMd.created ? "created" : "updated"} (commands + skills documented)`);
+
+  // Step 12b — Clearing pass: remove the gitnexus-authored AGENTS.md that `gitnexus analyze` just
+  // wrote. Its tool/skill pointers are consolidated into the CLAUDE.md managed block (the file
+  // Claude Code reads each session); a hand-written AGENTS.md (no gitnexus markers) is preserved.
+  if (!dryRun && removeGitnexusAgentsMd(targetDir)) {
+    console.log(chalk.gray("  Removed gitnexus AGENTS.md (consolidated into CLAUDE.md)."));
+  }
 }

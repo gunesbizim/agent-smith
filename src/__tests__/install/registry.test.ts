@@ -11,7 +11,6 @@ describe("MCP Registry", () => {
     const names = MCP_REGISTRY.map((s) => s.name);
     expect(names).toContain("gitnexus");
     expect(names).toContain("git-memory");
-    expect(names).toContain("serena");
     expect(names).toContain("playwright");
     expect(names).toContain("chrome-devtools");
     expect(names).toContain("sonarqube");
@@ -60,8 +59,8 @@ describe("MCP Registry", () => {
     }
   });
 
-  it("has exactly 12 servers", () => {
-    expect(MCP_REGISTRY).toHaveLength(12);
+  it("has exactly 11 servers", () => {
+    expect(MCP_REGISTRY).toHaveLength(11);
   });
 
   it("includes laravel-boost", () => {
@@ -103,7 +102,6 @@ describe("getMCPByCategory", () => {
     const names = ci.map((s) => s.name);
     expect(names).toContain("gitnexus");
     expect(names).toContain("git-memory");
-    expect(names).toContain("serena");
   });
 
   it("returns browser servers", () => {

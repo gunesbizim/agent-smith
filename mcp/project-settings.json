@@ -11,17 +11,6 @@
       "command": "git-memory",
       "args": ["serve"],
       "env": {}
-    },
-    "serena": {
-      "type": "stdio",
-      "command": "cmd",
-      "args": [
-        "/c",
-        "%USERPROFILE%\\.serena\\venv\\Scripts\\serena.exe",
-        "start-mcp-server",
-        "--project-from-cwd"
-      ],
-      "env": {}
     }
   },
   "permissions": {

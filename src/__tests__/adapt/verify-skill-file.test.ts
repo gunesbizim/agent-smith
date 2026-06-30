@@ -10,7 +10,7 @@ const GOOD = `---
 name: pr-review-backend
 ---
 You are a senior backend reviewer for this Go/Echo service. Read docs/architecture/backend-architecture.md.
-Run the gate with: go test ./... and golangci-lint run. Use gitnexus for impact, serena for edits.
+Run the gate with: go test ./... and golangci-lint run. Use gitnexus for impact.
 Step 0 — Plan. Step 1 — Impact. Step 2 — Review against the architecture rules. Verify with the test gate.
 This skill is grounded in the real repository structure and commands, with no template residue.
 `;

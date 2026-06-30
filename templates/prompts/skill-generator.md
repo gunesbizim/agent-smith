@@ -8,9 +8,8 @@ You are running in the project root with Read, Glob, Grep, Write, and Task tools
 or documentation MCP tools are available, use them BEFORE raw file reads — they are faster and far
 more precise. Preference order when gathering understanding:
 1. **gitnexus** — architecture map, call graphs, dependencies, change impact (the big-picture structure).
-2. **serena** — symbol overview / find_symbol / find_referencing_symbols (precise code navigation).
-3. **git-memory** — why code changed / historical context for a component.
-4. **documentation MCP** (obsidian / context7 / similar) — project notes and library docs.
+2. **git-memory** — why code changed / historical context for a component.
+3. **documentation MCP** (obsidian / context7 / similar) — project notes and library docs.
 Fall back to Read / Glob / Grep ONLY when no MCP tool can answer or none are configured. (Some of
 these may be absent in a given project — silently skip the ones that are not available.)
 
@@ -21,7 +20,7 @@ these may be absent in a given project — silently skip the ones that are not a
    - docs/architecture/frontend-architecture.md
    - docs/architecture/best-practices.md   (existing + recommended engineering standards)
    - docs/architecture/decisions.md         (team conventions captured at init)
-2. Explore the real structure — **MCP-first** (gitnexus/serena for layout, layering, symbols, call
+2. Explore the real structure — **MCP-first** (gitnexus for layout, layering, symbols, call
    graphs, impact), falling back to Glob/Grep/Read: directory layout, layering, naming,
    test setup, lint/build commands, auth/permissions, i18n, state management, logging.
 3. Identify the engineering best practices the project ALREADY follows. **Start from the
@@ -33,7 +32,7 @@ these may be absent in a given project — silently skip the ones that are not a
    API boundaries, fixture/mount-factory test patterns). These become ENFORCED rules.
 4. Read every existing stub you will rewrite so you preserve its INTENT and structure:
 {{SKILL_LIST}}
-5. Note the configured MCP tools mentioned in the stubs (gitnexus, git-memory, serena,
+5. Note the configured MCP tools mentioned in the stubs (gitnexus, git-memory,
    sentrux, obsidian, playwright, chrome-devtools) and keep references accurate.
 
 ## Reference — the shape and intent of a skill stub
@@ -53,9 +52,16 @@ the MCP-tool usage steps; swap every stack assumption for what this repo actuall
    so plainly and covers only what exists; it never invents a tier.
 5. **Resolve every `{{VAR}}`** to a concrete value — the output must contain zero `{{...}}`.
 6. **Real commands/paths only** (from the manifests/CI, per the rule below) — never a placeholder.
+7. **Keep the TDD discipline.** Every implementation and test skill states **RED-first TDD**: write
+   the failing test first, confirm it fails for the right reason, then implement until green —
+   never tests after the code. Review skills enforce it (missing tests for new logic = blocker).
+8. **Keep the execution-chain wiring** — command → main skill → sub-skill → MCP tool. Preserve any
+   sub-skill dispatch (e.g. the `pr-review-*` skills must keep running their `pr-critic-*` panel),
+   and keep each skill's MCP-tool usage steps (gitnexus / git-memory / playwright / chrome-devtools
+   / sentrux / obsidian) — prefer the wired MCP over ad-hoc shell/Read.
 
-A skill that still contains a `{{placeholder}}`, a wrong-stack rule, or is so short it clearly
-wasn't decorated FAILS the contract and is reported ✗.
+A skill that still contains a `{{placeholder}}`, a wrong-stack rule, drops the TDD/critic wiring,
+or is so short it clearly wasn't decorated FAILS the contract and is reported ✗.
 
 ```markdown
 {{STUB_EXAMPLE}}
@@ -98,33 +104,16 @@ Run them concurrently where possible. Each subagent rewrites its ONE file in pla
   it is **unconfirmed** (and that it can be settled via `agent-smith confirm`) rather than
   inventing one.
 - Keep the skill's workflow shape (Plan → analyze → act → verify) and its MCP-tool usage
-  steps, but make every command and path correct for this repo.
+  steps, but make every command and path correct for this repo. Prefer the wired MCP servers
+  (gitnexus / git-memory / playwright / chrome-devtools / sentrux / obsidian) over ad-hoc
+  shell/Read whenever an MCP can answer the question — keep those tool-usage steps concrete.
+- Keep the TDD discipline: implementation/test skills carry a RED-first test-first section;
+  review skills treat missing tests for new logic as a blocker.
+- Preserve sub-skill dispatch: the `pr-review-backend`/`pr-review-frontend` skills must keep
+  running their `pr-critic-*` critic panel (security/performance/simplicity/maintainability/dx)
+  scoped to their side, plus the synthesis step — do not flatten the panel back into the command.
 - Resolve any remaining {{TEMPLATE_VARS}} to concrete values; leave no unresolved braces.
 - Reference sibling commands by their as-* names (e.g. /as-pr-review, /as-test).
-- Serena correctness (CRITICAL — only emit calls that actually exist):
-    * Real tools: mcp__serena__get_symbols_overview, find_symbol, find_referencing_symbols,
-      replace_symbol_body, insert_after_symbol, insert_before_symbol, rename_symbol,
-      replace_content, check_onboarding_performed. There is NO find_implementations and NO
-      get_diagnostics_for_file — never emit those.
-    * Name paths use '/' not '.', e.g. find_symbol(name_path_pattern="ClassName/method").
-    * find_referencing_symbols requires BOTH name_path AND relative_path.
-    * Instruct: run check_onboarding_performed once before Serena; load deferred Serena
-      tools via tool-search first; edit code discovered via Serena with Serena's symbolic
-      edit tools (built-in Edit is refused after a Serena read); Serena line numbers are 0-based.
-- gitnexus / git-memory correctness (CRITICAL — these are MCP tools, NOT bare functions):
-    * gitnexus tools: mcp__gitnexus__query, mcp__gitnexus__impact, mcp__gitnexus__context,
-      mcp__gitnexus__detect_changes, mcp__gitnexus__api_impact, mcp__gitnexus__route_map,
-      mcp__gitnexus__rename.
-    * git-memory tools: mcp__git-memory__commits_touching_file, mcp__git-memory__search_git_history,
-      mcp__git-memory__bug_fix_history, mcp__git-memory__architecture_decisions,
-      mcp__git-memory__latest_commits.
-    * ALWAYS emit the full mcp__<server>__<tool> form. NEVER emit gitnexus_query(...) or a bare
-      commits_touching_file(...) — those are not invokable tool names and will be silently ignored
-      (the agent falls back to Grep instead of querying the graph/history).
-    * To verify after edits, run the project's type-check/test gate — not a diagnostics tool.
-    * PREFER symbolic edits (replace_symbol_body / insert_after_symbol / insert_before_symbol)
-      over blunt full-file rewrites for code changes — they are AST-level and surgical (A6). Never
-      instruct rewriting an entire source file when a symbolic edit targets the change.
 - Reference the smith-mode execution-discipline skill (.claude/skills/smith-mode/SKILL.md):
   add a short note that, for work spanning multiple files/sources/sessions, the skill's
   staged loop applies (stage map → delegate → failable verification → self-critique). Do
@@ -144,8 +133,10 @@ Run them concurrently where possible. Each subagent rewrites its ONE file in pla
 ## Phase 3 — Verify
 
 After all subagents finish, re-read each file and confirm: valid frontmatter, no leftover
-{{...}} placeholders, no wrong-stack rules, real commands, and a 'Recommended best practices'
-section present in each. Confirm docs/architecture/best-practices.md was written. Fix shortfalls.
+{{...}} placeholders, no wrong-stack rules, real commands, a 'Recommended best practices'
+section present in each, the RED-first TDD discipline intact, and the `pr-review-*` skills still
+dispatch their `pr-critic-*` panel. Confirm docs/architecture/best-practices.md was written. Fix
+shortfalls.
 
 ## Final output — the skills report (machine-parseable)
 

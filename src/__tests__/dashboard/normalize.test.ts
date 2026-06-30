@@ -39,10 +39,10 @@ describe("normalizeRun", () => {
     const r = "tooled";
     const events: EngineEvent[] = [
       ev(r, { type: "phase_started", phase: "generate" }),
-      ev(r, { type: "agent_call_finished", callId: "c1", phase: "generate", model: "sonnet", status: "ok", durationMs: 5, attempt: 1, tools: { Read: 9, "mcp__serena__find_symbol": 3 } }),
+      ev(r, { type: "agent_call_finished", callId: "c1", phase: "generate", model: "sonnet", status: "ok", durationMs: 5, attempt: 1, tools: { Read: 9, "mcp__gitnexus__impact": 3 } }),
     ];
     const dto = normalizeRun(r, events);
-    expect(dto.phases[0].calls[0].tools).toEqual({ Read: 9, "mcp__serena__find_symbol": 3 });
+    expect(dto.phases[0].calls[0].tools).toEqual({ Read: 9, "mcp__gitnexus__impact": 3 });
   });
 
   it("marks a run failed when a call failed and no run_finished", () => {
@@ -83,8 +83,8 @@ describe("normalizeRun", () => {
       } as Omit<EngineEvent, "v" | "seq" | "id" | "ts" | "runId">),
       ev(r, { type: "tool_call", tool: "Bash", isMcp: false, mcpServer: null, status: "ok", durationMs: 10 } as unknown as EngineEvent),
       ev(r, { type: "tool_call", tool: "Read", isMcp: false, mcpServer: null, status: "ok", durationMs: 5 } as unknown as EngineEvent),
-      ev(r, { type: "tool_call", tool: "mcp__serena__find_symbol", isMcp: true, mcpServer: "serena", status: "ok", durationMs: 20 } as unknown as EngineEvent),
-      ev(r, { type: "tool_call", tool: "mcp__serena__get_symbols_overview", isMcp: true, mcpServer: "serena", status: "ok", durationMs: 15 } as unknown as EngineEvent),
+      ev(r, { type: "tool_call", tool: "mcp__gitnexus__impact", isMcp: true, mcpServer: "gitnexus", status: "ok", durationMs: 20 } as unknown as EngineEvent),
+      ev(r, { type: "tool_call", tool: "mcp__gitnexus__context", isMcp: true, mcpServer: "gitnexus", status: "ok", durationMs: 15 } as unknown as EngineEvent),
       ev(r, { type: "tool_call", tool: "mcp__sentrux__check", isMcp: true, mcpServer: "sentrux", status: "error", durationMs: 8 } as unknown as EngineEvent),
       ev(r, {
         type: "agent_call_finished",
@@ -107,9 +107,9 @@ describe("normalizeRun", () => {
     // Per-tool breakdown
     expect(dto.toolCalls.byTool["Bash"]).toBe(1);
     expect(dto.toolCalls.byTool["Read"]).toBe(1);
-    expect(dto.toolCalls.byTool["mcp__serena__find_symbol"]).toBe(1);
+    expect(dto.toolCalls.byTool["mcp__gitnexus__impact"]).toBe(1);
     // Per-server breakdown
-    expect(dto.toolCalls.byServer["serena"]).toBe(2);
+    expect(dto.toolCalls.byServer["gitnexus"]).toBe(2);
     expect(dto.toolCalls.byServer["sentrux"]).toBe(1);
     // Existing agent call aggregation still works
     expect(dto.totals.callCount).toBe(1);
@@ -120,14 +120,14 @@ describe("normalizeRun", () => {
     const events: EngineEvent[] = [
       ev(r, { type: "tool_call", tool: "Bash", isMcp: false, mcpServer: null, status: "error", durationMs: 3 } as unknown as EngineEvent),
       ev(r, { type: "tool_call", tool: "Bash", isMcp: false, mcpServer: null, status: "ok", durationMs: 3 } as unknown as EngineEvent),
-      ev(r, { type: "tool_call", tool: "mcp__serena__find_symbol", isMcp: true, mcpServer: "serena", status: "error", durationMs: 9 } as unknown as EngineEvent),
+      ev(r, { type: "tool_call", tool: "mcp__gitnexus__find_symbol", isMcp: true, mcpServer: "gitnexus", status: "error", durationMs: 9 } as unknown as EngineEvent),
     ];
     const dto = normalizeRun(r, events);
     expect(dto.toolCalls.total).toBe(3);
     expect(dto.toolCalls.errorCount).toBe(2);
     expect(dto.toolCalls.byToolErrors["Bash"]).toBe(1);
-    expect(dto.toolCalls.byToolErrors["mcp__serena__find_symbol"]).toBe(1);
-    expect(dto.toolCalls.byServerErrors["serena"]).toBe(1);
+    expect(dto.toolCalls.byToolErrors["mcp__gitnexus__find_symbol"]).toBe(1);
+    expect(dto.toolCalls.byServerErrors["gitnexus"]).toBe(1);
   });
 
   it("marks an idle interactive run (no run_finished, killed terminal) as done, not queued", () => {

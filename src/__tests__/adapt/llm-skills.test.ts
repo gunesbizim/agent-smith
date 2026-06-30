@@ -147,11 +147,11 @@ describe("generateSkills", () => {
   it("permits code-intel/doc MCP tools from BOTH .mcp.json and settings.json (not browser)", () => {
     scaffoldStubs(tmp);
     fs.writeJsonSync(path.join(tmp, ".mcp.json"), { mcpServers: { playwright: {} } });
-    fs.outputJsonSync(path.join(tmp, ".claude", "settings.json"), { mcpServers: { gitnexus: {}, serena: {} } });
+    fs.outputJsonSync(path.join(tmp, ".claude", "settings.json"), { mcpServers: { gitnexus: {} } });
     runClaudeMock.mockReturnValue("done");
     generateSkills(tmp, { useProjectMcp: true });
     const opts = runClaudeMock.mock.calls[0][1] as { allowedTools: string[] };
-    expect(opts.allowedTools).toEqual(expect.arrayContaining(["mcp__gitnexus", "mcp__serena"]));
+    expect(opts.allowedTools).toEqual(expect.arrayContaining(["mcp__gitnexus"]));
     expect(opts.allowedTools).not.toContain("mcp__playwright");
   });
 
@@ -188,13 +188,13 @@ describe("buildGroundingMcp", () => {
   it("merges code-intel/doc servers from .mcp.json AND .claude/settings.json, excludes browser/quality", () => {
     // Mirrors how agent-smith configures: browser servers in .mcp.json, code-intel in settings.json.
     fs.writeJsonSync(path.join(dir, ".mcp.json"), { mcpServers: { playwright: {}, "chrome-devtools": {}, obsidian: { command: "x" } } });
-    fs.outputJsonSync(path.join(dir, ".claude", "settings.json"), { mcpServers: { gitnexus: { command: "g" }, serena: {}, "git-memory": {}, sentrux: {} } });
+    fs.outputJsonSync(path.join(dir, ".claude", "settings.json"), { mcpServers: { gitnexus: { command: "g" }, "git-memory": {}, sentrux: {} } });
     const g = buildGroundingMcp(dir);
-    expect(g.allow).toEqual(expect.arrayContaining(["mcp__gitnexus", "mcp__serena", "mcp__git-memory", "mcp__obsidian"]));
+    expect(g.allow).toEqual(expect.arrayContaining(["mcp__gitnexus", "mcp__git-memory", "mcp__obsidian"]));
     expect(g.allow).not.toContain("mcp__playwright");
     expect(g.allow).not.toContain("mcp__chrome-devtools");
     expect(g.allow).not.toContain("mcp__sentrux"); // quality category
-    expect(Object.keys(g.servers)).toEqual(expect.arrayContaining(["gitnexus", "serena", "git-memory", "obsidian"]));
+    expect(Object.keys(g.servers)).toEqual(expect.arrayContaining(["gitnexus", "git-memory", "obsidian"]));
     expect(g.servers.gitnexus).toEqual({ command: "g" }); // carries the real config through
   });
 
@@ -232,19 +232,10 @@ describe("buildMasterSkillPrompt", () => {
     for (const s of GENERATED_SKILLS) expect(p).toContain(s);
     // Must steer the model to PREFER MCP tools when grabbing code/docs.
     expect(p).toMatch(/PREFER MCP tools|MCP-first/i);
-    expect(p).toMatch(/gitnexus[\s\S]*serena/i);
+    expect(p).toMatch(/gitnexus/i);
     // Must warn against leaving wrong-stack rules / unresolved template vars.
     expect(p).toMatch(/NEVER leave a rule that does not apply/i);
     expect(p).toMatch(/\{\{TEMPLATE_VARS\}\}|unresolved braces/i);
   });
 
-  it("enforces Serena tool correctness (no phantom tools, slash name paths)", () => {
-    const p = buildMasterSkillPrompt("/proj");
-    expect(p).toMatch(/Serena correctness/i);
-    expect(p).toContain("find_implementations");
-    expect(p).toContain("get_diagnostics_for_file");
-    expect(p).toMatch(/NO find_implementations|never emit those/i);
-    expect(p).toMatch(/'\/' not '\.'|name paths use/i);
-    expect(p).toMatch(/find_referencing_symbols requires BOTH/i);
-  });
 });

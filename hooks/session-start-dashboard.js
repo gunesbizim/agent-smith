@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * SessionStart hook — auto-start the Agent Smith dashboard (Serena-style).
+ * SessionStart hook — auto-start the Agent Smith dashboard.
  *
  * On every session start this checks whether the local dashboard is already serving on its port;
  * if not, it launches `agent-smith dashboard` as a detached background process (which opens the

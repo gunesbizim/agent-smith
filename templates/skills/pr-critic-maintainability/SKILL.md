@@ -23,10 +23,12 @@ confidence rather than staying silent.
 ## Method (smith-mode applies for multi-file diffs)
 
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
-2. For each changed area, ask: *how does this fail from a maintainability standpoint?* Look at the real
-   call sites and data flow, not just the diff hunk. Use `mcp__gitnexus__impact` to gauge coupling
-   (how many symbols depend on the change) and `mcp__git-memory__commits_touching_file` to see churn —
-   high-churn, high-fan-in code is the riskiest to make fragile.
+2. **Use MCP for ground truth — before judging any finding:** call `gitnexus` (`impact`,
+   `find_referencing_symbols`) to measure real coupling and blast radius of changed symbols. Call
+   `sentrux` (`dsm`) for god-file or complexity signals. A missing test for changed logic with
+   non-trivial callers is a valid maintainability finding even if the logic itself looks correct.
+3. For each changed area, ask: *how does this fail from a maintainability standpoint?* Look at the real
+   call sites and data flow, not just the diff hunk.
 3. For every finding, produce:
    `{ severity: critical|high|medium|low, file, line, problem, fix, falsePositive: boolean, fpReason?: string }`.
    - **critical** — data loss, security hole, breaks prod, corrupts state.

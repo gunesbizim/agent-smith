@@ -14,11 +14,16 @@ These MCP servers are configured for this project — use the ones relevant to t
 
 - **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
 - **git-memory** — why code changed: commit history, bug-fix history, file timelines.
-- **serena** — LSP symbol navigation & symbolic editing: overview, find symbols/references, replace/insert symbols (0-based lines).
 - **sentrux** — architectural quality gate: run `sentrux check .` and `sentrux gate .` to confirm the diff introduces no layer/cycle/coupling violations or quality regression.
 
 Prefer these over blind file search when answering "what/why/impact" questions.
-See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especially Serena).
+See `docs/architecture/mcp-tools.md` for exact tool names and signatures.
+
+## Test-driven development (enforced)
+
+This project follows **RED-first TDD**: a failing test is written and confirmed failing before the
+implementation that makes it pass. As a reviewer, enforce it — new business logic that ships without
+covering tests (happy path + failure paths) is a blocker, not a suggestion (see checklist §8).
 
 ---
 
@@ -35,14 +40,14 @@ See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especi
 ## Step 1 — GitNexus impact analysis (mandatory before reading diffs)
 
 ```
-mcp__gitnexus__detect_changes()              # what changed since last index?
-mcp__gitnexus__api_impact()                  # which HTTP endpoints are affected?
-mcp__gitnexus__impact("ChangedClassName")    # what else does this change break?
+gitnexus_detect_changes()              # what changed since last index?
+gitnexus_api_impact()                  # which HTTP endpoints are affected?
+gitnexus_impact("ChangedClassName")    # what else does this change break?
 ```
 
 **Rules:**
-- Call `mcp__gitnexus__impact` on every symbol that was deleted or renamed.
-- If the index is stale, fall back to `mcp__serena__find_referencing_symbols`.
+- Call `gitnexus_impact` on every symbol that was deleted or renamed.
+- If the index is stale, fall back to a Grep over the source tree for the symbol's references.
 
 ---
 
@@ -66,9 +71,9 @@ Do not proceed to Step 2 if either blocker is present. Report them under **Block
 ## Step 2 — Historical context (git-memory)
 
 ```
-mcp__git-memory__commits_touching_file("path/to/file", limit=10)
-mcp__git-memory__search_git_history("topic or bug description", limit=8)
-mcp__git-memory__bug_fix_history("component name", limit=8)
+commits_touching_file("path/to/file", limit=10)
+search_git_history("topic or bug description", limit=8)
+bug_fix_history("component name", limit=8)
 ```
 Score > 0.7 = highly relevant — the diff may be reverting a deliberate fix.
 
@@ -78,7 +83,7 @@ Score > 0.7 = highly relevant — the diff may be reverting a deliberate fix.
 
 1. `git diff origin/main...HEAD --stat -- {{BACKEND_DIR}}/`
 2. `git diff origin/main...HEAD -- {{BACKEND_DIR}}/`
-3. Cross-reference with `mcp__gitnexus__api_impact()`
+3. Cross-reference with `gitnexus_api_impact()`
 4. Read each changed file in full
 
 ---
@@ -157,6 +162,36 @@ section — do NOT escalate it. Only confirmed findings are reported.
 
 ---
 
+## Step 4 — Adversarial critic panel (sub-skills)
+
+After the checklist, run the five single-lens critic **sub-skills** against the **backend** diff.
+Each one tries to REFUTE the change from its own angle (not a balanced review). Spawn one Agent per
+critic, in parallel:
+
+> Read `.claude/skills/pr-critic-<lens>/SKILL.md` and execute it exactly on the backend diff
+> (`git diff origin/main...HEAD -- {{BACKEND_DIR}}/`). `$ARGUMENTS` = `<scope>`. Return ONLY your
+> `{severity, file, line, problem, fix, falsePositive, fpReason?}` findings.
+
+Lenses: `pr-critic-security`, `pr-critic-performance`, `pr-critic-simplicity`,
+`pr-critic-maintainability`, `pr-critic-dx`.
+
+### Synthesis (consensus, not raw dump)
+
+After the critics return, consolidate — do NOT dump every critic verbatim:
+
+**Step A — False-positive triage (first, always):** drop every finding where `falsePositive: true`;
+list them under **Dropped as false positive** with each `fpReason` for human audit. Dropped findings
+are not counted toward the verdict and not auto-fixed.
+
+**Step B — Severity-driven handling of confirmed findings:**
+1. **Dedup** confirmed findings pointing at the same file/line across lenses.
+2. **Rank** by severity; a finding flagged by ≥2 lenses is high-confidence-real — surface first.
+3. **critical / high** → fold into **Blockers** (and auto-fix when confident and run standalone).
+4. **medium / low** → list under **Required changes** / **Suggestions**; never block the verdict.
+5. A lone single-lens finding with no corroboration is **medium** at most.
+
+---
+
 ## Output format
 
 ```
@@ -176,8 +211,11 @@ Should fix (arch violations, missing codes, test gaps).
 ## Suggestions
 Non-blocking improvements.
 
+## Critic panel (synthesized)
+Confirmed critic findings folded in by severity (critical/high under Blockers; medium/low under Required/Suggestions), with cross-lens corroboration noted.
+
 ## Dropped as false positive
-Findings confirmed as false positives, with reason (fpReason) for each — listed here for human audit; not counted toward verdict, not auto-fixed.
+Findings confirmed as false positives, with reason (fpReason) for each — from both the review and the critic panel — listed here for human audit; not counted toward verdict, not auto-fixed.
 
 ## Approved sections
 What looks correct.

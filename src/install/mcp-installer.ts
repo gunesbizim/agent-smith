@@ -4,7 +4,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import chalk from "chalk";
 import cliProgress from "cli-progress";
-import { MCP_REGISTRY, getMCPServer } from "./registry.js";
+import { MCP_REGISTRY, RETIRED_SERVERS } from "./registry.js";
 import { detectionEnv } from "../shared/exec-env.js";
 import { homeDir } from "../shared/platform-utils.js";
 import type { MCPConfigEntry, TemplateVariables, MCPConfigBundle, PlatformInstall, MCPServerDefinition, DetectedProject } from "../shared/types.js";
@@ -121,7 +121,7 @@ export function runCommandAsync(command: string): Promise<void> {
 
 /** Build the PATH-presence probe for a command, per platform.
  *
- *  A bare single-token command (e.g. "serena", "gitnexus") is a PRESENCE check — testing it by
+ *  A bare single-token command (e.g. "gitnexus") is a PRESENCE check — testing it by
  *  *running* the tool is fragile (it may launch a server, hang, or exit non-zero with no args).
  *  Such tokens are reduced to a "is it on PATH?" probe. The probe runs through a shell
  *  (`runCommandAsync` uses `shell: true`), so it MUST match that shell: POSIX `/bin/sh` has
@@ -268,10 +268,65 @@ export async function configureMCPs(
     // never be committed. Add it to .gitignore immediately after creation.
     ensureGitignore(projectRoot, [".mcp.json"], MCP_GITIGNORE_COMMENT);
     stripSettingsMcpServers(projectRoot);
+    // Retired servers (e.g. serena) are stripped inside writeProjectMcp before it writes, so an
+    // existing install loses them on the next configure. Here we only *warn* about leftovers we
+    // deliberately don't auto-remove (global configs, the .serena cache).
+    warnRetiredServerLeftovers(projectRoot);
     warnStaleUserMcpDuplicates(Object.keys(bundle.projectMcp));
   }
 
   return bundle;
+}
+
+/**
+ * Remove any RETIRED_SERVERS entry from a `mcpServers` map IN PLACE. Pure (no I/O) so it can be
+ * folded into the single `.mcp.json` write in `writeProjectMcp` — this is how a retired server
+ * (e.g. serena) is dropped from an existing install on the next configure, without adding a second
+ * file-write site. Only known-retired names are touched; user-added/current servers are left alone.
+ * Returns the names actually removed.
+ */
+export function stripRetiredServers(servers: Record<string, unknown>): string[] {
+  const removed = RETIRED_SERVERS.filter((name) => Object.hasOwn(servers, name));
+  for (const name of removed) delete servers[name];
+  return removed;
+}
+
+/**
+ * Warn (without mutating) about retired-server leftovers we deliberately don't auto-remove: a
+ * retired server still registered in a global Claude config (we never auto-edit home configs), and
+ * a leftover project cache dir (e.g. `.serena/`). Prints the manual cleanup commands. No-ops when
+ * nothing is found. Home/global detection mirrors `warnStaleUserMcpDuplicates`.
+ */
+export function warnRetiredServerLeftovers(projectRoot: string, home: string = homeDir()): void {
+  // Retired servers still present in a global config → launches in every project until removed.
+  const globalConfigs = [path.join(home, ".claude", ".mcp.json"), path.join(home, ".claude.json")];
+  const inGlobal = new Set<string>();
+  for (const cfgPath of globalConfigs) {
+    if (!fs.existsSync(cfgPath)) continue;
+    let cfg: Record<string, unknown>;
+    try {
+      cfg = fs.readJsonSync(cfgPath);
+    } catch {
+      continue;
+    }
+    const servers = (cfg.mcpServers ?? {}) as Record<string, unknown>;
+    for (const name of RETIRED_SERVERS) {
+      if (Object.hasOwn(servers, name)) inGlobal.add(name);
+    }
+  }
+  for (const name of inGlobal) {
+    console.warn(
+      chalk.yellow(`  ⚠ '${name}' is retired but still registered in a global Claude config.`),
+    );
+    console.warn(
+      chalk.gray(`    Remove it from ~/.claude/.mcp.json or ~/.claude.json, then \`pipx uninstall ${name}\` if installed.`),
+    );
+  }
+  // Leftover per-project cache dirs for retired servers (serena writes a `.serena/` dir).
+  const leftoverDir = path.join(projectRoot, ".serena");
+  if (RETIRED_SERVERS.includes("serena") && fs.existsSync(leftoverDir)) {
+    console.warn(chalk.gray("    Leftover serena cache found — remove it with `rm -rf .serena`."));
+  }
 }
 
 /** Add a single registry server to the bundle — all applicable scopes go into projectMcp. */
@@ -308,10 +363,14 @@ function writeProjectMcp(projectRoot: string, bundle: MCPConfigBundle): void {
   if (fs.existsSync(mcpPath)) {
     existingMcp = fs.readJsonSync(mcpPath);
   }
-  existingMcp.mcpServers = {
+  const merged: Record<string, unknown> = {
     ...(existingMcp.mcpServers as Record<string, unknown> ?? {}),
     ...bundle.projectMcp,
   };
+  // Drop servers we've retired (e.g. serena) from the merged set so they don't linger in an
+  // existing install — done before the single write, no extra file-write site.
+  stripRetiredServers(merged);
+  existingMcp.mcpServers = merged;
   fs.writeJsonSync(mcpPath, existingMcp, { spaces: 2 });
 }
 

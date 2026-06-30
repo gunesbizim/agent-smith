@@ -98,7 +98,7 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
             statusMessage: "Agent Smith — checking project health...",
           },
           {
-            // Serena-style: auto-start the tracking dashboard (and open it) if it isn't already
+            // Auto-start the tracking dashboard (and open it) if it isn't already
             // serving on its port. Idempotent across sessions via a port probe; fully best-effort and
             // opt-out with AGENT_SMITH_DASHBOARD_AUTOSTART=0.
             type: "command",
@@ -143,7 +143,7 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
       // Caveman: suspend before MemPalace or claude-memory writes
       // This ensures stored memories are in full English prose — readable in future sessions
       {
-        matcher: "mcp__plugin_mempalace_mempalace__|mcp__serena__write_memory|mempalace_add_drawer|mempalace_diary_write|mempalace_kg_add|claude-memory",
+        matcher: "mcp__plugin_mempalace_mempalace__|mempalace_add_drawer|mempalace_diary_write|mempalace_kg_add|claude-memory",
         hooks: [
           {
             type: "command",
@@ -169,7 +169,7 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
         ],
       },
       {
-        matcher: "mcp__plugin_mempalace_mempalace__|mcp__serena__write_memory|mempalace_add_drawer|mempalace_diary_write|mempalace_kg_add|claude-memory",
+        matcher: "mcp__plugin_mempalace_mempalace__|mempalace_add_drawer|mempalace_diary_write|mempalace_kg_add|claude-memory",
         hooks: [
           {
             type: "command",

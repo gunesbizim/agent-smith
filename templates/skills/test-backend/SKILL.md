@@ -15,11 +15,10 @@ These MCP servers are configured for this project — use the ones relevant to t
 
 - **gitnexus** — code graph: impact, callers, route maps, blast radius before/after changes.
 - **git-memory** — why code changed: commit history, bug-fix history, file timelines.
-- **serena** — LSP symbol navigation & symbolic editing: overview, find symbols/references, replace/insert symbols (0-based lines).
 - **sentrux** — after adding tests, run `sentrux gate .` to confirm coverage/complexity did not regress the baseline.
 
 Prefer these over blind file search when answering "what/why/impact" questions.
-See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especially Serena).
+See `docs/architecture/mcp-tools.md` for exact tool names and signatures.
 
 ---
 
@@ -40,12 +39,14 @@ Write each test BEFORE the implementation it covers and run it to confirm it FAI
 ## Step 1 — GitNexus code analysis (before writing tests)
 
 ```
-mcp__gitnexus__query("TargetClassName")          # locate symbol, file, methods
-mcp__gitnexus__impact("TargetClassName")         # what callers exist? what breaks if this fails?
-mcp__gitnexus__context("path/to/file")           # full module context
+gitnexus_query("TargetClassName")          # locate symbol, file, methods
+gitnexus_impact("TargetClassName")         # what callers exist? what breaks if this fails?
+gitnexus_context("path/to/file")           # full module context
 ```
 
-**Rule:** never duplicate an existing test; never test a symbol without first running `mcp__gitnexus__impact`.
+Use the `gitnexus_query` result to identify which methods and references to target in your tests. Then call `git-memory.commits_touching_file(<path>)` and `git-memory.bug_fix_history(<component>)` on the file — past bug-fix history surfaces edge cases and regression risks that should drive your test plan.
+
+**Rule:** never duplicate an existing test; never test a symbol without first running `gitnexus_impact`.
 
 ---
 
@@ -60,17 +61,18 @@ Use the returned list to **prioritize** which modules to cover first. Modules fl
 
 ---
 
-## Step 2 — Serena symbol navigation
+## Step 2 — Symbol navigation
 
-Run `mcp__serena__check_onboarding_performed` once before using Serena; load its tools via tool-search if deferred. Name paths use `/` (not `.`); `find_referencing_symbols` requires BOTH `name_path` and `relative_path`.
+Locate testable symbols and their call sites with Grep/Glob over the source tree.
 
 ```
-mcp__serena__get_symbols_overview(relative_path="path/to/file")                                    # all testable methods (start here)
-mcp__serena__find_symbol(name_path_pattern="ServiceName/method_name")                              # exact line/file
-mcp__serena__find_referencing_symbols(name_path="function_name", relative_path="path/to/file.py")  # all call sites
+Glob("path/to/**/*.ts")                              # locate files by pattern
+Grep("class ServiceName", include="**/*.ts")         # find a class definition
+Grep("method_name", include="**/*.ts")               # find all call sites
+Read("path/to/file")                                 # read the file once located
 ```
 
-There is no `find_implementations` tool — find implementations via `find_referencing_symbols` on the base symbol. There is no `get_diagnostics_for_file` tool — verify by running the tests / type-check (`{{BACKEND_TYPE_CHECK_CMD}}`).
+Verify by running the tests / type-check (`{{BACKEND_TYPE_CHECK_CMD}}`).
 
 ---
 

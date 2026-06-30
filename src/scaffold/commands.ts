@@ -19,7 +19,6 @@ const COMMAND_TEMPLATES: Record<string, string> = {
   "as-test.md": "templates/commands/as-test.md",
   "as-pr-review.md": "templates/commands/as-pr-review.md",
   "as-documentation.md": "templates/commands/as-documentation.md",
-  "as-git.md": "templates/commands/as-git.md",
   "as-ship.md": "templates/commands/as-ship.md",
   "as-caveman.md": "templates/commands/as-caveman.md",
   "as-insights.md": "templates/commands/as-insights.md",

@@ -33,7 +33,7 @@ export async function doctorCommand(): Promise<void> {
   checks.push({
     name: "python",
     status: deps.checks.python ? "pass" : "warn",
-    message: deps.checks.python ? "Python found" : "Python not found (needed for serena, mempalace)",
+    message: deps.checks.python ? "Python found" : "Python not found (needed for mempalace)",
   });
   checks.push({
     name: "gh-cli",
@@ -43,7 +43,7 @@ export async function doctorCommand(): Promise<void> {
   });
 
   // MCP servers
-  const mcpServers = ["gitnexus", "git-memory", "serena", "sentrux"];
+  const mcpServers = ["gitnexus", "git-memory", "sentrux"];
   for (const server of mcpServers) {
     if (commandExists(server)) {
       checks.push({ name: `mcp:${server}`, status: "pass", message: `${server} installed` });

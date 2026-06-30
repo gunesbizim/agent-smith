@@ -69,7 +69,7 @@ One command turns a plain repository into a Claude-Code-ready workspace with:
 |---|---|
 | **Slash commands** (`/as-backend`, `/as-test`, `/as-ship`, …) | One-word shortcuts for everyday jobs, pre-loaded with your stack |
 | **Skills** (review, test, docs writers — plus **smith-mode**) | Detailed playbooks the assistant follows for specific tasks |
-| **MCP servers** (gitnexus, git-memory, serena, …) | Give the assistant memory: code structure, git history, symbol search |
+| **MCP servers** (gitnexus, git-memory, …) | Give the assistant memory: code structure, git history, symbol search |
 | **Hooks** (session start, pre-tool, pre-compact, prompt-submit, stop) | Automatic checks around the assistant's actions — including a **handoff snapshot** saved before the context window fills, so long sessions can hand off cleanly |
 | **Sentrux quality gate** | A guardrail that blocks changes which make the architecture worse |
 | **A managed `CLAUDE.md` section** | A living cheat-sheet of every command and skill, refreshed on each run |
@@ -170,20 +170,19 @@ Useful flags: `--llm` / `--no-llm` (force or skip the Claude pass), `--dry-run` 
 |---|---|---|---|---|
 | **gitnexus** | Code-intelligence graph: impact/blast-radius, call chains | `npm i -g gitnexus` | always | [abhigyanpatwari/GitNexus](https://github.com/abhigyanpatwari/GitNexus) |
 | **git-memory** | Semantic search over git history | `npm i -g git-memory` | always | npm: `git-memory` *(no public repo listed)* |
-| **serena** | LSP symbol navigation + symbolic edits | `pipx install serena` (needs Python) | always | pip: `serena` |
 | **playwright** | Browser automation — drive app, screenshot | npx (cache pre-warmed at install) | frontend detected | [microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp) |
 | **chrome-devtools** | Console/network/perf/lighthouse debugging | npx (cache pre-warmed at install) | frontend detected | [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) |
 | **sonarqube** | Static analysis — issues, quality gate, coverage | `npm i -g sonarqube-mcp-server` | `SONARQUBE_TOKEN` set | [sapientpants/sonarqube-mcp-server](https://github.com/sapientpants/sonarqube-mcp-server) |
 | **sentrux** | Architectural sensor + quality gate | brew / curl / winget (shell) | always | [sentrux/sentrux](https://github.com/sentrux/sentrux) |
 | **vuetify** | Vuetify 3 component API lookup | npx on first use | Vuetify frontend | [vuetifyjs/mcp](https://github.com/vuetifyjs/mcp) |
 | **laravel-boost** | Laravel app intelligence — routes, models, schema | manual (`composer require laravel/boost --dev`) | Laravel backend | [laravel/boost](https://github.com/laravel/boost) |
-| **obsidian** | Read/write a knowledge vault (**local scope, private**) | npx on first use | you provide a vault path | npm: `mcp-obsidian` |
+| **obsidian** | Read/write a knowledge vault (vault path is private per-machine, kept in gitignored `.mcp.json`) | npx on first use | you provide a vault path | npm: `mcp-obsidian` |
 | **mempalace** | Persistent knowledge-graph memory | `pipx install mempalace` (needs Python) | always | pip: `mempalace` *(no public repo listed)* |
 | **jira** | Jira/Confluence issue tracking | npx on first use | `JIRA_API_TOKEN` set | npm: `@anthropic/jira-mcp` *(not yet published)* |
 
 > Links marked *(no public repo listed)* / *(not yet published)* could not be verified against a public registry at the time of writing — they are ecosystem/internal or placeholder packages; the package name is shown so you can confirm before relying on it.
 
-**Package managers used across these servers** (detected, never installed with `sudo`): **npm/npx** (Node — required), **Python + pipx** (serena, mempalace — pipx is the only one auto-bootstrappable, via `pip --user`), **Homebrew** (sentrux on macOS/Linux), **winget/choco** (sentrux/gh on Windows), **Composer + PHP** (laravel-boost). The **GitHub CLI (`gh`)** is also auto-installed best-effort for the PR workflows and needs a one-time `gh auth login`. If a required manager is missing, agent-smith prints how to install it and skips that server — it never blocks or prompts for a password.
+**Package managers used across these servers** (detected, never installed with `sudo`): **npm/npx** (Node — required), **Python + pipx** (mempalace — pipx is the only one auto-bootstrappable, via `pip --user`), **Homebrew** (sentrux on macOS/Linux), **winget/choco** (sentrux/gh on Windows), **Composer + PHP** (laravel-boost). The **GitHub CLI (`gh`)** is also auto-installed best-effort for the PR workflows and needs a one-time `gh auth login`. If a required manager is missing, agent-smith prints how to install it and skips that server — it never blocks or prompts for a password.
 
 ---
 
@@ -238,7 +237,7 @@ hooks/        # the hook scripts copied into your project
 .sentrux/     # this repo's own quality baseline
 ```
 
-In-depth, code-grounded docs live in the Obsidian vault under `vault/agent-smith/` (private per-developer).
+In-depth, code-grounded docs live in the Obsidian vault under `vault/agent-smith/` (committed public documentation — see the vault files in this repo).
 
 ---
 
@@ -269,12 +268,12 @@ Agent Smith itself only needs Node, but a **full** `init` installs MCP servers a
 | **Node 20+** & npm | Running agent-smith; the npm-based MCP servers (gitnexus, git-memory) | **Required** |
 | **git** ≥ 2.30 | Detection, hooks, git-memory, every PR flow | **Required** |
 | **`claude` CLI** | The smart setup — LLM stack classification, skill generation, and running the `/as-*` commands | **Strongly recommended** (works without it, just less customized) |
-| **Python + pipx** | **serena** *and* **mempalace** MCP servers (both install via `pipx`) | Needed for those two servers; pipx is the one manager agent-smith can auto-bootstrap (via `pip --user`) |
+| **Python + pipx** | **mempalace** MCP server (installs via `pipx`) | Needed for that server; pipx is the one manager agent-smith can auto-bootstrap (via `pip --user`) |
 | **A system package manager** — Homebrew (macOS/Linux), `curl`, or winget/choco (Windows) | Installing the **Sentrux** binary (and `gh` on Windows) | Needed for the quality gate |
-| **GitHub CLI (`gh`)** | `/as-git` and `/as-ship` PR workflows | Optional (auto-installed best-effort; run `gh auth login` once) |
+| **GitHub CLI (`gh`)** | `/as-ship` PR workflow (commit → PR → CI) | Optional (auto-installed best-effort; run `gh auth login` once) |
 | **Composer + PHP** | Laravel Boost MCP | Only for Laravel backends |
 
-> **Python version caveat (mempalace):** mempalace depends on chromadb, which lags the newest Python releases. **Python 3.12** is the safe target; the very latest interpreters (3.13+) can break chromadb's install. serena is less picky. If mempalace won't install, check your Python version first.
+> **Python version caveat (mempalace):** mempalace depends on chromadb, which lags the newest Python releases. **Python 3.12** is the safe target; the very latest interpreters (3.13+) can break chromadb's install. If mempalace won't install, check your Python version first.
 
 ### Windows notes
 
@@ -298,7 +297,7 @@ npx @gunesbizim/agent-smith init
 
 1. **Detection** — it reads your manifests and reports the stack it found. Anything it can't determine is shown as `none`, never guessed.
 2. **Interview** (~11 questions; skip with `--auto` / `--no-interview`) — branch naming, commit format, ticket prefix, PR checklist, architecture rules, complexity limits, and so on. Each has a smart default: press Enter to accept, type `?` for a Claude elaboration, or `skip` to leave blank. Answers are saved to `docs/architecture/decisions.md`.
-3. **MCP approval** — a single batch prompt lists every server and the exact install command. Approve it (or pass `--yes`) and a live progress bar shows what's installing. Selection is **stack-gated** — you only get servers relevant to your project.
+3. **MCP approval** — a single batch prompt lists every server and the exact install command. Approve it (or pass `--yes`) and a live progress bar shows what's installing. Selection is **stack-gated** — you only get servers relevant to your project. After install, `init` automatically runs each server's index command in the project root (`gitnexus analyze`, `git-memory index --repo-path .`) so the MCP tools are populated and ready in the very first session — no manual indexing step required.
 4. **Generation** — when `claude` is present, it writes architecture docs and rewrites the worker skills grounded in your real code. This runs **last** and can take up to ~20 min on a large monorepo; raise the cap with `AGENT_SMITH_SKILLS_TIMEOUT_MS` (milliseconds) if it times out.
 
 When it finishes, **restart Claude Code**. Your repository now has:
@@ -331,7 +330,6 @@ Once set up, drive the work from inside Claude Code with the `/as-*` slash comma
 | `/as-test <target>` | Write or extend tests; dispatches test-backend / test-frontend in fresh subagents | `/as-test "OrderService.charge"` |
 | `/as-pr-review [PR# \| path]` | Review through an adversarial critic panel (security, performance, simplicity, maintainability, DX) with graded severity (critical/high/medium/low) + a false-positive gate per finding; drops FPs, auto-fixes confirmed critical/high, leaves low for follow-up | `/as-pr-review 42` |
 | `/as-documentation [latest\|all\|path]` | Detect what changed and regenerate the matching docs | `/as-documentation latest` |
-| `/as-git [hint]` | Commit current work and push, following your commit conventions | `/as-git "PROJ-123"` |
 | `/as-ship [hint]` | The gated path from finished work to a green PR: commit → PR → review → drive CI green | `/as-ship` |
 | `/as-insights` | Read your architecture docs + config and suggest concrete improvements | `/as-insights` |
 | `/as-handoff` | Write a structured `HANDOFF.md` and hand the remaining work to fresh-context subagents | `/as-handoff` |
@@ -343,9 +341,24 @@ Commands invoked with no argument (`/as-backend`, `/as-test`) ask you for the ta
 
 Skills are detailed playbooks the assistant follows automatically when a task matches — you rarely invoke them by name. After `init` your repo has:
 
-- **Worker skills**, rewritten to match your code: `pr-review-backend` / `pr-review-frontend`, `test-backend` / `test-frontend`, `docs-backend` / `docs-frontend`. The implementation commands (`/as-backend`, `/as-frontend`) follow an explore → triage → TDD-plan → **RED-first** implement loop, and the `test-*` skills require a failing test before the code it covers.
+- **Worker skills**, rewritten to match your code: `pr-review-backend` / `pr-review-frontend`, `test-backend` / `test-frontend`, `docs-backend` / `docs-frontend`. The implementation commands (`/as-backend`, `/as-frontend`) follow an explore → triage → TDD-plan → **RED-first** implement loop, and the `test-*` skills enforce a failing test before any implementation (write red → confirm failure → implement to green).
 - **smith-mode** — the execution discipline (stage map → delegate → failable verification → self-critique) applied to any task spanning multiple files, sources, or sessions.
 - **handoff** — captures a session-continuity snapshot and hands work to fresh subagents when the context window gets crowded.
+
+#### Execution chain
+
+Commands are thin dispatchers — they invoke a main skill which owns the workflow:
+
+```
+command (/as-pr-review) → main skill (pr-review-backend / pr-review-frontend)
+  → critic sub-skill panel (pr-critic-security, pr-critic-performance,
+                            pr-critic-simplicity, pr-critic-maintainability, pr-critic-dx)
+    → MCP tools (gitnexus for impact/blast-radius, git-memory for commit history,
+                 sentrux for architecture gate, playwright / chrome-devtools for browser,
+                 obsidian for vault writes)
+```
+
+The `pr-review-*` skills run an **adversarial critic panel** scoped per side of the stack: each critic tries to refute the change from its own lens (security, performance, simplicity, maintainability, developer experience), findings are graded (critical / high / medium / low), and a false-positive gate filters noise before the results are synthesized. All implementation and test skills follow **RED-first TDD**: the failing test is written and confirmed to fail before any implementation is added.
 
 ### Guardrails in practice
 

@@ -12,6 +12,10 @@ vi.mock("../../install/mcp-installer.js", () => ({
   configureMCPs: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("../../install/mcp-indexer.js", () => ({
+  runMcpIndexing: vi.fn().mockResolvedValue({ indexed: [], skipped: [], failed: [] }),
+}));
+
 vi.mock("../../install/install-flow.js", () => ({
   installWithConsent: vi.fn().mockResolvedValue({ consent: { approved: true } }),
 }));

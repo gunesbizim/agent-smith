@@ -33,6 +33,23 @@ describe("writeClaudeMd", () => {
     expect(content).toContain("smith-mode");
   });
 
+  it("documents the execution structure, TDD discipline, and available MCP tools", () => {
+    const res = writeClaudeMd(tmp, false);
+    const content = fs.readFileSync(res.path, "utf-8");
+    // Command → main skill → sub-skill → MCP chain is stated.
+    expect(content).toContain("## Execution structure");
+    expect(content).toContain("command → main skill → sub-skill → MCP tool");
+    // TDD is mandatory and explained.
+    expect(content).toContain("## Test-driven development (mandatory)");
+    expect(content).toMatch(/RED-first/);
+    // The wired MCP servers are enumerated with usage guidance + a pointer to mcp-tools.md.
+    expect(content).toContain("## Available MCP tools");
+    expect(content).toContain("docs/architecture/mcp-tools.md");
+    for (const server of ["gitnexus", "git-memory", "playwright", "chrome-devtools", "sentrux", "obsidian"]) {
+      expect(content).toContain(server);
+    }
+  });
+
   it("preserves existing user content and only replaces the managed block on re-run", () => {
     const userContent = "# My Project Rules\n\nAlways use tabs. Never push to main.\n";
     fs.writeFileSync(path.join(tmp, "CLAUDE.md"), userContent);

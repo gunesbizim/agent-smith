@@ -2,7 +2,7 @@
 title: Semi-Autonomous Pipeline
 type: doc
 tags: [agent-smith, pipeline, jira, semi-autonomous]
-updated: 2026-06-29
+updated: 2026-06-30
 ---
 
 # Semi-Autonomous Pipeline
@@ -76,10 +76,11 @@ strings, or absent fields — is treated as **pending, never green**. Consequenc
 For the sentrux remediation behaviour that runs inside `/as-ship` before the CI phase, see
 [[08-sentrux-quality-gate#Bounded remediation loop in /as-ship and /as-pr-review]].
 
-**Phase 5 spike** (`stuff/plans/P5-pipeline-spike-findings.md`): de-risked the "wait until all
-CI + Sonar green" loop. Verdict **GO incrementally** — the pure cores are landed and proven; the
-remaining work is a thin injectable command runner plus a real `executePRPhase`/`executeCiPhase`,
-with engine↔pipeline integration deferred as the largest unknown.
+**Phase 5 spike** (history): an earlier spike de-risked the "wait until all CI + Sonar green"
+loop and returned **GO incrementally** — land the pure cores first, then a thin injectable command
+runner plus a real `executePRPhase`/`executeCiPhase`, deferring engine↔pipeline integration as the
+largest unknown. Those cores are now landed and proven; the planning notes that tracked this work
+(the former `stuff/plans/` archive) were removed once the vault became the canonical documentation.
 
 ---
 

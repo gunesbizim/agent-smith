@@ -130,7 +130,7 @@ After the interview finishes, `init` **installs the MCP server binaries programm
 
 - **MCP servers** are installed + configured so the assistant can query code structure, git history, and symbols.
 - **GitHub CLI (`gh`)** is auto-installed (best-effort, no-sudo) for the git/ship PR workflows.
-- **Hooks** are registered (e.g. a SessionStart health check that also surfaces the smith-mode discipline every session).
+- **Hooks** are registered: a SessionStart health check that also surfaces the smith-mode discipline every session, telemetry hooks that feed the dashboard every tool/MCP call, and a dashboard lifecycle pair that **auto-starts** the dashboard on the first session and **auto-stops** it when the last session ends (opt out with `AGENT_SMITH_DASHBOARD_AUTOSTART=0`).
 - **Sentrux** is installed (`.sentrux/rules.toml` + a starter `baseline.json`) so architecture quality can be gated.
 - A **managed block** is written into `CLAUDE.md` listing every command and skill — between `<!-- agent-smith:start -->` and `<!-- agent-smith:end -->`, so **your own notes in that file are never overwritten**.
 
@@ -154,7 +154,7 @@ Now you (and the assistant) use the installed `/as-*` commands and skills. There
 | `agent-smith analyze [--json] [--llm]` | Detect the stack and print a report (and the synthesized `StackProfile`); changes nothing |
 | `agent-smith configure` | Re-run MCP configuration only |
 | `agent-smith doctor` | Health check: MCP connections, skill validity, git state |
-| `agent-smith dashboard [--run <id>]` | Local web UI tracking every agent / tool / MCP call across runs |
+| `agent-smith dashboard [--run <id>]` | Local web UI tracking every agent / tool / MCP call across runs (with MCP-only / errors-only / search filters); auto-starts on session start, so you rarely run it by hand |
 | `agent-smith ticket <id> [--auto]` | Fetch a Jira ticket and run the gated pipeline |
 | `agent-smith pipeline` | Run the pipeline on the current branch's changes |
 

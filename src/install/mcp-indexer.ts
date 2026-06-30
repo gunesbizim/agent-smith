@@ -60,6 +60,50 @@ function serversToIndex(project: DetectedProject | null): (MCPServerDefinition &
 }
 
 /**
+ * Index a single applicable server into `targetDir`, recording the outcome on `summary`.
+ * Best-effort: a missing binary is skipped and a failing scan is recorded, neither throws.
+ */
+async function indexServer(
+  server: MCPServerDefinition & { indexCommand: PlatformInstall },
+  targetDir: string,
+  run: (command: string, cwd: string) => Promise<void>,
+  check: (command: string) => Promise<boolean>,
+  showProgress: boolean,
+  summary: IndexSummary,
+): Promise<void> {
+  const command = resolvePlatformCommand(server.indexCommand);
+  if (!command) {
+    summary.skipped.push({ name: server.name, reason: "no index command for this platform" });
+    return;
+  }
+  // Only index when the binary is present — covers --no-install and not-yet-installed tools.
+  if (!(await check(server.checkCommand))) {
+    summary.skipped.push({ name: server.name, reason: "binary not installed" });
+    return;
+  }
+  const spinner = showProgress ? ora(`Indexing ${server.name} (${command})...`).start() : null;
+  try {
+    await run(command, targetDir);
+    summary.indexed.push(server.name);
+    spinner?.succeed(`${server.name} indexed`);
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    summary.failed.push({ name: server.name, error });
+    spinner?.warn(`${server.name} indexing skipped (${error})`);
+  }
+}
+
+/** Print a one-line gray summary of an indexing run. No-op when nothing was attempted. */
+function printIndexSummary(summary: IndexSummary): void {
+  if (!(summary.indexed.length || summary.failed.length || summary.skipped.length)) return;
+  const parts: string[] = [];
+  if (summary.indexed.length) parts.push(`indexed ${summary.indexed.join(", ")}`);
+  if (summary.skipped.length) parts.push(`skipped ${summary.skipped.map((s) => s.name).join(", ")}`);
+  if (summary.failed.length) parts.push(chalk.yellow(`failed ${summary.failed.map((f) => f.name).join(", ")}`));
+  console.log(chalk.gray(`  MCP indexing — ${parts.join(" · ")}`));
+}
+
+/**
  * Run the initial index/scan for every applicable, installed MCP server that declares an
  * indexCommand, inside `targetDir`. Best-effort and idempotent — servers whose binary is absent are
  * skipped; a failing scan is recorded but never throws.
@@ -75,34 +119,9 @@ export async function runMcpIndexing(
   const summary: IndexSummary = { indexed: [], skipped: [], failed: [] };
 
   for (const server of serversToIndex(opts.project ?? null)) {
-    const command = resolvePlatformCommand(server.indexCommand);
-    if (!command) {
-      summary.skipped.push({ name: server.name, reason: "no index command for this platform" });
-      continue;
-    }
-    // Only index when the binary is present — covers --no-install and not-yet-installed tools.
-    if (!(await check(server.checkCommand))) {
-      summary.skipped.push({ name: server.name, reason: "binary not installed" });
-      continue;
-    }
-    const spinner = showProgress ? ora(`Indexing ${server.name} (${command})...`).start() : null;
-    try {
-      await run(command, targetDir);
-      summary.indexed.push(server.name);
-      spinner?.succeed(`${server.name} indexed`);
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
-      summary.failed.push({ name: server.name, error });
-      spinner?.warn(`${server.name} indexing skipped (${error})`);
-    }
+    await indexServer(server, targetDir, run, check, showProgress, summary);
   }
 
-  if (showProgress && (summary.indexed.length || summary.failed.length || summary.skipped.length)) {
-    const parts: string[] = [];
-    if (summary.indexed.length) parts.push(`indexed ${summary.indexed.join(", ")}`);
-    if (summary.skipped.length) parts.push(`skipped ${summary.skipped.map((s) => s.name).join(", ")}`);
-    if (summary.failed.length) parts.push(chalk.yellow(`failed ${summary.failed.map((f) => f.name).join(", ")}`));
-    console.log(chalk.gray(`  MCP indexing — ${parts.join(" · ")}`));
-  }
+  if (showProgress) printIndexSummary(summary);
   return summary;
 }

@@ -120,14 +120,14 @@ describe("normalizeRun", () => {
     const events: EngineEvent[] = [
       ev(r, { type: "tool_call", tool: "Bash", isMcp: false, mcpServer: null, status: "error", durationMs: 3 } as unknown as EngineEvent),
       ev(r, { type: "tool_call", tool: "Bash", isMcp: false, mcpServer: null, status: "ok", durationMs: 3 } as unknown as EngineEvent),
-      ev(r, { type: "tool_call", tool: "mcp__serena__find_symbol", isMcp: true, mcpServer: "serena", status: "error", durationMs: 9 } as unknown as EngineEvent),
+      ev(r, { type: "tool_call", tool: "mcp__gitnexus__find_symbol", isMcp: true, mcpServer: "gitnexus", status: "error", durationMs: 9 } as unknown as EngineEvent),
     ];
     const dto = normalizeRun(r, events);
     expect(dto.toolCalls.total).toBe(3);
     expect(dto.toolCalls.errorCount).toBe(2);
     expect(dto.toolCalls.byToolErrors["Bash"]).toBe(1);
-    expect(dto.toolCalls.byToolErrors["mcp__serena__find_symbol"]).toBe(1);
-    expect(dto.toolCalls.byServerErrors["serena"]).toBe(1);
+    expect(dto.toolCalls.byToolErrors["mcp__gitnexus__find_symbol"]).toBe(1);
+    expect(dto.toolCalls.byServerErrors["gitnexus"]).toBe(1);
   });
 
   it("marks an idle interactive run (no run_finished, killed terminal) as done, not queued", () => {

@@ -98,7 +98,7 @@ export function buildHookConfig(projectRoot: string, hooksDir: string): HookConf
             statusMessage: "Agent Smith — checking project health...",
           },
           {
-            // Serena-style: auto-start the tracking dashboard (and open it) if it isn't already
+            // Auto-start the tracking dashboard (and open it) if it isn't already
             // serving on its port. Idempotent across sessions via a port probe; fully best-effort and
             // opt-out with AGENT_SMITH_DASHBOARD_AUTOSTART=0.
             type: "command",

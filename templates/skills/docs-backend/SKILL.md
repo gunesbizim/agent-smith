@@ -42,12 +42,12 @@ See `docs/architecture/mcp-tools.md` for exact tool names and signatures (especi
 ## Step 1 — GitNexus code analysis
 
 ```
-gitnexus_route_map()                   # full HTTP verb + path + handler index
-gitnexus_query("HandlerName")          # find the symbol, its file, its methods
-gitnexus_impact("RequestResponseType") # what else references this schema/DTO?
-gitnexus_context("path/to/handler")    # full module-level context
-gitnexus_detect_changes()              # files changed since last index snapshot
-gitnexus_api_impact()                  # which endpoints are affected?
+mcp__gitnexus__route_map()                   # full HTTP verb + path + handler index
+mcp__gitnexus__query("HandlerName")          # find the symbol, its file, its methods
+mcp__gitnexus__impact("RequestResponseType") # what else references this schema/DTO?
+mcp__gitnexus__context("path/to/handler")    # full module-level context
+mcp__gitnexus__detect_changes()              # files changed since last index snapshot
+mcp__gitnexus__api_impact()                  # which endpoints are affected?
 ```
 
 **Rule:** never open a file to "explore" — use GitNexus first.
@@ -59,10 +59,10 @@ gitnexus_api_impact()                  # which endpoints are affected?
 ### Incremental mode
 1. `git diff origin/main...HEAD --name-only` to list changed files.
 2. Filter to files containing API endpoints, request/response schemas, routes.
-3. Cross-reference with `gitnexus_api_impact()` — annotate the union.
+3. Cross-reference with `mcp__gitnexus__api_impact()` — annotate the union.
 
 ### From-scratch mode
-1. `gitnexus_route_map()` to enumerate all endpoints.
+1. `mcp__gitnexus__route_map()` to enumerate all endpoints.
 2. Find all request-handler and request/response-schema files.
 3. Read every file. Map handler → request/response schema → route/URL pattern.
 

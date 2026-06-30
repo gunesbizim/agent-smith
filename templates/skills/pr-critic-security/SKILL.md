@@ -24,7 +24,10 @@ confidence rather than staying silent.
 
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
 2. For each changed area, ask: *how does this fail from a security standpoint?* Look at the real
-   call sites and data flow, not just the diff hunk.
+   call sites and data flow, not just the diff hunk. Use `mcp__gitnexus__impact` to trace the full
+   blast radius of each changed symbol (an injection sink may be reached from callers outside the
+   diff), and `mcp__git-memory__bug_fix_history("<area>")` to check whether a prior security fix is
+   being undone.
 3. For every finding, produce:
    `{ severity: critical|high|medium|low, file, line, problem, fix, falsePositive: boolean, fpReason?: string }`.
    - **critical** — data loss, security hole, breaks prod, corrupts state.

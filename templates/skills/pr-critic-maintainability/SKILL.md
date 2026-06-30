@@ -24,7 +24,9 @@ confidence rather than staying silent.
 
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
 2. For each changed area, ask: *how does this fail from a maintainability standpoint?* Look at the real
-   call sites and data flow, not just the diff hunk.
+   call sites and data flow, not just the diff hunk. Use `mcp__gitnexus__impact` to gauge coupling
+   (how many symbols depend on the change) and `mcp__git-memory__commits_touching_file` to see churn —
+   high-churn, high-fan-in code is the riskiest to make fragile.
 3. For every finding, produce:
    `{ severity: critical|high|medium|low, file, line, problem, fix, falsePositive: boolean, fpReason?: string }`.
    - **critical** — data loss, security hole, breaks prod, corrupts state.

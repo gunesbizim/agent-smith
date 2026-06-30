@@ -24,7 +24,9 @@ confidence rather than staying silent.
 
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
 2. For each changed area, ask: *how does this fail from a performance standpoint?* Look at the real
-   call sites and data flow, not just the diff hunk.
+   call sites and data flow, not just the diff hunk. Use `mcp__gitnexus__impact` /
+   `mcp__gitnexus__context` to see whether a changed function sits on a hot path with many callers,
+   and `mcp__gitnexus__api_impact` for endpoints whose latency could regress.
 3. For every finding, produce:
    `{ severity: critical|high|medium|low, file, line, problem, fix, falsePositive: boolean, fpReason?: string }`.
    - **critical** — data loss, security hole, breaks prod, corrupts state.

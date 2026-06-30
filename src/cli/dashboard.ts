@@ -23,12 +23,23 @@ export async function dashboardCommand(opts: DashboardOptions): Promise<void> {
 
   if (opts.open !== false) openBrowser(started.url);
 
-  // Keep the process alive until interrupted.
-  await new Promise<void>((resolve) => {
-    process.on("SIGINT", () => {
-      started.server.close();
-      resolve();
-    });
+  // Keep the process alive until interrupted. The SSE endpoint holds long-lived keep-alive sockets
+  // open, so `server.close()` alone never resolves — it waits for connections that never end. We
+  // must force the sockets shut and exit explicitly, otherwise the first Ctrl-C appears to do
+  // nothing (and, because a SIGINT listener is attached, the default "kill on Ctrl-C" is suppressed).
+  await new Promise<void>(() => {
+    let closing = false;
+    const shutdown = (): void => {
+      if (closing) process.exit(0); // a second Ctrl-C: bail immediately
+      closing = true;
+      console.log(chalk.gray("\n  dashboard stopped"));
+      started.server.closeAllConnections?.(); // Node ≥18.2 — drop the held-open SSE sockets
+      started.server.close(() => process.exit(0));
+      // Safety net in case close() still hangs on a stray socket.
+      setTimeout(() => process.exit(0), 500).unref();
+    };
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
   });
 }
 

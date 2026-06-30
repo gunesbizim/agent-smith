@@ -111,6 +111,16 @@ Run them concurrently where possible. Each subagent rewrites its ONE file in pla
     * Instruct: run check_onboarding_performed once before Serena; load deferred Serena
       tools via tool-search first; edit code discovered via Serena with Serena's symbolic
       edit tools (built-in Edit is refused after a Serena read); Serena line numbers are 0-based.
+- gitnexus / git-memory correctness (CRITICAL — these are MCP tools, NOT bare functions):
+    * gitnexus tools: mcp__gitnexus__query, mcp__gitnexus__impact, mcp__gitnexus__context,
+      mcp__gitnexus__detect_changes, mcp__gitnexus__api_impact, mcp__gitnexus__route_map,
+      mcp__gitnexus__rename.
+    * git-memory tools: mcp__git-memory__commits_touching_file, mcp__git-memory__search_git_history,
+      mcp__git-memory__bug_fix_history, mcp__git-memory__architecture_decisions,
+      mcp__git-memory__latest_commits.
+    * ALWAYS emit the full mcp__<server>__<tool> form. NEVER emit gitnexus_query(...) or a bare
+      commits_touching_file(...) — those are not invokable tool names and will be silently ignored
+      (the agent falls back to Grep instead of querying the graph/history).
     * To verify after edits, run the project's type-check/test gate — not a diagnostics tool.
     * PREFER symbolic edits (replace_symbol_body / insert_after_symbol / insert_before_symbol)
       over blunt full-file rewrites for code changes — they are AST-level and surgical (A6). Never

@@ -40,10 +40,10 @@ Write each test BEFORE the implementation it covers and run it to confirm it FAI
 ## Step 1 — GitNexus code analysis (before writing tests)
 
 ```
-gitnexus_query("TargetComponent")                        # locate component + related symbols
-gitnexus_impact("storeActionOrApiFn")                    # callers — what breaks if this fails?
-gitnexus_context("path/to/component")                    # full component context
-gitnexus_api_impact()                                    # backend endpoints the component consumes
+mcp__gitnexus__query("TargetComponent")                        # locate component + related symbols
+mcp__gitnexus__impact("storeActionOrApiFn")                    # callers — what breaks if this fails?
+mcp__gitnexus__context("path/to/component")                    # full component context
+mcp__gitnexus__api_impact()                                    # backend endpoints the component consumes
 ```
 
 **Rule:** never duplicate an existing test — check test directories first.

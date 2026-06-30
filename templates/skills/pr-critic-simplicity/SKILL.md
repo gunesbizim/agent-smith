@@ -24,7 +24,9 @@ confidence rather than staying silent.
 
 1. Read the branch diff against main (`git diff origin/main...HEAD`).
 2. For each changed area, ask: *how does this fail from a simplicity standpoint?* Look at the real
-   call sites and data flow, not just the diff hunk.
+   call sites and data flow, not just the diff hunk. Use `mcp__gitnexus__impact` to check whether an
+   abstraction has only one caller (premature generalization) and `mcp__serena__find_referencing_symbols`
+   to confirm "dead code" truly has zero references before flagging it.
 3. For every finding, produce:
    `{ severity: critical|high|medium|low, file, line, problem, fix, falsePositive: boolean, fpReason?: string }`.
    - **critical** — data loss, security hole, breaks prod, corrupts state.

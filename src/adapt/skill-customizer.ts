@@ -6,6 +6,8 @@ import { resolveTemplate } from "../shared/templates.js";
 import { extractPlaceholders } from "./template-engine.js";
 
 const SKILL_FILES = [
+  ".claude/skills/backend/SKILL.md",
+  ".claude/skills/frontend/SKILL.md",
   ".claude/skills/pr-review-backend/SKILL.md",
   ".claude/skills/pr-review-frontend/SKILL.md",
   ".claude/skills/test-backend/SKILL.md",

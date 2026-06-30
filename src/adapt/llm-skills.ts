@@ -66,6 +66,10 @@ export function hashPrompt(prompt: string): string {
 
 // The skills we regenerate, relative to the project's .claude/skills dir.
 export const GENERATED_SKILLS = [
+  // Implementation skills (the meat of /as-backend and /as-frontend) — grounded per project so
+  // they speak the real stack. Both enforce test-first (RED-first) implementation.
+  "backend",
+  "frontend",
   "pr-review-backend",
   "pr-review-frontend",
   "test-backend",

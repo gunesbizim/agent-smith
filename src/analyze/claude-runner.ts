@@ -192,7 +192,7 @@ export function listMcpServers(cwd?: string): string | null {
     });
   } catch (err) {
     const e = err as { stdout?: string | Buffer } | null;
-    if (e && e.stdout != null) return e.stdout.toString();
+    if (e?.stdout != null) return e.stdout.toString();
     return null;
   }
 }

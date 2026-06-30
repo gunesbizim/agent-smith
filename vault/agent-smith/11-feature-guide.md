@@ -2,7 +2,7 @@
 title: Feature Guide
 type: doc
 tags: [agent-smith, feature-guide, features]
-updated: 2026-06-29
+updated: 2026-07-01
 ---
 
 # Feature Guide
@@ -26,7 +26,7 @@ Defined in `src/cli/index.ts`. `agent-smith --version` reads the real version fr
 
 | Feature | What it does | How to use it (example) |
 |---|---|---|
-| **init** | Full project bootstrap: detect → interview → scaffold commands/skills → write MCP + hooks + arch docs + `.sentrux/` + CLAUDE.md managed block; LLM-authors skills as the final step. | `npx @gunesbizim/agent-smith init` — non-interactive: `agent-smith init --auto --yes` |
+| **init** | Full project bootstrap: detect → interview → scaffold commands/skills → write MCP + hooks + arch docs + `.sentrux/` + CLAUDE.md managed block; LLM-authors skills as the final step, **grounded only on MCP servers a `claude mcp list` precheck confirms are connected**. | `npx @gunesbizim/agent-smith init` — non-interactive: `agent-smith init --auto --yes` |
 | **analyze** | Detect the stack and print a report (synthesized `StackProfile`, real toolchain commands, template vars). Writes nothing. | `agent-smith analyze` — machine output: `agent-smith analyze --json`; LLM-refined detection: `agent-smith analyze --llm` |
 | **configure** | (Re)install and configure MCP servers only, no full bootstrap. | `agent-smith configure --mcp gitnexus,git-memory --yes` |
 | **doctor** | Read-only health check: deps, MCP binaries on PATH, config files present, git state → `healthy`/`degraded`/`unhealthy`. | `agent-smith doctor` |
@@ -53,8 +53,8 @@ human invokes in a Claude Code session. Deep dive: [[07-skills-and-commands]].
 
 | Command | What it does | How to use it (example) |
 |---|---|---|
-| **/as-backend** | Senior backend engineer — plan → GitNexus impact → RED-first tests → Sonnet implements → lint/typecheck/tests. | `/as-backend add a soft-delete flag to the Order entity` |
-| **/as-frontend** | Senior full-stack frontend — same flow + **mandatory Playwright visual verification** before declaring a UI change done (never ship UI unseen). | `/as-frontend build the invoice list view with role-gated actions` |
+| **/as-backend** | Thin delegator → dispatches the **`backend` worker skill** in a fresh subagent: plan → GitNexus impact → **test-first (RED) always** → Sonnet implements → lint/typecheck/tests. | `/as-backend add a soft-delete flag to the Order entity` |
+| **/as-frontend** | Thin delegator → dispatches the **`frontend` worker skill** in a fresh subagent: same test-first flow + **mandatory Playwright visual verification** before declaring a UI change done (never ship UI unseen). | `/as-frontend build the invoice list view with role-gated actions` |
 | **/as-test** | Test orchestrator — classify target (backend/frontend/both), dispatch test skills to fresh Sonnet subagents, relay results. A failing side fails the whole command. | `/as-test src/services/order.ts` |
 | **/as-pr-review** | PR-review orchestrator — sentrux remediation gate first, per-side reviews, **5-lens adversarial critic panel**, severity-graded synthesis. | `/as-pr-review` (full branch diff) or `/as-pr-review 61` |
 | **/as-documentation** | Documentation orchestrator — detect what changed on the branch, dispatch `docs-backend` / `docs-frontend` in fresh subagents → Obsidian. | `/as-documentation latest` |
@@ -100,6 +100,8 @@ Run in fresh subagents, dispatched by the orchestrators above. Templates in
 
 | Skill | What it does | How it's used (trigger) |
 |---|---|---|
+| **backend** | Implement a backend task end-to-end — plan → GitNexus impact → **test-first (RED) always**, then implement until green → lint/typecheck/tests. Holds the full implementation prose the `/as-backend` command delegates to. | Dispatched by `/as-backend`; also auto-invokable as a worker skill |
+| **frontend** | Implement a frontend task end-to-end — same **test-first (RED) always** flow plus the **mandatory browser-driven Playwright visual loop**. Holds the prose `/as-frontend` delegates to. | Dispatched by `/as-frontend`; also auto-invokable as a worker skill |
 | **pr-review-backend** | Review backend diff against architecture rules — violations, role enforcement, security, logging, imports, tests; sentrux gate + false-positive check per finding. | Dispatched by `/as-pr-review` when the diff touches backend dirs |
 | **pr-review-frontend** | Review frontend diff — component compliance, i18n parity, store/API layering, UI-library usage, role-aware UI, TS quality, coverage. | Dispatched by `/as-pr-review` when the diff touches frontend dirs |
 | **test-backend** | Write/extend backend tests — services, views, repos, permissions, audit, encryption; **RED-first** + fail-closed role coverage (401/403). | Dispatched by `/as-test` for backend targets |

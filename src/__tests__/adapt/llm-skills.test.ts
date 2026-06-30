@@ -4,10 +4,15 @@ import path from "node:path";
 import fs from "fs-extra";
 
 const runClaudeMock = vi.fn();
+// listMcpServers is the `claude mcp list` connectivity probe; default null = probe unavailable, so
+// grounding is kept unfiltered (preserves every pre-existing test's behaviour). Tests that exercise
+// the connectivity filter set a return value explicitly.
+const listMcpServersMock = vi.fn<(cwd?: string) => string | null>(() => null);
 // generateSkills now calls runClaudeDetailed; the mock wraps the legacy string/null return into a
 // ClaudeRunResult, and passes through a full result object so tests can force status "timeout".
 vi.mock("../../analyze/claude-runner.js", () => ({
   isClaudeAvailable: () => true,
+  listMcpServers: (...args: [string?]) => listMcpServersMock(...args),
   runClaude: (...args: unknown[]) => runClaudeMock(...args),
   runClaudeDetailed: (...args: unknown[]) => {
     const r = runClaudeMock(...args);
@@ -16,7 +21,15 @@ vi.mock("../../analyze/claude-runner.js", () => ({
   },
 }));
 
-import { generateSkills, GENERATED_SKILLS, buildMasterSkillPrompt, skillsTimeoutMs, buildGroundingMcp } from "../../adapt/llm-skills.js";
+import {
+  generateSkills,
+  GENERATED_SKILLS,
+  buildMasterSkillPrompt,
+  skillsTimeoutMs,
+  buildGroundingMcp,
+  parseMcpStatuses,
+  renderAvailableMcpBlock,
+} from "../../adapt/llm-skills.js";
 import { writeMarker, markerPath } from "../../adapt/skill-gen-marker.js";
 
 function scaffoldStubs(root: string): void {
@@ -34,6 +47,8 @@ describe("generateSkills", () => {
   beforeEach(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "llmskills-"));
     runClaudeMock.mockReset();
+    listMcpServersMock.mockReset();
+    listMcpServersMock.mockReturnValue(null);
   });
   afterEach(() => {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -238,4 +253,125 @@ describe("buildMasterSkillPrompt", () => {
     expect(p).toMatch(/\{\{TEMPLATE_VARS\}\}|unresolved braces/i);
   });
 
+});
+
+describe("parseMcpStatuses (/mcp connectivity precheck)", () => {
+  it("classifies connected, failed, pending, and unmentioned servers", () => {
+    const out = [
+      "Checking MCP server health...",
+      "",
+      "gitnexus: gitnexus mcp - ✓ Connected",
+      "git-memory: git-memory serve - ✗ Failed to connect",
+      "obsidian: npx obsidian-mcp - ⏸ Pending approval and not connected",
+    ].join("\n");
+    const s = parseMcpStatuses(out, ["gitnexus", "git-memory", "obsidian", "laravel-boost"]);
+    expect(s.gitnexus).toBe("connected");
+    expect(s["git-memory"]).toBe("failed");
+    expect(s.obsidian).toBe("unknown"); // pending → strict-config still boots it, so not dropped
+    expect(s["laravel-boost"]).toBe("unknown"); // not in output at all
+  });
+
+  it("does not misread 'not connected' as connected", () => {
+    const s = parseMcpStatuses("gitnexus: cmd - not connected", ["gitnexus"]);
+    expect(s.gitnexus).toBe("failed");
+  });
+
+  it("treats unparseable output as all-unknown (keep, never wrongly drop)", () => {
+    const s = parseMcpStatuses("garbage output with no server lines", ["gitnexus"]);
+    expect(s.gitnexus).toBe("unknown");
+  });
+
+  it("handles the REAL `claude mcp list` format (✔ check mark, pending, needs-auth)", () => {
+    const out = [
+      "Checking MCP server health…",
+      "",
+      "plugin:mozart:mozart: npx -y mcp-mozart@latest serve - ✔ Connected",
+      "sentrux: sentrux mcp - ⏸ Pending approval (run `claude` to approve)",
+      "gitnexus: gitnexus mcp - ✔ Connected",
+      "git-memory: git-memory serve - ⏸ Pending approval (run `claude` to approve)",
+      "obsidian: npx obsidian-mcp - ! Needs authentication",
+    ].join("\n");
+    const s = parseMcpStatuses(out, ["gitnexus", "git-memory", "obsidian"]);
+    expect(s.gitnexus).toBe("connected"); // ✔ + "Connected"
+    expect(s["git-memory"]).toBe("unknown"); // pending → kept (strict-config boots it)
+    expect(s.obsidian).toBe("unknown"); // needs-auth → kept, not dropped
+  });
+
+  it("matches the server at line-start, not inside another server's command path", () => {
+    // "git-memory" must not be classified from the gitnexus line, and vice-versa.
+    const out = "gitnexus: gitnexus mcp - ✗ Failed\ngit-memory: git-memory serve - ✔ Connected";
+    const s = parseMcpStatuses(out, ["gitnexus", "git-memory"]);
+    expect(s.gitnexus).toBe("failed");
+    expect(s["git-memory"]).toBe("connected");
+  });
+});
+
+describe("renderAvailableMcpBlock", () => {
+  it("lists each live server with its mcp__ namespace and registry role", () => {
+    const block = renderAvailableMcpBlock(["gitnexus", "git-memory"]);
+    expect(block).toContain("**gitnexus**");
+    expect(block).toContain("mcp__gitnexus__*");
+    expect(block).toContain("**git-memory**");
+  });
+
+  it("falls back to file tools when no server is connected", () => {
+    const block = renderAvailableMcpBlock([]);
+    expect(block).toMatch(/Read \/ Glob \/ Grep/);
+    expect(block).not.toContain("mcp__");
+  });
+});
+
+describe("generateSkills — connectivity filter wiring", () => {
+  let tmp: string;
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "llmskills-conn-"));
+    runClaudeMock.mockReset();
+    listMcpServersMock.mockReset();
+  });
+  afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  function scaffold(root: string): void {
+    for (const s of GENERATED_SKILLS) {
+      const dir = path.join(root, ".claude", "skills", s);
+      fs.ensureDirSync(dir);
+      fs.writeFileSync(path.join(dir, "SKILL.md"), `---\nname: ${s}\n---\nstub\n`);
+    }
+    fs.ensureDirSync(path.join(root, "docs", "architecture"));
+    fs.writeFileSync(path.join(root, "docs", "architecture", "backend-architecture.md"), "# Backend\n");
+    // Two grounding (code-intelligence) servers configured for the project.
+    fs.writeJsonSync(path.join(root, ".mcp.json"), {
+      mcpServers: {
+        gitnexus: { type: "stdio", command: "gitnexus", args: ["mcp"] },
+        "git-memory": { type: "stdio", command: "git-memory", args: ["serve"] },
+      },
+    });
+  }
+
+  it("drops a server reported failed and injects only the live one into the prompt", () => {
+    scaffold(tmp);
+    listMcpServersMock.mockReturnValue("gitnexus: x - ✓ Connected\ngit-memory: y - ✗ Failed");
+    runClaudeMock.mockReturnValue("done");
+
+    const r = generateSkills(tmp, { useProjectMcp: true });
+    expect(r.ran).toBe(true);
+
+    const [sentPrompt, sentOpts] = runClaudeMock.mock.calls[0] as [string, { allowedTools: string[] }];
+    // The {{MCP_SERVERS}} slot was resolved (not the empty fallback) for this run.
+    expect(sentPrompt).not.toContain("{{MCP_SERVERS}}");
+    expect(sentPrompt).toContain("connected and verified for THIS run");
+    // The dead server is stripped from the tool allowlist; the live one survives.
+    expect(sentOpts.allowedTools).toContain("mcp__gitnexus");
+    expect(sentOpts.allowedTools).not.toContain("mcp__git-memory");
+  });
+
+  it("keeps both servers when the probe reports them connected", () => {
+    scaffold(tmp);
+    listMcpServersMock.mockReturnValue("gitnexus: x - ✓ Connected\ngit-memory: y - ✓ Connected");
+    runClaudeMock.mockReturnValue("done");
+
+    generateSkills(tmp, { useProjectMcp: true });
+    const [, sentOpts] = runClaudeMock.mock.calls[0] as [string, { allowedTools: string[] }];
+    expect(sentOpts.allowedTools).toContain("mcp__gitnexus");
+    expect(sentOpts.allowedTools).toContain("mcp__git-memory");
+  });
 });

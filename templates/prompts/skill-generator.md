@@ -4,14 +4,25 @@ stack, conventions, and the architecture docs — instead of generic template st
 
 You are running in the project root with Read, Glob, Grep, Write, and Task tools.
 
-**Grounding priority — PREFER MCP tools when grabbing code or documentation.** If code-intelligence
-or documentation MCP tools are available, use them BEFORE raw file reads — they are faster and far
-more precise. Preference order when gathering understanding:
-1. **gitnexus** — architecture map, call graphs, dependencies, change impact (the big-picture structure).
-2. **git-memory** — why code changed / historical context for a component.
-3. **documentation MCP** (obsidian / context7 / similar) — project notes and library docs.
-Fall back to Read / Glob / Grep ONLY when no MCP tool can answer or none are configured. (Some of
-these may be absent in a given project — silently skip the ones that are not available.)
+**Grounding priority — PREFER MCP tools when grabbing code or documentation.** Code-intelligence and
+documentation MCP servers are faster and far more precise than raw file reads, so use them FIRST when
+gathering understanding. The servers below have already been connectivity-checked for this run
+(via `claude mcp list`) — the list reflects exactly what is reachable right now, so you do not need to
+guess what is configured. Use each for what it is good at; fall back to Read / Glob / Grep only for
+what no listed server can answer.
+
+### Available MCP servers (this run)
+
+{{MCP_SERVERS}}
+
+Typical strengths, when present in the list above:
+- **gitnexus** — architecture map, call graphs, dependencies, change impact (the big-picture structure).
+- **git-memory** — why code changed / historical context for a component.
+- **obsidian** (or another documentation MCP) — project notes and existing docs.
+
+Do NOT call a server that is not in the list above — it is not connected for this run. (Note: this
+list is the GENERATOR's grounding toolset; it is separate from the runtime MCP-tool steps the output
+skills keep for their own use — see the decoration contract below.)
 
 ## Phase 1 — Understand the project (do this FIRST, before writing anything)
 

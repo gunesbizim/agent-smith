@@ -7,7 +7,7 @@ import os from "node:os";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import fs from "fs-extra";
-import { runClaudeDetailed, type ClaudeRunResult } from "../analyze/claude-runner.js";
+import { runClaudeDetailed, listMcpServers, type ClaudeRunResult } from "../analyze/claude-runner.js";
 import { getMCPServer } from "../install/registry.js";
 import { collectSkillGenUsage, writeSkillGenRun } from "./skillgen-telemetry.js";
 import { readMarker } from "./skill-gen-marker.js";
@@ -57,6 +57,72 @@ export function buildGroundingMcp(projectRoot: string): GroundingMcp {
     }
   }
   return { servers, allow };
+}
+
+// ─── /mcp connectivity precheck ────────────────────────────────────────────────────────────────
+// The grounding servers are written into a temp strict --mcp-config, but a configured server can
+// still fail to launch (missing binary, bad path, crash on boot). Before the (expensive) generation
+// run we check `claude mcp list` — the same health-check `/mcp` shows — and drop any server that is
+// reported failed, so the prompt never tells the model to use a dead server.
+
+export type McpStatus = "connected" | "failed" | "unknown";
+
+/**
+ * Classify each requested server from `claude mcp list` output. Defensive against format drift and
+ * partial output: a server not mentioned (or an unparseable line) is "unknown", which callers KEEP
+ * (a strict-config run may still boot it) — only an explicit failure is "failed". "Pending approval"
+ * is treated as "unknown" because strict-config bypasses approval, so such a server still works.
+ */
+export function parseMcpStatuses(listOutput: string, names: string[]): Record<string, McpStatus> {
+  const lines = listOutput.split(/\r?\n/);
+  const statuses: Record<string, McpStatus> = {};
+  for (const name of names) {
+    const want = name.toLowerCase();
+    // Prefer a line whose entry name (before the first ":") IS this server, so we don't match the
+    // name where it appears inside another server's command path; fall back to a substring match.
+    const line =
+      lines.find((l) => l.trimStart().toLowerCase().startsWith(`${want}:`)) ??
+      lines.find((l) => l.toLowerCase().includes(want));
+    if (!line) {
+      statuses[name] = "unknown";
+      continue;
+    }
+    const l = line.toLowerCase();
+    // "pending approval" → strict --mcp-config still boots it, so keep (unknown), don't drop.
+    if (l.includes("pending")) statuses[name] = "unknown";
+    // ✔ (real CLI) / ✓ or the word "connected" (but not "not connected") → live.
+    else if (l.includes("✔") || l.includes("✓") || (l.includes("connected") && !l.includes("not connected")))
+      statuses[name] = "connected";
+    // ✗ / ✘ / "failed" / "error" / "not connected" → genuinely dead, drop it.
+    else if (l.includes("✗") || l.includes("✘") || l.includes("failed") || l.includes("error") || l.includes("not connected"))
+      statuses[name] = "failed";
+    // Anything else (e.g. "needs authentication") → unknown: keep, never wrongly drop a grounding server.
+    else statuses[name] = "unknown";
+  }
+  return statuses;
+}
+
+/**
+ * Render the "Available MCP servers (this run)" block injected into the generator prompt in place
+ * of `{{MCP_SERVERS}}`. Lists ONLY the servers actually booted into this run (post connectivity
+ * filter), each with its registry role, so the model grounds on what it can really reach instead
+ * of a static, possibly-dead list. Empty list → a clear "fall back to Read/Glob/Grep" instruction.
+ */
+export function renderAvailableMcpBlock(serverNames: string[]): string {
+  if (serverNames.length === 0) {
+    return "No code-intelligence or documentation MCP servers are connected for this run. Use Read / Glob / Grep to explore the project directly.";
+  }
+  const lines = serverNames.map((name) => {
+    const def = getMCPServer(name);
+    const role = def?.description ?? "configured MCP server";
+    return `- **${name}** (\`mcp__${name}__*\`) — ${role}. Prefer it over raw file reads when it can answer.`;
+  });
+  return [
+    "These code-intelligence / documentation MCP servers are connected and verified for THIS run.",
+    "Use them FIRST when gathering understanding; fall back to Read / Glob / Grep only for what they cannot answer:",
+    "",
+    ...lines,
+  ].join("\n");
 }
 
 /** Stable short hash of the generator prompt (A11) — recorded per run for reproducibility. */
@@ -258,11 +324,50 @@ export interface GenerateSkillsOptions {
   regen?: boolean;
 }
 
+/**
+ * Best-effort `/mcp`-style connectivity precheck. Runs `claude mcp list` in the project and drops
+ * any grounding server reported failed, so we never boot — or tell the model to use — a dead server.
+ * Returns the surviving {servers, allow}. Never throws: if the probe can't run or parses to nothing
+ * useful, the grounding set is returned unfiltered (the strict-config run is still attempted).
+ */
+function filterGroundingByConnectivity(projectRoot: string, grounding: GroundingMcp): GroundingMcp {
+  const names = Object.keys(grounding.servers);
+  if (names.length === 0) return grounding;
+
+  let listOutput: string | null = null;
+  try {
+    listOutput = listMcpServers(projectRoot);
+  } catch {
+    listOutput = null; // probe unavailable (e.g. no claude binary) — keep the full set
+  }
+  if (!listOutput) return grounding;
+
+  const statuses = parseMcpStatuses(listOutput, names);
+  const failed = names.filter((n) => statuses[n] === "failed");
+  if (failed.length === 0) return grounding;
+
+  console.warn(
+    `  ⚠ skill grounding: MCP server(s) not connected (per \`claude mcp list\`) — skipping: ${failed.join(", ")}`,
+  );
+  const servers: Record<string, unknown> = {};
+  for (const [name, cfg] of Object.entries(grounding.servers)) {
+    if (statuses[name] !== "failed") servers[name] = cfg;
+  }
+  const allow = Object.keys(servers).map((n) => `mcp__${n}`);
+  return { servers, allow };
+}
+
 // Run the generation spawn: boot ONLY the configured code-intelligence / documentation MCP servers
-// (from .mcp.json AND .claude/settings.json) via a temp strict config so generation can prefer them,
-// suppress project hooks so Write isn't gated, and clean up the temp config afterward.
+// (from .mcp.json AND .claude/settings.json) that a `claude mcp list` precheck confirms are reachable,
+// via a temp strict config so generation can prefer them; inject the live server list into the prompt
+// ({{MCP_SERVERS}}); suppress project hooks so Write isn't gated; clean up the temp config afterward.
 function runSkillGenClaude(projectRoot: string, prompt: string, opts: GenerateSkillsOptions): ClaudeRunResult {
-  const grounding = opts.useProjectMcp ? buildGroundingMcp(projectRoot) : { servers: {}, allow: [] };
+  const requested = opts.useProjectMcp ? buildGroundingMcp(projectRoot) : { servers: {}, allow: [] };
+  const grounding = filterGroundingByConnectivity(projectRoot, requested);
+  // Resolve the dynamic server slot to the servers that actually survived the connectivity check
+  // (this run only — does NOT affect the prompt hash, which is taken on the un-substituted prompt).
+  const groundedPrompt = prompt.replace("{{MCP_SERVERS}}", renderAvailableMcpBlock(Object.keys(grounding.servers)));
+
   let mcpConfigPath: string | undefined;
   let tmpMcpDir: string | undefined;
   if (Object.keys(grounding.servers).length > 0) {
@@ -271,7 +376,7 @@ function runSkillGenClaude(projectRoot: string, prompt: string, opts: GenerateSk
     fs.writeJsonSync(mcpConfigPath, { mcpServers: grounding.servers });
   }
   try {
-    return runClaudeDetailed(prompt, {
+    return runClaudeDetailed(groundedPrompt, {
       cwd: projectRoot,
       allowedTools: ["Read", "Glob", "Grep", "Write", "Task", ...grounding.allow],
       timeoutMs: skillsTimeoutMs(),

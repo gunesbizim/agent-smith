@@ -2,7 +2,7 @@
 title: Generation & Install
 type: doc
 tags: [agent-smith, generation, scaffold, install, llm]
-updated: 2026-06-29
+updated: 2026-06-30
 ---
 
 # Generation & Install (the `adapt` / `scaffold` / `install` layers)
@@ -110,11 +110,22 @@ grounded in real code.
 > allowlist. `runSkillGenClaude()` (only when `opts.useProjectMcp`) writes those servers to a temp
 > strict `--mcp-config` (created under `os.tmpdir()` as `as-skillgen-mcp-*`, removed in a `finally`),
 > and the allowed-tools list becomes `["Read","Glob","Grep","Write","Task", ...mcp__<server>]`. When
-> no grounding server is configured, generation runs on file tools only. The prompt
-> (`templates/prompts/skill-generator.md`) states an explicit grounding priority —
-> **1. gitnexus** (architecture / call graphs / impact), **2. git-memory** (why code changed),
-> **3. documentation MCP** (obsidian / context7) — with `Read`/`Glob`/`Grep` as the fallback only
-> when no MCP tool can answer or none are configured.
+> no grounding server is configured, generation runs on file tools only.
+>
+> **`/mcp` connectivity precheck + dynamic server list.** Before the (expensive) generation run,
+> `filterGroundingByConnectivity()` calls `listMcpServers()` — a `claude mcp list` in the project,
+> the same health check `/mcp` shows — and `parseMcpStatuses()` classifies each grounding server as
+> `connected` / `failed` / `unknown`. Any server reported **failed** is dropped from both the temp
+> `--mcp-config` and the `mcp__<server>` allowlist (with a `console.warn`), so the model is never told
+> to use a dead server; `unknown` (incl. "pending approval", which strict-config still boots) and
+> `connected` are kept, and the probe is fully best-effort (no `claude`, or unparseable output →
+> keep the full set). The surviving servers are rendered by `renderAvailableMcpBlock()` into the
+> prompt's `{{MCP_SERVERS}}` slot — so `templates/prompts/skill-generator.md` advertises **exactly the
+> servers verified reachable for this run** (each with its registry `description`) instead of a static,
+> possibly-dead list, with `Read`/`Glob`/`Grep` as the fallback. The substitution is done on a local
+> copy inside `runSkillGenClaude()`, so the reproducibility prompt hash (taken on the un-substituted
+> prompt) stays stable across projects. This is the GENERATOR's grounding toolset only — distinct from
+> the runtime MCP-tool steps the output skills keep for their own use.
 
 > **Generation telemetry (#61) — `src/adapt/skillgen-telemetry.ts`.** Because generation runs
 > headless with hooks suppressed, the normal agent-call telemetry hook can't capture it, so the tool

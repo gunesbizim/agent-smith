@@ -176,6 +176,27 @@ function isTimeout(err: unknown): boolean {
   return !!e && (e.signal === "SIGTERM" || e.code === "ETIMEDOUT" || e.killed === true);
 }
 
+// Run `claude mcp list` (in `cwd`, so the project-scoped servers are checked) and return its
+// stdout — the per-server health-check status Claude Code shows for `/mcp`. Best-effort: returns
+// null when the CLI is absent or the call errors with no captured output. `claude mcp list` exits
+// non-zero when a server fails its health check, but still prints the status table to stdout, so
+// the catch path salvages `err.stdout` rather than discarding a perfectly useful result.
+export function listMcpServers(cwd?: string): string | null {
+  try {
+    return execFileSync("claude", ["mcp", "list"], { // NOSONAR — fixed binary + constant args
+      cwd,
+      encoding: "utf-8",
+      timeout: 30_000,
+      maxBuffer: DEFAULT_MAX_BUFFER,
+      shell: CLI_SHELL,
+    });
+  } catch (err) {
+    const e = err as { stdout?: string | Buffer } | null;
+    if (e && e.stdout != null) return e.stdout.toString();
+    return null;
+  }
+}
+
 // Run a single headless `claude -p` prompt and return its stdout, or null on any failure.
 // Thin wrapper over runClaudeDetailed for the many callers that only need the text. When opts.cwd
 // is omitted, runs in a private mkdtemp dir so no repo access and no project hooks/MCP servers boot.

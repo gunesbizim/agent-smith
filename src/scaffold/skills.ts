@@ -12,6 +12,10 @@ function getPackageRoot(): string {
 }
 
 const SKILL_TEMPLATES: Record<string, string> = {
+  // Implementation worker skills — the meat of /as-backend and /as-frontend lives here so the
+  // commands stay thin delegators. Both enforce test-driven design (RED-first, always).
+  "backend/SKILL.md": "templates/skills/backend/SKILL.md",
+  "frontend/SKILL.md": "templates/skills/frontend/SKILL.md",
   "pr-review-backend/SKILL.md": "templates/skills/pr-review-backend/SKILL.md",
   "pr-review-frontend/SKILL.md": "templates/skills/pr-review-frontend/SKILL.md",
   "test-backend/SKILL.md": "templates/skills/test-backend/SKILL.md",

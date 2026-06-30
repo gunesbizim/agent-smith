@@ -63,6 +63,8 @@ export async function doctorCommand(): Promise<void> {
     [".mcp.json", "Project MCP config"],
     [".claude/commands/as-backend.md", "Backend command"],
     [".claude/commands/as-frontend.md", "Frontend command"],
+    [".claude/skills/backend/SKILL.md", "Backend implementation skill"],
+    [".claude/skills/frontend/SKILL.md", "Frontend implementation skill"],
     [".claude/skills/pr-review-backend/SKILL.md", "PR review backend skill"],
     [".claude/skills/docs-frontend/SKILL.md", "Docs frontend skill"],
     [".sentrux/rules.toml", "Sentrux architectural rules"],

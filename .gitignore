@@ -18,6 +18,9 @@ docs/architecture/
 # Runtime engine run logs (transient; events.jsonl is rebuildable, never committed)
 .agent-smith/runs/
 
+# Dashboard lifecycle refcount (transient; written by the dashboard auto-start/stop hooks)
+.agent-smith/dashboard.json
+
 # Temp files
 a
 coverage/

@@ -42,8 +42,8 @@ See `docs/architecture/mcp-tools.md` for exact tool names and signatures.
 
 ```
 git diff origin/main...HEAD --name-only -- {{FRONTEND_DIR}}/views {{FRONTEND_DIR}}/components
-gitnexus_detect_changes()        # map diff to affected flows
-gitnexus_query("ChangedView")    # which user flows pass through the changed view?
+mcp__gitnexus__detect_changes()        # map diff to affected flows
+mcp__gitnexus__query("ChangedView")    # which user flows pass through the changed view?
 ```
 
 Document only flows touched by the diff (unless `$ARGUMENTS = all` → full system guide).

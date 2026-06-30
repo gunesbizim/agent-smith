@@ -39,10 +39,10 @@ Write each test BEFORE the implementation it covers and run it to confirm it FAI
 ## Step 1 — GitNexus code analysis (before writing tests)
 
 ```
-gitnexus_query("TargetComponent")                        # locate component + related symbols
-gitnexus_impact("storeActionOrApiFn")                    # callers — what breaks if this fails?
-gitnexus_context("path/to/component")                    # full component context
-gitnexus_api_impact()                                    # backend endpoints the component consumes
+mcp__gitnexus__query("TargetComponent")                        # locate component + related symbols
+mcp__gitnexus__impact("storeActionOrApiFn")                    # callers — what breaks if this fails?
+mcp__gitnexus__context("path/to/component")                    # full component context
+mcp__gitnexus__api_impact()                                    # backend endpoints the component consumes
 ```
 
 Use the `gitnexus_query` result to identify which props, emits, and store interactions to test. Then call `git-memory.commits_touching_file(<path>)` and `git-memory.bug_fix_history(<component>)` — past regressions in this component surface edge cases (async race conditions, role-gate bypasses, broken i18n keys) that must be covered.

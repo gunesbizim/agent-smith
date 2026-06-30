@@ -47,6 +47,15 @@
   .tool { font-size: 10px; padding: 0 5px; border-radius: 8px; background: var(--panel2); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
   .tool.mcp { color: var(--opus); border-color: var(--opus); font-weight: 600; }
   .mcpbadge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--opus); color: var(--opus); margin-left: 8px; }
+  .errbadge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--fail); color: var(--fail); margin-left: 8px; }
+  .toolfilters input { background: var(--panel2); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font: inherit; font-size: 12px; min-width: 220px; }
+  .toolfilters button.active { border-color: var(--accent); color: var(--accent); }
+  details.toolpanel { margin: 0 18px 12px; }
+  .tool.err { color: var(--fail); border-color: var(--fail); }
+  td.err { color: var(--fail); }
+  .toolname.mcp { color: var(--opus); font-weight: 600; }
+  .runtools { padding: 8px 14px 8px 26px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .runtools .lbl { color: var(--muted); font-size: 11px; margin-right: 4px; }
 </style>
 </head>
 <body>
@@ -56,15 +65,30 @@
   </header>
   <div class="totals" id="totals"></div>
   <div class="filters">
-    <span style="color:var(--muted);font-size:12px">filter:</span>
+    <span style="color:var(--muted);font-size:12px">runs:</span>
     <button data-f="all" class="active">all</button>
     <button data-f="engine">engine</button>
     <button data-f="interactive">interactive</button>
   </div>
+  <div class="filters toolfilters">
+    <span style="color:var(--muted);font-size:12px">tools:</span>
+    <input id="toolq" type="search" placeholder="filter tool name…" autocomplete="off" />
+    <button id="mcpOnly" data-t="mcp">MCP only</button>
+    <button id="errOnly" data-t="err">errors only</button>
+  </div>
+  <details class="run toolpanel" id="toolpanel">
+    <summary>
+      <strong>⚙ Tool calls</strong>
+      <span class="meta" id="toolpanelmeta"></span>
+    </summary>
+    <div class="scroll"><table id="tooltable"><thead><tr>
+      <th>tool</th><th>kind</th><th class="num">calls</th><th class="num">errors</th><th class="num">success</th>
+    </tr></thead><tbody id="tooltablebody"></tbody></table></div>
+  </details>
   <main id="runs"><div class="empty">No runs yet. Start one with <code>agent-smith run &lt;ticket|task&gt;</code>.</div></main>
 
 <script>
-  var state = { runs: [], filter: "all" };
+  var state = { runs: [], filter: "all", toolFilter: { q: "", mcpOnly: false, errorsOnly: false } };
   // Remembers which runs the user manually expanded/collapsed, keyed by runId, so a periodic
   // SSE re-render (which rebuilds the DOM) does not reset the open/closed state of each row.
   var openState = {};
@@ -75,12 +99,66 @@
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
   function modelClass(m){ m=(m||"").toLowerCase(); return m.indexOf("opus")>=0?"opus":m.indexOf("sonnet")>=0?"sonnet":""; }
 
+  function isMcpName(name){ return String(name).indexOf("mcp__")===0; }
+
+  // True when a tool name passes the active tool filter (name search + MCP-only + errors-only).
+  function toolPasses(name, errCount){
+    var tf = state.toolFilter;
+    if(tf.q && String(name).toLowerCase().indexOf(tf.q.toLowerCase())<0) return false;
+    if(tf.mcpOnly && !isMcpName(name)) return false;
+    if(tf.errorsOnly && !(errCount>0)) return false;
+    return true;
+  }
+
+  // Combine each run's toolCalls.byTool/byToolErrors into one aggregate, filtered.
+  function aggregateTools(runs){
+    var byTool={}, byErr={};
+    runs.forEach(function(r){
+      var tc=r.toolCalls||{}; var bt=tc.byTool||{}; var be=tc.byToolErrors||{};
+      Object.keys(bt).forEach(function(k){ byTool[k]=(byTool[k]||0)+bt[k]; });
+      Object.keys(be).forEach(function(k){ byErr[k]=(byErr[k]||0)+be[k]; });
+    });
+    var rows=Object.keys(byTool).filter(function(k){ return toolPasses(k, byErr[k]||0); })
+      .map(function(k){ return { tool:k, calls:byTool[k], errors:byErr[k]||0, mcp:isMcpName(k) }; });
+    rows.sort(function(a,b){ return b.calls-a.calls; });
+    return rows;
+  }
+
+  function renderToolTable(rows){
+    var body=document.getElementById("tooltablebody");
+    var meta=document.getElementById("toolpanelmeta");
+    if(!rows.length){
+      body.innerHTML='<tr><td colspan="5" class="prompt">no tool calls match the filter</td></tr>';
+      meta.textContent='0 tools';
+      return;
+    }
+    var totCalls=0, totErr=0, mcp=0;
+    body.innerHTML=rows.map(function(t){
+      totCalls+=t.calls; totErr+=t.errors; if(t.mcp) mcp+=t.calls;
+      var ok=t.calls-t.errors; var pct=t.calls? Math.round(100*ok/t.calls):0;
+      return '<tr><td class="toolname '+(t.mcp?"mcp":"")+'">'+esc(t.tool)+'</td>'+
+        '<td>'+(t.mcp?"MCP":"built-in")+'</td>'+
+        '<td class="num">'+t.calls+'</td>'+
+        '<td class="num '+(t.errors?"err":"")+'">'+(t.errors||"—")+'</td>'+
+        '<td class="num">'+pct+'%</td></tr>';
+    }).join("");
+    meta.textContent=rows.length+' tools · '+totCalls+' calls · '+mcp+' MCP · '+totErr+' err';
+  }
+
   function render(){
     var runs = state.runs.filter(function(r){ return state.filter==="all" || r.origin===state.filter; });
-    var t = runs.reduce(function(a,r){ a.tokens+=r.totals.tokens; a.cost+=r.totals.costUsd; a.calls+=r.totals.callCount; return a; }, {tokens:0,cost:0,calls:0});
+    var t = runs.reduce(function(a,r){
+      a.tokens+=r.totals.tokens; a.cost+=r.totals.costUsd; a.calls+=r.totals.callCount;
+      var tc=r.toolCalls||{}; a.tools+=tc.total||0; a.mcp+=tc.mcpCount||0; a.err+=tc.errorCount||0;
+      return a;
+    }, {tokens:0,cost:0,calls:0,tools:0,mcp:0,err:0});
     document.getElementById("totals").innerHTML =
-      "calls <b>"+t.calls+"</b>" + " &nbsp;|&nbsp; tokens <b>"+fmtTokens(t.tokens)+"</b>" +
+      "agent calls <b>"+t.calls+"</b>" +
+      " &nbsp;|&nbsp; tool calls <b>"+t.tools+"</b> ("+t.mcp+" MCP · "+t.err+" err)" +
+      " &nbsp;|&nbsp; tokens <b>"+fmtTokens(t.tokens)+"</b>" +
       " &nbsp;|&nbsp; cost <b>"+(t.cost?("$"+t.cost.toFixed(2)):"—")+"</b>" + " &nbsp;|&nbsp; runs <b>"+runs.length+"</b>";
+
+    renderToolTable(aggregateTools(runs));
 
     var main = document.getElementById("runs");
     if(!runs.length){ main.innerHTML = '<div class="empty">No runs yet.</div>'; return; }
@@ -96,8 +174,24 @@
       '<span class="badge '+r.origin+'">'+r.origin+'</span>'+
       '<strong>'+esc(r.ticketId||r.task||r.runId)+'</strong>'+
       '<span class="st '+r.status+'">'+r.status+'</span>'+
-      '<span class="meta">'+r.totals.callCount+' calls · '+fmtTokens(r.totals.tokens)+' tok · '+(r.totals.costUsd?("$"+r.totals.costUsd.toFixed(2)):"—")+' · '+fmtDur(r.totals.wallClockMs)+'</span>'+ mcpBadge(r) +
-      '</summary>'+ (phases || '<div class="phase"><div class="phead">no calls yet</div></div>') +'</details>';
+      '<span class="meta">'+r.totals.callCount+' calls · '+fmtTokens(r.totals.tokens)+' tok · '+(r.totals.costUsd?("$"+r.totals.costUsd.toFixed(2)):"—")+' · '+fmtDur(r.totals.wallClockMs)+'</span>'+ mcpBadge(r) + errBadge(r) +
+      '</summary>'+ renderRunTools(r) + (phases || '<div class="phase"><div class="phead">no calls yet</div></div>') +'</details>';
+  }
+
+  function errBadge(r){ var n=(r.toolCalls&&r.toolCalls.errorCount)||0; return n>0 ? '<span class="errbadge">'+n+' err</span>' : ''; }
+
+  // Per-run tool-call chips from the aggregated tool_call events, honoring the tool filter.
+  function renderRunTools(r){
+    var tc=r.toolCalls||{}; var bt=tc.byTool||{}; var be=tc.byToolErrors||{};
+    var keys=Object.keys(bt).filter(function(k){ return toolPasses(k, be[k]||0); });
+    if(!keys.length) return "";
+    keys.sort(function(a,b){ return bt[b]-bt[a]; });
+    var chips=keys.map(function(k){
+      var err=be[k]||0;
+      var cls="tool"+(isMcpName(k)?" mcp":"")+(err?" err":"");
+      return '<span class="'+cls+'">'+esc(k)+' '+bt[k]+(err?(' ✗'+err):'')+'</span>';
+    });
+    return '<div class="runtools"><span class="lbl">tool calls:</span>'+chips.join("")+'</div>';
   }
 
   function mcpCount(r){
@@ -135,13 +229,23 @@
       '<div class="scroll"><table><thead><tr><th>model</th><th>status</th><th>prompt</th><th class="num">tokens</th><th class="num">cost</th><th class="num">dur</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
   }
 
-  Array.prototype.forEach.call(document.querySelectorAll(".filters button"), function(b){
+  // Run-origin filter (all / engine / interactive).
+  Array.prototype.forEach.call(document.querySelectorAll(".filters button[data-f]"), function(b){
     b.addEventListener("click", function(){
       state.filter = b.getAttribute("data-f");
-      Array.prototype.forEach.call(document.querySelectorAll(".filters button"), function(x){ x.classList.remove("active"); });
+      Array.prototype.forEach.call(document.querySelectorAll(".filters button[data-f]"), function(x){ x.classList.remove("active"); });
       b.classList.add("active");
       render();
     });
+  });
+
+  // Tool-call filters: name search + MCP-only + errors-only toggles.
+  document.getElementById("toolq").addEventListener("input", function(e){ state.toolFilter.q = e.target.value; render(); });
+  document.getElementById("mcpOnly").addEventListener("click", function(){
+    state.toolFilter.mcpOnly = !state.toolFilter.mcpOnly; this.classList.toggle("active", state.toolFilter.mcpOnly); render();
+  });
+  document.getElementById("errOnly").addEventListener("click", function(){
+    state.toolFilter.errorsOnly = !state.toolFilter.errorsOnly; this.classList.toggle("active", state.toolFilter.errorsOnly); render();
   });
 
   // Persist manual expand/collapse across re-renders. `toggle` does not bubble, so listen in the

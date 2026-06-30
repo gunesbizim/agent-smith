@@ -50,10 +50,16 @@ export interface ToolCallsAggregation {
   total: number;
   /** Total MCP tool calls (isMcp === true). */
   mcpCount: number;
+  /** Total tool calls that ended in error (status === "error"). Powers success-rate analysis. */
+  errorCount: number;
   /** Calls keyed by full tool name. */
   byTool: Record<string, number>;
+  /** Error counts keyed by full tool name (only failing calls contribute). */
+  byToolErrors: Record<string, number>;
   /** Calls keyed by MCP server segment (only MCP calls contribute). */
   byServer: Record<string, number>;
+  /** Error counts keyed by MCP server segment (only failing MCP calls contribute). */
+  byServerErrors: Record<string, number>;
 }
 
 export interface DashboardSnapshot {

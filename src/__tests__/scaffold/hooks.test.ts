@@ -35,6 +35,11 @@ describe("buildHookConfig", () => {
     expect(cfg.Stop![0].hooks[0].command).toContain("stop-change-detector.js");
   });
 
+  it("registers the SessionStart dashboard auto-start and SessionEnd auto-stop hooks", () => {
+    expect(cfg.SessionStart![0].hooks.some((h) => h.command.includes("session-start-dashboard.js"))).toBe(true);
+    expect(cfg.SessionEnd![0].hooks[0].command).toContain("session-end-dashboard.js");
+  });
+
   it("registers the PreCompact handoff-snapshot hook", () => {
     expect(cfg.PreCompact![0].hooks[0].command).toContain("pre-compact-handoff.js");
   });

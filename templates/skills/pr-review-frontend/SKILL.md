@@ -41,11 +41,11 @@ that ship without test coverage (including role-gated rendering) are a blocker, 
 ## Step 1 — GitNexus impact analysis
 
 ```
-gitnexus_detect_changes()                              # map diff to affected flows
-gitnexus_query("TargetViewOrComponent")                # locate component + related symbols
-gitnexus_context("path/to/component")                  # full component context
-gitnexus_api_impact()                                  # backend endpoints consumed
-gitnexus_impact("storeActionOrApiFn")                  # callers of changed actions/fns
+mcp__gitnexus__detect_changes()                              # map diff to affected flows
+mcp__gitnexus__query("TargetViewOrComponent")                # locate component + related symbols
+mcp__gitnexus__context("path/to/component")                  # full component context
+mcp__gitnexus__api_impact()                                  # backend endpoints consumed
+mcp__gitnexus__impact("storeActionOrApiFn")                  # callers of changed actions/fns
 ```
 
 ---

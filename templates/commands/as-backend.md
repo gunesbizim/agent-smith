@@ -49,15 +49,15 @@ Execute the plan in order. Do not skip this step.
 ## Step 1 — GitNexus analysis (mandatory before reading any file)
 
 ```
-gitnexus_query("affected concept")        # execution flows + related symbols
-gitnexus_impact("SymbolBeingChanged")     # callers + callees at d=1/d=2/d=3
-gitnexus_context("path/to/module")        # 360° view: callers, callees, processes
-gitnexus_detect_changes()                 # map current git diff to affected flows
+mcp__gitnexus__query("affected concept")        # execution flows + related symbols
+mcp__gitnexus__impact("SymbolBeingChanged")     # callers + callees at d=1/d=2/d=3
+mcp__gitnexus__context("path/to/module")        # 360° view: callers, callees, processes
+mcp__gitnexus__detect_changes()                 # map current git diff to affected flows
 ```
 
 **Rules:**
-- Call `gitnexus_impact` on **every symbol being deleted, renamed, or having its signature changed**.
-- Call `gitnexus_query` on the feature area before reading any source file.
+- Call `mcp__gitnexus__impact` on **every symbol being deleted, renamed, or having its signature changed**.
+- Call `mcp__gitnexus__query` on the feature area before reading any source file.
 - If the index is stale, run `npx gitnexus analyze` first.
 
 ---
@@ -87,10 +87,10 @@ To catch errors after editing, run the type-check gate: `{{BACKEND_TYPE_CHECK_CM
 ## Step 3 — Historical investigation (when touching prior-fixed code)
 
 ```
-commits_touching_file("path/to/file", limit=10)   # all prior changes
-search_git_history("topic or bug description", limit=8)  # semantic search
-bug_fix_history("component name", limit=8)               # fix/security commits
-architecture_decisions("design topic", limit=5)          # why this design?
+mcp__git-memory__commits_touching_file("path/to/file", limit=10)   # all prior changes
+mcp__git-memory__search_git_history("topic or bug description", limit=8)  # semantic search
+mcp__git-memory__bug_fix_history("component name", limit=8)               # fix/security commits
+mcp__git-memory__architecture_decisions("design topic", limit=5)          # why this design?
 ```
 
 ---
@@ -119,7 +119,7 @@ All gates must pass with zero errors.
 
 1. List all files created or modified.
 2. Show verification command outputs.
-3. Report `gitnexus_detect_changes()` findings.
+3. Report `mcp__gitnexus__detect_changes()` findings.
 4. Summarize endpoints implemented: HTTP verb + path + roles.
 5. Summarize migrations created (if any).
 6. Call the **test skill** if new service methods were added.

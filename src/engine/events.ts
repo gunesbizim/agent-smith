@@ -10,8 +10,8 @@ export const EVENT_SCHEMA_VERSION = 1;
 /** TDD-first phase vocabulary the runtime engine speaks. */
 export type TddPhase = "understand" | "red" | "plan" | "code" | "review" | "pr";
 
-/** Model alias recorded on a call. Open string so full ids ("claude-opus-4-8") pass through. */
-export type AgentModel = "opus" | "sonnet" | "haiku" | "fable" | (string & {});
+/** Model alias recorded on a call. Open string so full ids ("claude-opus-4-8", "claude-sonnet-5") pass through. */
+export type AgentModel = "opus" | "sonnet" | "claude-sonnet-5" | "haiku" | "fable" | (string & {});
 
 export type EngineEventType =
   | "run_started"

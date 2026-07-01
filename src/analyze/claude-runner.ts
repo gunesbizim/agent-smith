@@ -46,7 +46,7 @@ export interface ClaudeRunOptions {
   // dir, so it would otherwise load .claude/settings.json hooks (sentrux gate, git guard,
   // doctor SessionStart) which can block/slow the model's Write calls. Overrides hooks to {}.
   suppressHooks?: boolean;
-  // Model alias or full id ("opus" | "sonnet" | "haiku" | "fable" | "claude-..."). When set,
+  // Model alias or full id ("opus" | "sonnet" | "haiku" | "fable" | "claude-...", e.g. "claude-sonnet-5"). When set,
   // adds `--model <model>`. Omit to use the CLI's configured default (preserves every existing
   // detection/generation call). The runtime engine uses this for model routing: opus = plan/think,
   // sonnet = code.

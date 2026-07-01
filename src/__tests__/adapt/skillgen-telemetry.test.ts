@@ -25,7 +25,7 @@ beforeEach(() => {
   fs.writeFileSync(path.join(pdir, `${SID}.jsonl`), [jline("claude-opus-4-8", ["Read", "Task", "Task"])].join("\n"));
   fs.writeFileSync(
     path.join(pdir, SID, "subagents", "agent-aaa.jsonl"),
-    [jline("claude-sonnet-4-6", ["Read", "Read", "mcp__git-memory__search_git_history", "mcp__gitnexus__impact"])].join("\n"),
+    [jline("claude-sonnet-5", ["Read", "Read", "mcp__git-memory__search_git_history", "mcp__gitnexus__impact"])].join("\n"),
   );
 });
 afterEach(() => {
